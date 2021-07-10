@@ -19,7 +19,7 @@ import nibabel as nib
 # variant:   1 - png,  2 - numpy,   3 - mat
 variant = 1
 dir_nameoutput = 'dataset_exported_png' #change it into png or npy based on the type you want to extract the data
-imshow_data = 0  # show th eplots ere to: 0-no  1-yes
+imshow_data = 0  # show the plots here to: 0-no  1-yes
 dir_name = 'dataset'
 dir_sep = '/'
 dir_top = '.' + dir_sep + dir_name
