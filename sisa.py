@@ -443,47 +443,47 @@ class SISANet(nn.Module):
         self.n_channels = n_channels
         self.n_classes = n_classes
         
-        self.outc = OutConv(52, n_classes)
-        self.incfin = DoubleConv(52, 52)
+        self.outc = OutConv(128, n_classes)
+        self.incfin = DoubleConv(20, 128)
         # self.incfin1 = DoubleConv(60, 60)
         
       
    
      
-        self.pool1=DownConv(n_channels,256,16)
-        self.inc1 = DoubleConv(256, 256)#SpatialAttention(512)#DoubleConv(n_channels, 512)
+        self.pool1=DownConv(n_channels,n_channels,16)
+        self.inc1 = DoubleConv(4, 512)#SpatialAttention(512)#DoubleConv(n_channels, 512)
         # self.inc11 = DoubleConv(512, 512)#SpatialAttention(512)# 
-        self.squeeze1=OutConv(256,8)
+        self.squeeze1=OutConv(512,4)
         self.up1 = Up(16)
         
-        self.pool2=DownConv(n_channels,192,12)#AMpool(8)
-        self.inc2=DoubleConv(192, 192)#SpatialAttention(256)#DoubleConv(n_channels*2, 256)
+        self.pool2=DownConv(n_channels,n_channels,8)#AMpool(8)
+        self.inc2=DoubleConv(4, 256)#SpatialAttention(256)#DoubleConv(n_channels*2, 256)
         # self.inc22 = DoubleConv(256, 256)#SpatialAttention(256)#DoubleConv(256, 256) 
-        self.squeeze2=OutConv(192,8)
-        self.up2 = Up(12)
+        self.squeeze2=OutConv(256,4)
+        self.up2 = Up(8)
         
-        self.pool3=DownConv(n_channels,128,8)
-        self.inc3=DoubleConv(128, 128)#SpatialAttention(128)#DoubleConv(n_channels*2, 128)
+        self.pool3=DownConv(n_channels,n_channels,4)
+        self.inc3=DoubleConv(4, 128)#SpatialAttention(128)#DoubleConv(n_channels*2, 128)
         # self.inc33=DoubleConv(128, 128)#SpatialAttention(128)#
-        self.squeeze3=OutConv(128,8)
-        self.up3 = Up(8)
+        self.squeeze3=OutConv(128,4)
+        self.up3 = Up(4)
         
-        self.pool4=DownConv(n_channels,96,6)
-        self.inc4=DoubleConv(96, 96)#SpatialAttention(64)#
+        self.pool4=DownConv(n_channels,n_channels,2)
+        self.inc4=DoubleConv(4, 64)#SpatialAttention(64)#
         # self.inc44=DoubleConv(64, 64)#SpatialAttention(64)#
-        self.squeeze4=OutConv(96,8)
-        self.up4=Up(6)
+        self.squeeze4=OutConv(64,4)
+        self.up=Up(2)
         
-        self.pool5=DownConv(n_channels,64,4)
-        self.inc5=DoubleConv(64, 64)#SpatialAttention(64)#
+        # self.pool5=DownConv(n_channels,64,4)
+        # self.inc5=DoubleConv(64, 64)#SpatialAttention(64)#
         # self.inc44=DoubleConv(64, 64)#SpatialAttention(64)#
-        self.squeeze5=OutConv(64,8)
-        self.up5=Up(4)
+        # self.squeeze5=OutConv(64,8)
+        # self.up5=Up(4)
         
-        self.pool6=DownConv(n_channels,32,2)
-        self.inc6=DoubleConv(32, 32)#
-        self.squeeze6=OutConv(32,8)
-        self.up6=Up(2)
+        # self.pool6=DownConv(n_channels,32,2)
+        # self.inc6=DoubleConv(32, 32)#
+        # self.squeeze6=OutConv(32,8)
+        # self.up6=Up(2)
        
         
 
@@ -491,38 +491,39 @@ class SISANet(nn.Module):
        
         x1p = self.pool1(x)
         x1 = self.inc1(x1p)
-        x1=self.up1(x1)
+        x1=self.up(x1)
         x1=self.squeeze1(x1)
+        # x1=self.up(x1)
         # print(x1.shape)
         
         x2p = self.pool2(x)
         x2 = self.inc2(x2p)
-        x2=self.up2(x2)
+        x2=self.up(x2)
         x2=self.squeeze2(x2)
         # print(x2.shape)
         
         x3p = self.pool3(x)
         x3 = self.inc3(x3p)
-        x3=self.up3(x3)
+        x3=self.up(x3)
         x3=self.squeeze3(x3)
         # print(x3.shape)
         
         x4p = self.pool4(x)
         x4 = self.inc4(x4p)
-        x4=self.up4(x4)
+        x4=self.up(x4)
         x4=self.squeeze4(x4)
         # print(x4.shape)
         
-        x5p = self.pool5(x)
-        x5 = self.inc5(x5p)
-        x5=self.up5(x5)
-        x5=self.squeeze5(x5)
+        # x5p = self.pool5(x)
+        # x5 = self.inc5(x5p)
+        # x5=self.up5(x5)
+        # x5=self.squeeze5(x5)
         # print(x5.shape)
         
-        x6p = self.pool6(x)
-        x6 = self.inc6(x6p)
-        x6=self.up6(x6)
-        x6=self.squeeze6(x6)
+        # x6p = self.pool6(x)
+        # x6 = self.inc6(x6p)
+        # x6=self.up6(x6)
+        # x6=self.squeeze6(x6)
         # print(x6.shape)
                
                 
@@ -549,17 +550,17 @@ class SISANet(nn.Module):
         
         
         # x4=self.up(x4)
-        # x1_fin=self.up(self.up(self.up(x1)))
-        # x2_fin=self.up(self.up(x2))
-        # x3_fin=self.up(x3)
+        x1_fin=self.up(self.up(self.up(x1)))
+        x2_fin=self.up(self.up(x2))
+        x3_fin=self.up(x3)
         
-        # xout = torch.cat((x4,x),dim=1)
-        # xout = torch.cat((x4,x1_fin),dim=1)
-        # xout=torch.cat((xout,x2_fin),dim=1)
-        # xout=torch.cat((xout,x3_fin),dim=1)
-        # xout=torch.cat((xout,x),dim=1)
+        xout = torch.cat((x4,x),dim=1)
+        xout = torch.cat((x4,x1_fin),dim=1)
+        xout=torch.cat((xout,x2_fin),dim=1)
+        xout=torch.cat((xout,x3_fin),dim=1)
+        xout=torch.cat((xout,x),dim=1)
         
-        xout=torch.cat((x,x1,x2,x3,x4,x5,x6),dim=1)
+        # xout=torch.cat((x,x1,x2,x3,x4),dim=1)
         xout = self.incfin(xout)
         # xout = self.incfin1(xout)
         logits = self.outc(xout)
