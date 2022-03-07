@@ -72,6 +72,9 @@ args=parser.parse_args()
 print(' '.join(sys.argv))
 
 set_determinism(seed=0)
+torch.manual_seed(0)
+np.random.seed(0)
+os.environ['PYTHONHASHSEED']=str(0)
 
 class ResBlock(torch.nn.Module):
     def __init__(self, module):
@@ -622,10 +625,10 @@ class DoubleConv(nn.Module):
 
     def forward(self, x):
         
-        if self.in_channels==self.out_channels:
-            x=self.double_conv(x)+x
-        else:
-            x=self.double_conv(x)
+        # if self.in_channels==self.out_channels:
+            # x=self.double_conv(x)+x
+        # else:
+        x=self.double_conv(x)
         return x
         
 class DownConv(nn.Module):
