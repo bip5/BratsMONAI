@@ -39,7 +39,7 @@ from monai.losses import DiceLoss
 from monai.utils import UpsampleMode
 from monai.data import decollate_batch, list_data_collate
 
-from monai.networks.nets import SegResNet
+from monai.networks.nets import SegResNet, UNet
 from monai.metrics import DiceMetric
 from monai.inferers import sliding_window_inference
 from monai.data import DataLoader
@@ -53,6 +53,7 @@ import time
 import argparse
 from torchsummary import summary
 import torch.nn.functional as F
+from torch.utils.data import Subset
 
 parser=argparse.ArgumentParser(description="Monai Seg main")
 
@@ -66,6 +67,8 @@ parser.add_argument("--upsample", default="DECONV",type=str, help="flag to choos
 parser.add_argument("--barlow_final",default=1, type=int, help="flag to use checkpoint instead of final model for barlow")
 parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
 parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
+parser.add_argument("--fold_num",default=1,type=str,help="cross-validation fold number")
+parser.add_argument("--CV_fold",default=0,type=bool,help="is this a cross validation fold? 1=yes")
 
 args=parser.parse_args()
 
@@ -196,10 +199,10 @@ class wOutConv(nn.Module):
 
 
 
-
+    
         
 
-class UNet(nn.Module):
+class manUNet(nn.Module):
     def __init__(self, n_channels, n_classes, bilinear=False):
         super(UNet, self).__init__()
         self.n_channels = n_channels
@@ -447,46 +450,47 @@ class SISANet(nn.Module):
         self.n_classes = n_classes
         
         self.outc = OutConv(128, n_classes)
-        self.incfin = DoubleConv(20, 128)
+        self.incfin = DoubleConv(44, 128)
         # self.incfin1 = DoubleConv(60, 60)
         
       
    
-     
+        self.up=Up(2)
         self.pool1=DownConv(n_channels,n_channels,16)
-        self.inc1 = DoubleConv(4, 512)#SpatialAttention(512)#DoubleConv(n_channels, 512)
+        self.inc1 = DoubleConv(4, 4)#SpatialAttention(512)#DoubleConv(n_channels, 512)
         # self.inc11 = DoubleConv(512, 512)#SpatialAttention(512)# 
-        self.squeeze1=OutConv(512,4)
+        self.squeeze1=OutConv(8,4)
         self.up1 = Up(16)
         
         self.pool2=DownConv(n_channels,n_channels,8)#AMpool(8)
-        self.inc2=DoubleConv(4, 256)#SpatialAttention(256)#DoubleConv(n_channels*2, 256)
+        self.inc2=DoubleConv(4, 4)#SpatialAttention(256)#DoubleConv(n_channels*2, 256)
         # self.inc22 = DoubleConv(256, 256)#SpatialAttention(256)#DoubleConv(256, 256) 
-        self.squeeze2=OutConv(256,4)
+        self.squeeze2=OutConv(260,4)
         self.up2 = Up(8)
         
         self.pool3=DownConv(n_channels,n_channels,4)
-        self.inc3=DoubleConv(4, 128)#SpatialAttention(128)#DoubleConv(n_channels*2, 128)
+        self.inc3=DoubleConv(4, 4)#SpatialAttention(128)#DoubleConv(n_channels*2, 128)
         # self.inc33=DoubleConv(128, 128)#SpatialAttention(128)#
-        self.squeeze3=OutConv(128,4)
+        self.squeeze3=OutConv(132,4)
         self.up3 = Up(4)
         
-        self.pool4=DownConv(n_channels,n_channels,2)
-        self.inc4=DoubleConv(4, 64)#SpatialAttention(64)#
+        self.pool4=DownConv(n_channels,n_channels,3)
+        self.inc4=DoubleConv(4, 4)#SpatialAttention(64)#
         # self.inc44=DoubleConv(64, 64)#SpatialAttention(64)#
-        self.squeeze4=OutConv(64,4)
-        self.up=Up(2)
+        self.squeeze4=OutConv(100,4)
+        self.up4=Up(3)
         
-        # self.pool5=DownConv(n_channels,64,4)
-        # self.inc5=DoubleConv(64, 64)#SpatialAttention(64)#
+        
+        self.pool5=DownConv(n_channels,n_channels,2)
+        self.inc5=DoubleConv(4, 4)#SpatialAttention(64)#
         # self.inc44=DoubleConv(64, 64)#SpatialAttention(64)#
-        # self.squeeze5=OutConv(64,8)
-        # self.up5=Up(4)
+        self.squeeze5=OutConv(68,4)
+        self.up5=Up(4)
         
-        # self.pool6=DownConv(n_channels,32,2)
-        # self.inc6=DoubleConv(32, 32)#
-        # self.squeeze6=OutConv(32,8)
-        # self.up6=Up(2)
+        self.pool6=DownConv(n_channels,n_channels,12)
+        self.inc6=DoubleConv(4, 4)#
+        self.squeeze6=OutConv(32,8)
+        self.up6=Up(12)
        
         
 
@@ -494,38 +498,48 @@ class SISANet(nn.Module):
        
         x1p = self.pool1(x)
         x1 = self.inc1(x1p)
+        x1=torch.cat((x1p,x1),dim=1)
         x1=self.up(x1)
-        x1=self.squeeze1(x1)
+        # x1=self.squeeze1(x1)
+        
         # x1=self.up(x1)
         # print(x1.shape)
         
         x2p = self.pool2(x)
         x2 = self.inc2(x2p)
+        x2=torch.cat((x2p,x2),dim=1)
         x2=self.up(x2)
-        x2=self.squeeze2(x2)
+        # x2=self.squeeze2(x2)
+        
         # print(x2.shape)
         
         x3p = self.pool3(x)
         x3 = self.inc3(x3p)
+        x3=torch.cat((x3p,x3),dim=1)
         x3=self.up(x3)
-        x3=self.squeeze3(x3)
+        # x3=self.squeeze3(x3)
+        
         # print(x3.shape)
         
         x4p = self.pool4(x)
         x4 = self.inc4(x4p)
-        x4=self.up(x4)
-        x4=self.squeeze4(x4)
+        x4=torch.cat((x4p,x4),dim=1)
+        x4=self.up4(x4)
+        # x4=self.squeeze4(x4)
+        
         # print(x4.shape)
         
-        # x5p = self.pool5(x)
-        # x5 = self.inc5(x5p)
-        # x5=self.up5(x5)
+        x5p = self.pool5(x)
+        x5 = self.inc5(x5p)
+        x5=torch.cat((x5p,x5),dim=1)
+        x5=self.up(x5)
         # x5=self.squeeze5(x5)
         # print(x5.shape)
         
-        # x6p = self.pool6(x)
-        # x6 = self.inc6(x6p)
-        # x6=self.up6(x6)
+        x6p = self.pool6(x)
+        x6 = self.inc6(x6p)
+        x6=torch.cat((x6p,x6),dim=1)
+        x6=self.up6(x6)
         # x6=self.squeeze6(x6)
         # print(x6.shape)
                
@@ -557,13 +571,13 @@ class SISANet(nn.Module):
         x2_fin=self.up(self.up(x2))
         x3_fin=self.up(x3)
         
-        xout = torch.cat((x4,x),dim=1)
-        xout = torch.cat((x4,x1_fin),dim=1)
-        xout=torch.cat((xout,x2_fin),dim=1)
-        xout=torch.cat((xout,x3_fin),dim=1)
-        xout=torch.cat((xout,x),dim=1)
+        # xout = torch.cat((x5,x),dim=1)
+        # xout = torch.cat((x4,x1_fin),dim=1)
+        # xout=torch.cat((xout,x2_fin),dim=1)
+        # xout=torch.cat((xout,x3_fin),dim=1)
+        # xout=torch.cat((xout,x),dim=1)
         
-        # xout=torch.cat((x,x1,x2,x3,x4),dim=1)
+        xout=torch.cat((x,x1_fin,x2_fin,x3_fin,x4,x5),dim=1)
         xout = self.incfin(xout)
         # xout = self.incfin1(xout)
         logits = self.outc(xout)
@@ -635,11 +649,10 @@ class DownConv(nn.Module):
     
     def __init__(self, in_channels, out_channels, factor, mid_channels=None):
         super(DownConv,self).__init__()
-        if not mid_channels:
-            mid_channels = out_channels
+        
         self.down_conv = nn.Sequential(
-            nn.Conv3d(in_channels, mid_channels, kernel_size=factor,stride=factor, padding=0, bias=False,groups=1),
-            nn.BatchNorm3d(mid_channels),
+            nn.Conv3d(in_channels, out_channels, kernel_size=factor,stride=factor, padding=0, bias=False,groups=1),
+            nn.BatchNorm3d(out_channels),
             nn.ReLU(inplace=True)
         
         )
@@ -721,7 +734,15 @@ class ConvertToMultiChannelBasedOnBratsClassesd(MapTransform):
             result.append(d[key] == 2)
             d[key] = np.stack(result, axis=0).astype(np.float32)
         return d
-            
+
+
+indexes=np.arange(100)
+
+for i in range(1,11):
+    if i==int(args.fold_num):
+        val_indices=indexes[(i-1)*10:i*10]
+        train_indices=np.delete(indexes,val_indices)
+           
 class BratsDataset(Dataset):
     def __init__(self,data_dir,transform=None):
         self.image_list=make_dataset(data_dir)[0]  
@@ -746,8 +767,10 @@ class BratsDataset(Dataset):
             
         
         return item_dict
-    
-    
+
+
+
+
     
 KEYS=("image","mask")
 print("Transforms not defined yet")
@@ -791,8 +814,13 @@ val_transform = Compose(
 )
 
 #dataset=DecathlonDataset(root_dir="./", task="Task05_Prostate",section="training", transform=xform, download=True)
-train_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform )
+train_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
+
 val_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_ValidationData",transform=val_transform)
+
+if args.CV_fold==1:
+    train_dataset=Subset(train_dataset,train_indices)
+    val_dataset=Subset(train_dataset,val_indices)
 train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 val_loader=DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
 print("All Datasets assigned")
@@ -805,7 +833,29 @@ VAL_AMP = True
 
 # standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
 device = torch.device("cuda:0")
-model = locals() [args.model](4,3).to(device)
+
+if args.model=="UNet":
+ model=UNet(
+    spatial_dims=3,
+    in_channels=4,
+    out_channels=3,
+    channels=(64,128,256,512,1024),
+    strides=(2,2,2,2)
+    ).to(device)
+elif args.model=="SegResNet":
+    model = SegResNet(
+    blocks_down=[1, 2, 2, 4],
+    blocks_up=[1, 1, 1],
+    init_filters=32,
+    norm="instance",
+    in_channels=4,
+    out_channels=3,
+    upsample_mode=UpsampleMode[args.upsample]
+    
+    ).to(device)
+
+else:
+    model = locals() [args.model](4,3).to(device)
 
 with torch.cuda.amp.autocast():
     summary(model,(4,192,192,144))
@@ -925,7 +975,7 @@ for epoch in range(max_epochs):
                 best_metrics_epochs_and_time[2].append(time.time() - total_start)
                 torch.save(
                     model.state_dict(),
-                    os.path.join(root_dir, date.today().isoformat()+'T'+str(datetime.today().hour)+ args.save_name),
+                    os.path.join(root_dir, date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+str(args.fold_num)),
                 )
                 print("saved new best metric model")
             print(
