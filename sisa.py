@@ -451,8 +451,8 @@ class SISANet(nn.Module):
         self.n_channels = n_channels
         self.n_classes = n_classes
         
-        self.outc = OutConv(9, n_classes)
-        self.incfin = DoubleConv(24, 9)
+        self.outc = OutConv(24, n_classes)
+        self.incfin = DoubleConv(24, 24)
         self.res=Residual()
         self.emul=EMul()
         # self.incfin1 = DoubleConv(60, 60)
@@ -467,62 +467,63 @@ class SISANet(nn.Module):
         self.pool5=DownConv(n_channels,4,2)
         
         self.inc = DoubleConv(4, 256)
-        self.squeeze=OutConv(256,4)
+        self.squeeze=OutConv(260,4)
         
 
        
         
 
     def forward(self, x):
-        d1,d2,d3,d4,d5=x.shape
+        # d1,d2,d3,d4,d5=x.shape
        
-        x1p = torch.ones(d1,d2,int(d3/16),int(d4/16),int(d5/16)).to(device)
+        x1p = self.pool1(x)
         x1 = self.inc(x1p)
-        # x1=torch.cat((x1p,x1),dim=1)        
+        x1=torch.cat((x1p,x1),dim=1)        
         x1=self.squeeze(x1)
         x1=self.up(x1)
-        x1=self.res(x) + x1 #residual connection
+        # x1=self.res(x) + x1 #residual connection
         
         
                
         
-        x2p = torch.ones(d1,d2,int(d3/8),int(d4/8),int(d5/8)).to(device)
+        x2p =self.pool2(x)
         x2 = self.inc(x2p)
-        # x2=torch.cat((x2p,x2),dim=1)
+        x2=torch.cat((x2p,x2),dim=1)
         x2=self.squeeze(x2)
         x2=self.up(x2)
-        x2=self.res(x)+ x2
+        # x2=self.res(x)+ x2
         
         
         
         # x3=self.emul(x)* x2
         
-        x3p = torch.ones(d1,d2,int(d3/4),int(d4/4),int(d5/4)).to(device)
+        x3p = self.pool3(x)
         x3 = self.inc(x3p)
-        # x3=torch.cat((x3p,x3),dim=1)
+        x3=torch.cat((x3p,x3),dim=1)
         x3=self.squeeze(x3)
         x3=self.up(x3)
-        x3=self.res(x)+ x3
+        # x3=self.res(x)+ x3
         
         
         
         # x4=self.emul(x) * x3
         
-        x4p = torch.ones(d1,d2,int(d3/3),int(d4/3),int(d5/3)).to(device)
+        x4p = self.pool4(x)
         x4 = self.inc(x4p)
-        # x4=torch.cat((x4p,x4),dim=1)
+        x4=torch.cat((x4p,x4),dim=1)
         x4=self.squeeze(x4)
         x4=self.up(x4)
-        x4=self.res(x4)+ x
+        # x4=self.res(x4)+ x
         
         
         # x5=self.emul(x)* x4
         
-        x5p = torch.ones(d1,d2,int(d3/2),int(d4/2),int(d5/2)).to(device)
-        x5 = self.inc(x5p)      
+        x5p = self.pool5(x)
+        x5 = self.inc(x5p) 
+        x5=torch.cat((x5p,x5),dim=1)
         x5=self.squeeze(x5)
         x5=self.up(x5)        
-        x5=self.res(x5)+x
+        # x5=self.res(x5)+x
         
         
         # x6p = self.pool6(x)
