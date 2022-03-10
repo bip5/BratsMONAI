@@ -451,14 +451,11 @@ class SISANet(nn.Module):
         self.n_channels = n_channels
         self.n_classes = n_classes
         
-        self.outc = OutConv(24, n_classes)
-        self.incfin = DoubleConv(24, 24)
+        self.outc = OutConv(9, n_classes)
+        self.incfin = DoubleConv(24, 9)
         self.res=Residual()
-        self.emul=EMul()
-        # self.incfin1 = DoubleConv(60, 60)
-        
-      
-   
+        self.emul=EMul()     
+         
         self.up=UptoShape([192,192,144])
         self.pool1=DownConv(n_channels,4,16)
         self.pool2=DownConv(n_channels,4,8)
@@ -467,110 +464,52 @@ class SISANet(nn.Module):
         self.pool5=DownConv(n_channels,4,2)
         
         self.inc = DoubleConv(4, 256)
-        self.squeeze=OutConv(260,4)
-        
+        self.squeeze=OutConv(260,4)       
+      
 
-       
-        
-
-    def forward(self, x):
-        # d1,d2,d3,d4,d5=x.shape
-       
+    def forward(self, x):   
         x1p = self.pool1(x)
         x1 = self.inc(x1p)
         x1=torch.cat((x1p,x1),dim=1)        
         x1=self.squeeze(x1)
         x1=self.up(x1)
-        # x1=self.res(x) + x1 #residual connection
-        
-        
-               
-        
+        # x1=self.res(x) + x1 #residual connection  
+                  
         x2p =self.pool2(x)
         x2 = self.inc(x2p)
         x2=torch.cat((x2p,x2),dim=1)
         x2=self.squeeze(x2)
         x2=self.up(x2)
-        # x2=self.res(x)+ x2
+        # x2=self.res(x)+ x2      
         
         
-        
-        # x3=self.emul(x)* x2
-        
+        # x3=self.emul(x)* x2       
         x3p = self.pool3(x)
         x3 = self.inc(x3p)
         x3=torch.cat((x3p,x3),dim=1)
         x3=self.squeeze(x3)
         x3=self.up(x3)
-        # x3=self.res(x)+ x3
+        # x3=self.res(x)+ x3      
         
         
-        
-        # x4=self.emul(x) * x3
-        
+        # x4=self.emul(x) * x3        
         x4p = self.pool4(x)
         x4 = self.inc(x4p)
         x4=torch.cat((x4p,x4),dim=1)
         x4=self.squeeze(x4)
         x4=self.up(x4)
-        # x4=self.res(x4)+ x
+        # x4=self.res(x4)+ x        
         
-        
-        # x5=self.emul(x)* x4
-        
+        # x5=self.emul(x)* x4        
         x5p = self.pool5(x)
         x5 = self.inc(x5p) 
         x5=torch.cat((x5p,x5),dim=1)
         x5=self.squeeze(x5)
         x5=self.up(x5)        
-        # x5=self.res(x5)+x
-        
-        
-        # x6p = self.pool6(x)
-        # x6 = self.inc6(x6p)
-        # x6=torch.cat((x6p,x6),dim=1)
-        # x6=self.up(x6)
-        # x6=self.squeeze6(x6)
-        # print(x6.shape)
-               
-                
-        
-        # x2p = self.pool2(x) 
-        # x2=self.inc2(x2p)
-    
-        
-        # x2=self.up(x2)
-        
-        
-        # x3p=self.pool3(x)
- 
-        # x3=self.inc3(x3p)
-        # x3=self.inc33(x3)
-   
-        # x3=self.up(x3)   
-        
-        # x4p = self.pool4(x) 
-   
-        # x4=self.inc4(x4p)
-        # x4=self.inc44(x4)
-
-        
-        
-        # x4=self.up(x4)
-        # x1_fin=self.up(self.up(self.up(x1)))
-        # x2_fin=self.up(self.up(x2))
-        # x3_fin=self.up(x3)
-        
-        # xout = torch.cat((x5,x),dim=1)
-        # xout = torch.cat((x4,x1_fin),dim=1)
-        # xout=torch.cat((xout,x2_fin),dim=1)
-        # xout=torch.cat((xout,x3_fin),dim=1)
-        # xout=torch.cat((xout,x),dim=1)
-        # x_conv = self.inc1(x)
-        
+        # x5=self.res(x5)+x      
+          
         xout=torch.cat((x,x1,x2,x3,x4,x5),dim=1)
-        xout = self.incfin(xout)
-        # xout = self.incfin1(xout)
+        xout = self.incfin(xout)     
         logits = self.outc(xout)
         
         return logits
@@ -614,15 +553,15 @@ class UptoShape(nn.Module):
     def forward(self,x):
         x=self.up(x)
         return x
-    
-    def forward(self,y):
-        # dim_x=y.shape[-3]*2
-        # dim_y=y.shape[-2]*2
-        # dim_z=y.shape[-1]*2        
-        # y=nn.AdaptiveMaxPool3d((dim_x,dim_y,dim_z))(y)
-        y=self.up(y)
-        
-        return y
+
+class UpConv(nn.Module):
+    def __init__(self,in_chan,out_chan,factor):
+        super(UpConv,self).__init__()
+        self.up = nn.ConvTranspose3d(in_chan,out_chan,kernel_size=factor,stride=factor)
+    def forward(self,x):
+        x=self.up(x)
+        return x  
+
 class Up(nn.Module):
     def __init__(self,factor):
         super(Up,self).__init__()
