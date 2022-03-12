@@ -8,6 +8,7 @@ import os
 import monai
 from monai.data import Dataset
 from monai.utils import set_determinism
+from sisa import SISANet
 
 from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     ScaleIntensityD, SpacingD, OrientationD,\
@@ -65,556 +66,383 @@ import re
 import torch
 import time
 import argparse
+from torchsummary import summary
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 
-parser=argparse.ArgumentParser(description="Monai Seg main")
-parser.add_argument("--model",default="SISANet",type=str,help="name of model to use")
-parser.add_argument("--load_barlow",default =1, type=int,help="flag to use barlow twins backbone to initialise weight")
-parser.add_argument("--load_save",default =1, type=int,help="flag to use saved model weight")
-parser.add_argument("--load_path",default="./2022-01-20T16best_metric_model.pth", type=str, help="file path to load previously saved model")
-parser.add_argument("--batch_size",default=8, type=int, help="to define batch size")
-parser.add_argument("--save_name", default="Best_metric_model.pth",type=str, help="save name")
-parser.add_argument("--upsample", default="DECONV",type=str, help="flag to choose deconv options- NONTRAINABLE, DECONV, PIXELSHUFFLE")
-parser.add_argument("--barlow_final",default=1, type=int, help="flag to use checkpoint instead of final model for barlow")
-parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
-parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
-parser.add_argument("--ensemble",default=1,type=int,help="flag to use ensemble with models provided")
+if __name__=="__main__":
+    parser=argparse.ArgumentParser(prog=sys.argv[0],description="Eval parser")
 
-args=parser.parse_args()
+    parser.add_argument("--model",default="SISANet",type=str,help="name of model to use")
+    parser.add_argument("--load_barlow",default =0, type=int,help="flag to use barlow twins backbone to initialise weight")
+    parser.add_argument("--load_save",default =1, type=int,help="flag to use saved model weight")
+    parser.add_argument("--load_name",default="./2022-01-20T16best_metric_model.pth", type=str, help="file path to load previously saved model")
+    parser.add_argument("--batch_size",default=8, type=int, help="to define batch size")
+    parser.add_argument("--save_name", default="Best_metric_model.pth",type=str, help="save name")
+    parser.add_argument("--upsample", default="DECONV",type=str, help="flag to choose deconv options- NONTRAINABLE, DECONV, PIXELSHUFFLE")
+    parser.add_argument("--barlow_final",default=1, type=int, help="flag to use checkpoint instead of final model for barlow")
+    parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
+    parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
+    parser.add_argument("--ensemble",default=0,type=int,help="flag to use ensemble with models provided")
 
-print(' '.join(sys.argv))
+    args=parser.parse_args()
 
-
-IMG_EXTENSIONS = [
-    '.jpg', '.JPG', '.jpeg', '.JPEG',
-    '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP', '.tiff', '.npy', '.gz'
-]
+    print(' '.join(sys.argv))
 
 
-set_determinism(seed=0)
-
-# A source: Nvidia HDGAN
-def is_image_file(filename):
-    return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
-
-# makes a list of all image paths inside a directory
-def make_dataset(data_dir):
-    all_files = []
-    images=[]
-    labels=[]
-    im_temp=[]
-    assert os.path.isdir(data_dir), '%s is not a valid directory' % data_dir
-    
-    for root, fol, _ in sorted(os.walk(data_dir)): # list folders and root
-        for folder in fol:                    # for each folder
-             path=os.path.join(root, folder)  # combine root path with folder path
-             for root1, _, fnames in os.walk(path):       #list all file names in the folder         
-                for f in fnames:                          # go through each file name
-                    fpath=os.path.join(root1,f)
-                    if is_image_file(f):                  # check if expected extension
-                        if re.search("seg",f):            # look for the label files- have'seg' in the name 
-                            labels.append(fpath)
-                        else:
-                            im_temp.append(fpath)         # all without seg are image files, store them in a list for each folder
-                images.append(im_temp)                    # add image files for each folder to a list
-                im_temp=[]
-    return images, labels
-
-# A source: https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/brats_segmentation_3d.ipynb
-class ConvertToMultiChannelBasedOnBratsClassesd(MapTransform):
-    """
-    Convert labels to multi channels based on brats classes:
-    label 1 is the peritumoral edema
-    label 2 is the GD-enhancing tumor
-    label 3 is the necrotic and non-enhancing tumor core
-    The possible classes are TC (Tumor core), WT (Whole tumor)
-    and ET (Enhancing tumor).
-
-    """
-
-    def __call__(self, data):
-        d = dict(data)
-        for key in self.keys:
-            result = []
-            # merge label 2 and label 3 to construct TC
-            result.append(np.logical_or(d[key] == 2, d[key] == 3))
-            # merge labels 1, 2 and 3 to construct WT
-            result.append(
-                np.logical_or(
-                    np.logical_or(d[key] == 2, d[key] == 3), d[key] == 1
-                )
-            )
-            # label 2 is ET
-            result.append(d[key] == 2)
-            d[key] = np.stack(result, axis=0).astype(np.float32)
-        return d
-            
-
-##################~~~~~~~~~~~~~~~~~~~~~~~~~Model Definition~~~~~~~~~~~~~~~~~~~~~~~#################
-root_dir="./"
-
-max_epochs = 0
-val_interval = 1
-VAL_AMP = True
-
-# standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
-device = torch.device("cuda:0")
-if args.model=="UNet":
-     model=UNet(
-        spatial_dims=3,
-        in_channels=4,
-        out_channels=3,
-        channels=(64,128,256,512,1024),
-        strides=(2,2,2,2)
-        ).to(device)
-elif args.model=="SegResNet":
-    model = SegResNet(
-        blocks_down=[1, 2, 2, 4],
-        blocks_up=[1, 1, 1],
-        init_filters=32,
-        norm="instance",
-        in_channels=4,
-        out_channels=3,
-        upsample_mode=UpsampleMode[args.upsample]    
-        ).to(device)
-
-else:
-    model = locals() [args.model](4,3).to(device)
+    IMG_EXTENSIONS = [
+        '.jpg', '.JPG', '.jpeg', '.JPEG',
+        '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP', '.tiff', '.npy', '.gz'
+    ]
 
 
-model=torch.nn.DataParallel(model)
-print("Model defined and passed to GPU")
+    set_determinism(seed=0)
 
-loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
-optimizer = torch.optim.Adam(model.parameters(), 1e-4, weight_decay=1e-5)
-lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
+    # A source: Nvidia HDGAN
+    def is_image_file(filename):
+        return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
-dice_metric = DiceMetric(include_background=True, reduction="mean")
-dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
-
-post_trans = Compose(
-    [EnsureType(), Activations(sigmoid=True), AsDiscrete(threshold=0.5)]
-)
-if args.load_barlow==1:
-    # Load model weight from Barlow Twins
-    ckpt=torch.load("./barlowtwins/checkpoint/"+args.bar_model_name)
-    if args.barlow_final==0:
-
-        # print(ckpt.keys())
-
-        for k in model.state_dict().keys():
-            # print(ckpt["model"].keys())
-            ckpt["model"][k]=ckpt["model"].pop("module.backbone."+k[7:])
+    # makes a list of all image paths inside a directory
+    def make_dataset(data_dir):
+        all_files = []
+        images=[]
+        labels=[]
+        im_temp=[]
+        assert os.path.isdir(data_dir), '%s is not a valid directory' % data_dir
         
-        model.load_state_dict(ckpt["model"], strict=False)
+        for root, fol, _ in sorted(os.walk(data_dir)): # list folders and root
+            for folder in fol:                    # for each folder
+                 path=os.path.join(root, folder)  # combine root path with folder path
+                 for root1, _, fnames in os.walk(path):       #list all file names in the folder         
+                    for f in fnames:                          # go through each file name
+                        fpath=os.path.join(root1,f)
+                        if is_image_file(f):                  # check if expected extension
+                            if re.search("seg",f):            # look for the label files- have'seg' in the name 
+                                labels.append(fpath)
+                            else:
+                                im_temp.append(fpath)         # all without seg are image files, store them in a list for each folder
+                    images.append(im_temp)                    # add image files for each folder to a list
+                    im_temp=[]
+        return images, labels
+
+    # A source: https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/brats_segmentation_3d.ipynb
+    class ConvertToMultiChannelBasedOnBratsClassesd(MapTransform):
+        """
+        Convert labels to multi channels based on brats classes:
+        label 1 is the peritumoral edema
+        label 2 is the GD-enhancing tumor
+        label 3 is the necrotic and non-enhancing tumor core
+        The possible classes are TC (Tumor core), WT (Whole tumor)
+        and ET (Enhancing tumor).
+
+        """
+
+        def __call__(self, data):
+            d = dict(data)
+            for key in self.keys:
+                result = []
+                # merge label 2 and label 3 to construct TC
+                result.append(np.logical_or(d[key] == 2, d[key] == 3))
+                # merge labels 1, 2 and 3 to construct WT
+                result.append(
+                    np.logical_or(
+                        np.logical_or(d[key] == 2, d[key] == 3), d[key] == 1
+                    )
+                )
+                # label 2 is ET
+                result.append(d[key] == 2)
+                d[key] = np.stack(result, axis=0).astype(np.float32)
+            return d
+                
+
+    ##################~~~~~~~~~~~~~~~~~~~~~~~~~Model Definition~~~~~~~~~~~~~~~~~~~~~~~#################
+    root_dir="./"
+
+    max_epochs = 0
+    val_interval = 1
+    VAL_AMP = True
+
+    # standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
+    device = torch.device("cuda:0")
+    if args.model=="UNet":
+         model=UNet(
+            spatial_dims=3,
+            in_channels=4,
+            out_channels=3,
+            channels=(64,128,256,512,1024),
+            strides=(2,2,2,2)
+            ).to(device)
+    elif args.model=="SegResNet":
+        model = SegResNet(
+            blocks_down=[1, 2, 2, 4],
+            blocks_up=[1, 1, 1],
+            init_filters=32,
+            norm="instance",
+            in_channels=4,
+            out_channels=3,
+            upsample_mode=UpsampleMode[args.upsample]    
+            ).to(device)
+
     else:
-        model.load_state_dict(ckpt,strict=False)
+        model = locals() [args.model](4,3).to(device)
 
-    print("Model weights loaded from pretrained Barlow Twins Backbone")
+    with torch.cuda.amp.autocast():
+        summary(model,(4,192,192,144))
+    model=torch.nn.DataParallel(model)
+    print("Model defined and passed to GPU")
 
-if args.load_save==1:    
-    ckpt=torch.load(args.load_path)
-    
-    model.load_state_dict(ckpt, strict=False)
-    print("Model weights loaded from best metric model")
-    
+    loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
+    optimizer = torch.optim.Adam(model.parameters(), 1e-4, weight_decay=1e-5)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
 
-# define inference method
-def inference(input):
+    dice_metric = DiceMetric(include_background=True, reduction="mean")
+    dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
 
-    def _compute(input):
-        return sliding_window_inference(
-            inputs=input,
-            roi_size=(192,192, 144),
-            sw_batch_size=1,
-            predictor=model,
-            overlap=0.5,
+    post_trans = Compose(
+        [EnsureType(), Activations(sigmoid=True), AsDiscrete(threshold=0.5)]
+    )
+    if args.load_barlow==1:
+        # Load model weight from Barlow Twins
+        ckpt=torch.load("./barlowtwins/checkpoint/"+args.bar_model_name)
+        if args.barlow_final==0:
+
+            # print(ckpt.keys())
+
+            for k in model.state_dict().keys():
+                # print(ckpt["model"].keys())
+                ckpt["model"][k]=ckpt["model"].pop("module.backbone."+k[7:])
+            
+            model.load_state_dict(ckpt["model"], strict=False)
+        else:
+            model.load_state_dict(ckpt,strict=False)
+
+        print("Model weights loaded from pretrained Barlow Twins Backbone")
+
+    if args.load_save==1:    
+        ckpt=torch.load(args.load_path)
+        
+        model.load_state_dict(ckpt, strict=False)
+        print("Model weights loaded from best metric model")
+        
+
+    # define inference method
+    def inference(input):
+
+        def _compute(input):
+            return sliding_window_inference(
+                inputs=input,
+                roi_size=(192,192, 144),
+                sw_batch_size=1,
+                predictor=model,
+                overlap=0.5,
+            )
+
+        if VAL_AMP:
+            with torch.cuda.amp.autocast():
+                return _compute(input)
+        else:
+            return _compute(input)
+
+
+    # use amp to accelerate training
+    scaler = torch.cuda.amp.GradScaler()
+    # enable cuDNN benchmark
+    torch.backends.cudnn.benchmark = True
+
+
+
+    ########### ~~~~~~~~~~~~~~~~~~~~~~~ Evaluation ~~~~~~~~~~~~~~~~~~~~~FIX this
+
+    test_transforms0 = Compose(
+        [
+            LoadImaged(keys=["image", "label"]),
+            EnsureChannelFirstD(keys=["image"]),
+            ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+
+            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            EnsureTyped(keys=["image", "label"]),
+        ]
         )
 
-    if VAL_AMP:
-        with torch.cuda.amp.autocast():
-            return _compute(input)
-    else:
-        return _compute(input)
 
-
-# use amp to accelerate training
-scaler = torch.cuda.amp.GradScaler()
-# enable cuDNN benchmark
-torch.backends.cudnn.benchmark = True
-
-
-
-########### ~~~~~~~~~~~~~~~~~~~~~~~ Evaluation ~~~~~~~~~~~~~~~~~~~~~FIX this
-
-test_transforms0 = Compose(
-    [
-        LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstD(keys=["image"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        EnsureTyped(keys=["image", "label"]),
-    ]
-) #>>>>>>>>>>>>>>   TRANSFORMS DEFINED 
-
-test_transforms1 = Compose(
-    [
-        LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstD(keys=["image"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        GaussianSmoothD(keys=["image"], sigma=2),
-        RandKSpaceSpikeNoiseD(keys="image",prob=1, intensity_range=(13,15),channel_wise=True),
-        EnsureTyped(keys=["image", "label"]),
-    ]
-)
-# at1=RandFlip(prob=1, spatial_axis=0)
-
-test_transforms2 = Compose(
-    [
-        LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstD(keys=["image"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-        SpacingD(keys=["image"], pixdim=(1.0, 1.0, 1.0), mode="bilinear"),
-        
-        OrientationD(keys=["image"], axcodes="RAS"),
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True), 
-        RandGaussianSharpenD(keys="image",prob=1),
-        EnsureTyped(keys=["image", "label"]),
-    ]
-)
-# at2=RandFlip( prob=1, spatial_axis=1)
-
-# test_transforms3 = Compose(
-    # [
-        # LoadImaged(keys=["image", "label"]),
-        # EnsureChannelFirstD(keys=["image"]),
-        # ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-        # SpacingD(keys=["image"], pixdim=(1.0, 1.0, 1.0), mode="bilinear"),
-        
-        # OrientationD(keys=["image"], axcodes="RAS"),
-        # NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        # RandFlipd(keys=["image", "label"], prob=1, spatial_axis=2),
-        # EnsureTyped(keys=["image", "label"]),
-    # ]
-# )
-# at3= RandFlip( prob=1, spatial_axis=2)
-
-test_transforms4 = Compose(
-    [
-        LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstD(keys=["image"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-       
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        RandGaussianNoised(keys="image",prob=1),
-        EnsureTyped(keys=["image", "label"]),
-    ]
-)
-
-# test_transforms5 = Compose(
-    # [
-        # LoadImaged(keys=["image", "label"]),
-        # EnsureChannelFirstD(keys=["image"]),
-        # ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-        # SpacingD(keys=["image"], pixdim=(1.0, 1.0, 1.0), mode="bilinear"),  
-        # OrientationD(keys=["image"], axcodes="RAS"),
-        # NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        # RotateD(keys=["image","label"],angle=[0.1,0,0]),
-        # EnsureTyped(keys=["image", "label"]),
-    # ]
-# )
-
-# at5= Rotate(angle=[-0.1,0,0])
-
-test_transforms6 = Compose(
-    [
-        LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstD(keys=["image"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-      
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        RandGaussianSmoothD(keys="image",sigma_x=(0.25, 1.5), sigma_y=(0.25, 1.5), sigma_z=(0.25,1.5), prob=1),
-        EnsureTyped(keys=["image", "label"]),
-    ]
-)
-
-test_transforms7 = Compose(
-    [
-        LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstD(keys=["image"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-      
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        RandBiasFieldD(keys="image",coeff_range=(0.0,0.2),prob=1), 
-        EnsureTyped(keys=["image", "label"]),
-    ]
-)
-
-test_transforms8 = Compose(
-    [
-        LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstD(keys=["image"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
- 
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        RandScaleIntensityd(keys="image", factors=0.2, prob=1), 
-        EnsureTyped(keys=["image", "label"]),
-    ]
-)
-test_transforms9 = Compose(
-    [
-        LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstD(keys=["image"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-        SpacingD(keys=["image"], pixdim=(1.0, 1.0, 1.0), mode="bilinear"),  
-        OrientationD(keys=["image"], axcodes="RAS"),
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        RandShiftIntensityd(keys="image", offsets=0.2, prob=1),
-        EnsureTyped(keys=["image", "label"]),
-    ]
-)
-if args.ensemble==1:
-    all_transforms=[test_transforms0,test_transforms1]
-    post_transforms_list=[]
-    for i in range(len(all_transforms)):
-        
-        post_transform=Compose([
-        EnsureTyped(keys="pred"),
-        # Invertd(
-            # keys="pred",
-            # transform=all_transforms[i],
-            # orig_keys="image",
-            # meta_keys="pred_meta_dict",
-            # orig_meta_keys="image_meta_dict",
-            # meta_key_postfix="meta_dict",
-            # nearest_interp=False,
-            # to_tensor=True, #this sends to GPU so removing will cause problems
-        # ), # inversal is only done on the prediction?
-        
-        Activationsd(keys="pred", sigmoid=True),
-        AsDiscreted(keys="pred", threshold=0.5),
-        ])
-        post_transforms_list.append(post_transform)
-else: 
-    all_transforms=test_transforms0
-
-
-
-class TestDataset(Dataset):
-    def __init__(self,data_dir,transform=None):
-        self.image_list=make_dataset(data_dir)[0]  
-        self.label_list=make_dataset(data_dir)[1] 
-        self.transform=transform
-        
-    def __len__(self):
-#         return len(os.listdir(self.label_dir))
-        return min(args.max_samples,len(self.label_list))
-    
-    def __getitem__(self,idx):
-        image=self.image_list[idx]
-    
-        label=self.label_list[idx] 
-
+    class TestDataset(Dataset):
+        def __init__(self,data_dir,transform=None):
+            self.image_list=make_dataset(data_dir)[0]  
+            self.label_list=make_dataset(data_dir)[1] 
+            self.transform=transform
             
-        item_dict={"image":image,"label":label}
+        def __len__(self):
+    #         return len(os.listdir(self.label_dir))
+            return min(args.max_samples,len(self.label_list))
         
-        test_list=dict()
-        if self.transform:
-            item_dict={"image":image,"label": label}
-            if args.single_ensemble==1:
-                for i,transform in enumerate(self.transform):
-                    trans_dict=transform(item_dict)
-                    test_list[i]=trans_dict
-            else:
+        def __getitem__(self,idx):
+            image=self.image_list[idx]
+        
+            label=self.label_list[idx] 
+
+                
+            item_dict={"image":image,"label":label}
+            
+            test_list=dict()
+            if self.transform:
+                item_dict={"image":image,"label": label}
+                
                 test_list=self.transform(item_dict)
-            
-        
-        return test_list
-
-test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData",transform=test_transforms0)
-
-
-
-test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4) # this should return 10 different instances
-
-# print("input type",type(next(iter(test_loader))))
-
-
-
-# binariser= Compose([AsDiscrete( threshold=0.5)])
-# post_transforms = Compose([
-    # EnsureTyped(keys="pred"),
-    ## Invertd(
-        ### keys="pred",
-        # ##transform=test_transforms0,
-        # orig_keys="image",
-        ### meta_keys="pred_meta_dict",
-        # ##orig_meta_keys="image_meta_dict",
-        ### meta_key_postfix="meta_dict",
-        ## nearest_interp=False,
-        ## to_tensor=True, #this sends to GPU so removing will cause problems
-    ## ), # inversal is only done on the prediction?
-    # ToTensorD(keys="pred"),
-    # Activationsd(keys="pred", sigmoid=True),
-    # AsDiscreted(keys="pred", threshold=0.5),
-# ])
-
-model_names=['2022-03-09T0UNetCV1','2022-03-09T1UNetCV2','2022-03-09T1UNetCV3','2022-03-09T1UNetCV4','2022-03-09T1UNetCV5','2022-03-09T1UNetCV6','2022-03-09T1UNetCV7','2022-03-09T1UNetCV8','2022-03-09T1UNetCV9','2022-03-09UNetCV10']
-
-models=[]
-for i,name in enumerate(model_names):
-    model.load_state_dict(torch.load("./saved models/"+name))
-    model.eval()
-    models.append(model)
-
-def ensemble_evaluate(post_transforms, models):
-    evaluator = EnsembleEvaluator(
-        device=device,
-        val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
-        pred_keys=["pred"+str(i) for i in range(10)], #just a list at this point
-        networks=models, # models defined above
-        inferer=SlidingWindowInferer(
-            roi_size=(96, 96, 96), sw_batch_size=4, overlap=0.5),
-        postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
-        key_val_metric={
-            "test_mean_dice": MeanDice(
-                include_background=True,
-                output_transform=from_engine(["pred", "label"]),
-                reduction="mean_channel"
                 
-            )
-        },
-    )
-    evaluator.run()
-    
-    print("validation stats: ",evaluator.get_validation_stats())
-    print("evaluator metrics:",evaluator.state.metrics)
-    print("evaluator best metric:",evaluator.state.best_metric)
-    
-mean_post_transforms = Compose(
-    [
-        EnsureTyped(keys=["pred"+str(i) for i in range(10)]),
-        SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
-        MeanEnsembled(
-            keys=["pred"+str(i) for i in range(10)],
-            output_key="pred",
-            # in this particular example, we use validation metrics as weights
-            weights=[0.94, 0.94, 0.93, 0.95, 0.95,0.94,0.96,0.94,0.95,0.58],
-        ),
+            
+            return test_list
+
+    test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData",transform=test_transforms0)
+
+
+
+    test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4) # this should return 10 different instances
+
+    # print("input type",type(next(iter(test_loader))))
+
+
+
+
+
+    post_transforms = Compose([
+        EnsureTyped(keys="pred"),
+        Invertd(
+            keys="pred",
+            transform=test_transforms0,
+            orig_keys="image",
+            meta_keys="pred_meta_dict",
+            orig_meta_keys="image_meta_dict",
+            meta_key_postfix="meta_dict",
+            nearest_interp=False,
+            to_tensor=True, #this sends to GPU so removing will cause problems
+        ), # inversal is only done on the prediction?
+        ToTensorD(keys="pred"),
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
-    ]
-)
-vote_post_transforms = Compose(
-    [
-        EnsureTyped(keys=["pred0", "pred1", "pred2", "pred3", "pred4"]),
-        Activationsd(keys=["pred0", "pred1", "pred2",
-                           "pred3", "pred4"], sigmoid=True),
-        # transform data into discrete before voting
-        AsDiscreted(keys=["pred0", "pred1", "pred2", "pred3",
-                          "pred4"], threshold=0.5),
-        VoteEnsembled(keys=["pred0", "pred1", "pred2",
-                            "pred3", "pred4"], output_key="pred"),
-    ]
-)
-ensemble_evaluate(mean_post_transforms, models)
-# ensemble_evaluate(mean_post_transforms, models)
+    ])
 
-
+    if args.ensemble==1:
     
-# model.load_state_dict(torch.load("./2022-02-04T16barl_3dimAllsamp2.pth"))
-# model.eval()
+        if args.model=="UNet":
+            model_names=['2022-03-09T0UNetCV1','2022-03-09T1UNetCV2','2022-03-09T1UNetCV3','2022-03-09T1UNetCV4','2022-03-09T1UNetCV5','2022-03-09T1UNetCV6','2022-03-09T1UNetCV7','2022-03-09T1UNetCV8','2022-03-09T1UNetCV9','2022-03-09UNetCV10']
+       
+        elif args.model=="SegResNet":
+            model_names=['2022-03-09T2SegResNetCV1','2022-03-09SegResNetCV2','2022-03-09SegResNetCV3','2022-03-09SegResNetCV4','2022-03-09SegResNetCV5','2022-03-09SegResNetCV6','2022-03-09SegResNetCV7','2022-03-09SegResNetCV8','2022-03-09SegResNetCV9','2022-03-09SegResNetCV10']
+        
 
-# with torch.no_grad():
-    # if args.single_ensemble==1:
-        # for test_data in test_loader:
+        else:
+            print("No SISA yet")
+
+
+        
+
+        models=[]
+        for i,name in enumerate(model_names):
+            model.load_state_dict(torch.load("./saved models/"+name))
+            model.eval()
+            models.append(model)
+
+        def ensemble_evaluate(post_transforms, models):
+            evaluator = EnsembleEvaluator(
+                device=device,
+                val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
+                pred_keys=["pred"+str(i) for i in range(10)], #just a list at this point
+                networks=models, # models defined above
+                inferer=SlidingWindowInferer(
+                    roi_size=(96, 96, 96), sw_batch_size=4, overlap=0.5),
+                postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
+                key_val_metric={
+                    "test_mean_dice": MeanDice(
+                        include_background=True,
+                        output_transform=from_engine(["pred", "label"])                     
+                        
+                    )},
+                additional_metrics={ 
+                    "Channelwise": MeanDice(
+                    include_background=True,
+                    output_transform=from_engine(["pred", "label"]),
+                    reduction="mean_channel")
+                }
+            )
+            evaluator.run()
             
-            # for c, each_dict in enumerate(test_data):
-                ###print(f"on {c} iteration of loading data") 
-                ###print("type of object ",type(test_data[each_dict]))
-                # test_inputs = test_data[each_dict]["image"].to(device)
-                # test_data[each_dict]["pred"] = inference(test_inputs)
-                # test_data[each_dict] = [post_transforms_list[c](i) for i in decollate_batch(test_data[each_dict])]
-                # test_outputs, test_labels = from_engine(["pred", "label"])(test_data[each_dict]) # create list of images and labels
+            print("validation stats: ",evaluator.get_validation_stats())
+            print("evaluator metrics:",evaluator.state.metrics)
+            print("evaluator best metric:",evaluator.state.best_metric)
+        
+        
+        
+        mean_post_transforms = Compose(
+            [
+                EnsureTyped(keys=["pred"+str(i) for i in range(10)]),
+                SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
+                MeanEnsembled(
+                    keys=["pred"+str(i) for i in range(10)],
+                    output_key="pred",
+                    # in this particular example, we use validation metrics as weights
+                    weights=[0.8912,0.7912,0.6377,0.7312,0.7685,0.8118,0.6724,0.7227,0.6093,0.6378],
+                ),
+                Activationsd(keys="pred", sigmoid=True),
+                AsDiscreted(keys="pred", threshold=0.5),
+            ]
+        )
+        vote_post_transforms = Compose(
+            [
+                EnsureTyped(keys=["pred0", "pred1", "pred2", "pred3", "pred4"]),
+                Activationsd(keys=["pred0", "pred1", "pred2",
+                                   "pred3", "pred4"], sigmoid=True),
+                # transform data into discrete before voting
+                AsDiscreted(keys=["pred0", "pred1", "pred2", "pred3",
+                                  "pred4"], threshold=0.5),
+                VoteEnsembled(keys=["pred0", "pred1", "pred2",
+                                    "pred3", "pred4"], output_key="pred"),
+            ]
+        )
+        ensemble_evaluate(mean_post_transforms, models)
+        # ensemble_evaluate(mean_post_transforms, models)
+
+    else:
+        
+        model.load_state_dict(torch.load("./saved models/"+args.load_name))
+        model.eval()
+
+        with torch.no_grad():
+
+            for test_data in test_loader: # each image
+                test_inputs = test_data["image"].to(device) # pass to gpu
+                test_data["pred"] = inference(test_inputs) #perform inference
+                #print(test_data["pred"].shape)
+                test_data=[post_transforms(i) for i in decollate_batch(test_data)] #reverse the transform and get sigmoid then binarise
+                test_outputs, test_labels =  from_engine(["pred", "label"])(test_data) # create list of images and labels
+              
                 
+                #print("test outputs",test_outputs[0].shape)
+                #test_outputs=test_outputs.to(device)
+                #test_labels=test_labels.to(device)
+                # test_labels[0]=test_labels[0].to(device)
+                # dice_score=(2*torch.sum( test_outputs[0].flatten()*test_labels[0].flatten()))/( test_outputs[0].sum()+test_labels[0].sum())
+                # print("dice",dice_score)
                 
-                # if c==0:                    
-                    # collector=test_outputs[0][None,:]
-                
-                ###if c==1:
-                    ##test_outputs[0]=at1(test_outputs[0])
-                   
-                ###if c==2:
-                    ##test_outputs[0]=at2(test_outputs[0])
-                  
-                ###if c==3:
-                    ##test_outputs[0]=at3(test_outputs[0])
-                  
-                ###if c==5:                
-                    ##test_outputs[0]=at5(test_outputs[0])
-                  
-                
-                
-                # torch.cat((collector,test_outputs[0][None,:])) # this should collect all predictions as tensor
-                
-                
-                
-                
-                ## torch.
+                dice_metric(y_pred=test_outputs, y=test_labels)
+                dice_metric_batch(y_pred=test_outputs, y=test_labels)
+
+
             
-            # mean_pred=collector.mean(dim=0, keepdim=True).flatten(0,1) # get the same dim as label
+            metric_org = dice_metric.aggregate().item()
             
-            ##mean_pred=binariser(mean_pred)
-            # mean_pred=mean_pred.flatten(0,1).to(device)
-            
-            # test_labels=test_labels[0].flatten(0,1).to(device)
-            # dice_score=(2*torch.sum(mean_pred.flatten()*test_labels.flatten()))/(mean_pred.sum()+test_labels.sum())
-            # print(dice_score)
-            # dice_metric(y_pred=mean_pred, y=test_labels)
+            metric_batch_org = dice_metric_batch.aggregate()
 
-            
-            
-            # dice_metric_batch(y_pred=mean_pred, y=test_labels)
-    # else:
-        # for test_data in test_loader: # each image
-            # test_inputs = test_data["image"].to(device) # pass to gpu
-            # test_data["pred"] = inference(test_inputs) #perform inference
-            # #print(test_data["pred"].shape)
-            # test_data=[post_transforms(i) for i in decollate_batch(test_data)] #reverse the transform and get sigmoid then binarise
-            # test_outputs, test_labels =  from_engine(["pred", "label"])(test_data) # create list of images and labels
-          
-            
-            # #print("test outputs",test_outputs[0].shape)
-            # #test_outputs=test_outputs.to(device)
-            # #test_labels=test_labels.to(device)
-            # test_labels[0]=test_labels[0].to(device)
-            # dice_score=(2*torch.sum( test_outputs[0].flatten()*test_labels[0].flatten()))/( test_outputs[0].sum()+test_labels[0].sum())
-            # print("dice",dice_score)
-            
-            # dice_metric(y_pred=test_outputs, y=test_labels)
-            # dice_metric_batch(y_pred=test_outputs, y=test_labels)
+            dice_metric.reset()
+            dice_metric_batch.reset()
+
+        metric_tc, metric_wt, metric_et = metric_batch_org[0].item(), metric_batch_org[1].item(), metric_batch_org[2].item()
+
+        print("Metric on original image spacing: ", metric_org)
+        print(f"metric_tc: {metric_tc:.4f}")
+        print(f"metric_wt: {metric_wt:.4f}")
+        print(f"metric_et: {metric_et:.4f}")
 
 
-    
-    # metric_org = dice_metric.aggregate().item()
-    
-    # metric_batch_org = dice_metric_batch.aggregate()
-
-    # dice_metric.reset()
-    # dice_metric_batch.reset()
-
-# metric_tc, metric_wt, metric_et = metric_batch_org[0].item(), metric_batch_org[1].item(), metric_batch_org[2].item()
-
-# print("Metric on original image spacing: ", metric_org)
-# print(f"metric_tc: {metric_tc:.4f}")
-# print(f"metric_wt: {metric_wt:.4f}")
-# print(f"metric_et: {metric_et:.4f}")
-
-
-#####################~~~~~~~~3D Seg End ~~~~~~###################
+    #####################~~~~~~~~3D Seg End ~~~~~~###################
 
 
