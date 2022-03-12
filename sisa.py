@@ -55,24 +55,6 @@ from torchsummary import summary
 import torch.nn.functional as F
 from torch.utils.data import Subset
 
-parser=argparse.ArgumentParser(description="Monai Seg main")
-
-parser.add_argument("--lr",default=1e-3,type=float,help="learning rate")
-parser.add_argument("--model",default="SISANet",type=str,help="name of model to use")
-parser.add_argument("--load_save",default =1, type=int,help="flag to use saved model weight")
-parser.add_argument("--load_path",default="./2022-01-20T16best_metric_model.pth", type=str, help="file path to load previously saved model")
-parser.add_argument("--batch_size",default=2, type=int, help="to define batch size")
-parser.add_argument("--save_name", default="SISANET.pth",type=str, help="save name")
-parser.add_argument("--upsample", default="DECONV",type=str, help="flag to choose deconv options- NONTRAINABLE, DECONV, PIXELSHUFFLE")
-parser.add_argument("--barlow_final",default=1, type=int, help="flag to use checkpoint instead of final model for barlow")
-parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
-parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
-parser.add_argument("--fold_num",default=1,type=str,help="cross-validation fold number")
-parser.add_argument("--CV_flag",default=0,type=int,help="is this a cross validation fold? 1=yes")
-
-args=parser.parse_args()
-
-print(' '.join(sys.argv))
 
 os.environ['PYTHONHASHSEED']=str(0)
 torch.backends.cudnn.deterministic = True
@@ -275,7 +257,11 @@ class WNet(nn.Module):
         x32 = self.down2(x2)
         x42 = self.down3(x3)
         x52 = self.down4(x4)
-        logits = self.outc(x)
+        x004 = self.up01(x5)* x42
+        x003 = self.up02(x04)* x32
+        x002 = self.up03(x03)*x22
+        x001 = self.up04(x02)* x12
+        logits = self.outc(x001)
         return logits
         
 
@@ -445,71 +431,141 @@ class VANet(nn.Module):
         
         return logits
         
+class LKNet(nn.Module):
+    def __init__(self,n_channels,n_classes):
+        super(LKNet,self).__init__()
+        self.pool1=LKConv(4,1,kernel_size=(169,169,121))
+        self.pool2=LKConv(4,1,kernel_size=(145,145,96))
+        self.pool3=LKConv(4,1, kernel_size=(97,97,49))
+        self.pool4=LKConv(4,1,kernel_size=(1))
+        
+        self.up=UptoShape([192,192,144])
+        self.outc = OutConv(4, n_classes)
+    
+    def forward(self,x):
+    
+        x1p = self.pool1(x)   
+        x1=self.up(x1p)
+                  
+        x2p =self.pool2(x)
+        x2=self.up(x2p) 
+   
+        x3p = self.pool3(x)
+        x3=self.up(x3p)    
+        
+        x4p = self.pool4(x)
+        x4=self.up(x4p)
+        
+        xout=torch.cat((x1,x2,x3,x4),dim=1)
+        logits=self.outc(xout)
+        
+        return logits
+        
+        
+        
+        
+        
+    
+        
 class SISANet(nn.Module):
     def __init__(self, n_channels, n_classes):
         super(SISANet,self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         
-        self.outc = OutConv(9, n_classes)
-        self.incfin = DoubleConv(24, 9)
-        self.res=Residual()
-        self.emul=EMul()     
-         
-        self.up=UptoShape([192,192,144])
-        self.pool1=DownConv(n_channels,4,16)
-        self.pool2=DownConv(n_channels,4,8)
-        self.pool3=DownConv(n_channels,4,4)
-        self.pool4=DownConv(n_channels,4,3)
-        self.pool5=DownConv(n_channels,4,2)
+        self.outc = OutConv(128, n_classes)
+        self.incfin = DoubleConv(24, 128)
+        # self.incfin1 = DoubleConv(60, 60)
         
-        self.inc = DoubleConv(4, 256)
-        self.squeeze=OutConv(260,4)       
       
+   
+        self.up=UptoShape([192,192,144])
+        self.pool1=DownConv(n_channels,n_channels,16)
+        self.inc1 = DoubleConv(4, 512)#SpatialAttention(512)#DoubleConv(n_channels, 512)
+        # self.inc11 = DoubleConv(512, 512)#SpatialAttention(512)# 
+        self.squeeze1=OutConv(516,4)
+        self.up1 = Up(16)
+        
+        self.pool2=DownConv(n_channels,n_channels,8)#AMpool(8)
+        self.inc2=DoubleConv(4, 256)#SpatialAttention(256)#DoubleConv(n_channels*2, 256)
+        # self.inc22 = DoubleConv(256, 256)#SpatialAttention(256)#DoubleConv(256, 256) 
+        self.squeeze2=OutConv(260,4)
+        self.up2 = Up(8)
+        
+        self.pool3=DownConv(n_channels,n_channels,4)
+        self.inc3=DoubleConv(4, 128)#SpatialAttention(128)#DoubleConv(n_channels*2, 128)
+        # self.inc33=DoubleConv(128, 128)#SpatialAttention(128)#
+        self.squeeze3=OutConv(132,4)
+        self.up3 = Up(4)
+        
+        self.pool4=DownConv(n_channels,n_channels,3)
+        self.inc4=DoubleConv(4,96)#SpatialAttention(64)#
+        # self.inc44=DoubleConv(64, 64)#SpatialAttention(64)#
+        self.squeeze4=OutConv(100,4)
+        self.up4=Up(3)
+        
+        
+        self.pool5=DownConv(n_channels,n_channels,2)
+        self.inc5=DoubleConv(4, 64)#SpatialAttention(64)#
+        # self.inc44=DoubleConv(64, 64)#SpatialAttention(64)#
+        self.squeeze5=OutConv(68,4)
+        self.up5=Up(4)
+        
+        # self.pool6=DownConv(n_channels,n_channels,6)
+        # self.inc6=DoubleConv(4, 4)#
+        # self.squeeze6=OutConv(32,8)
+        # self.up6=Up(12)
+       
+        
 
-    def forward(self, x):   
+    def forward(self, x):      
+       
         x1p = self.pool1(x)
-        x1 = self.inc(x1p)
+        x1 = self.inc1(x1p)
         x1=torch.cat((x1p,x1),dim=1)        
-        x1=self.squeeze(x1)
+        x1=self.squeeze1(x1)
         x1=self.up(x1)
-        # x1=self.res(x) + x1 #residual connection  
-                  
-        x2p =self.pool2(x)
-        x2 = self.inc(x2p)
+        
+        # x1=self.up(x1)
+        # print(x1.shape)
+        
+        x2p = self.pool2(x)
+        x2 = self.inc2(x2p)
         x2=torch.cat((x2p,x2),dim=1)
-        x2=self.squeeze(x2)
+        x2=self.squeeze2(x2)
         x2=self.up(x2)
-        # x2=self.res(x)+ x2      
         
         
-        # x3=self.emul(x)* x2       
+        # print(x2.shape)
+        
         x3p = self.pool3(x)
-        x3 = self.inc(x3p)
+        x3 = self.inc3(x3p)
         x3=torch.cat((x3p,x3),dim=1)
-        x3=self.squeeze(x3)
+        x3=self.squeeze3(x3)
         x3=self.up(x3)
-        # x3=self.res(x)+ x3      
         
         
-        # x4=self.emul(x) * x3        
+        # print(x3.shape)
+        
         x4p = self.pool4(x)
-        x4 = self.inc(x4p)
+        x4 = self.inc4(x4p)
         x4=torch.cat((x4p,x4),dim=1)
-        x4=self.squeeze(x4)
+        x4=self.squeeze4(x4)
         x4=self.up(x4)
-        # x4=self.res(x4)+ x        
         
-        # x5=self.emul(x)* x4        
+        
+        # print(x4.shape)
+        
         x5p = self.pool5(x)
-        x5 = self.inc(x5p) 
+        x5 = self.inc5(x5p)
         x5=torch.cat((x5p,x5),dim=1)
-        x5=self.squeeze(x5)
-        x5=self.up(x5)        
-        # x5=self.res(x5)+x      
-          
+        x5=self.up(x5)
+        x5=self.squeeze5(x5)
+
+        
         xout=torch.cat((x,x1,x2,x3,x4,x5),dim=1)
-        xout = self.incfin(xout)     
+        xout = self.incfin(xout)
+        # xout = self.incfin1(xout)
         logits = self.outc(xout)
         
         return logits
@@ -626,333 +682,366 @@ class OutConv(nn.Module):
     def forward(self, x):
         return self.conv(x)  
 
+class LKConv(nn.Module):
+    def __init__(self, in_channels, out_channels,kernel_size):
+        super(OutConv, self).__init__()
+        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=kernel),
+        nn.InstanceNorm3d(out_channels),
+        nn.ReLU(inplace=True)
 
-IMG_EXTENSIONS = [
-    '.jpg', '.JPG', '.jpeg', '.JPEG',
-    '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP', '.tiff', '.npy', '.gz'
-]
+    def forward(self, x):
+        return self.conv(x) 
+        
+        
+if __name__=="__main__":
+
+    parser=argparse.ArgumentParser(description="Monai Seg main")
+
+    parser.add_argument("--lr",default=1e-3,type=float,help="learning rate")
+    parser.add_argument("--model",default="SISANet",type=str,help="name of model to use")
+    parser.add_argument("--load_save",default =1, type=int,help="flag to use saved model weight")
+    parser.add_argument("--load_path",default="./2022-01-20T16best_metric_model.pth", type=str, help="file path to load previously saved model")
+    parser.add_argument("--batch_size",default=2, type=int, help="to define batch size")
+    parser.add_argument("--save_name", default="SISANET.pth",type=str, help="save name")
+    parser.add_argument("--upsample", default="DECONV",type=str, help="flag to choose deconv options- NONTRAINABLE, DECONV, PIXELSHUFFLE")
+    parser.add_argument("--barlow_final",default=1, type=int, help="flag to use checkpoint instead of final model for barlow")
+    parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
+    parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
+    parser.add_argument("--fold_num",default=1,type=str,help="cross-validation fold number")
+    parser.add_argument("--epochs",default=150,type=int,help="number of epochs to run")
+    parser.add_argument("--CV_flag",default=0,type=int,help="is this a cross validation fold? 1=yes")
+
+    args=parser.parse_args()
+
+    print(' '.join(sys.argv))
+
+    IMG_EXTENSIONS = [
+        '.jpg', '.JPG', '.jpeg', '.JPEG',
+        '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP', '.tiff', '.npy', '.gz'
+    ]
 
 
-set_determinism(seed=0)
+    set_determinism(seed=0)
 
-# A source: Nvidia HDGAN
-def is_image_file(filename):
-    return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
+    # A source: Nvidia HDGAN
+    def is_image_file(filename):
+        return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
-# makes a list of all image paths inside a directory
-def make_dataset(data_dir):
-    all_files = []
-    images=[]
-    masks=[]
-    im_temp=[]
-    assert os.path.isdir(data_dir), '%s is not a valid directory' % data_dir
-    
-    for root, fol, _ in sorted(os.walk(data_dir)): # list folders and root
-        for folder in fol:                    # for each folder
-             path=os.path.join(root, folder)  # combine root path with folder path
-             for root1, _, fnames in os.walk(path):       #list all file names in the folder         
-                for f in fnames:                          # go through each file name
-                    fpath=os.path.join(root1,f)
-                    if is_image_file(f):                  # check if expected extension
-                        if re.search("seg",f):            # look for the mask files- have'seg' in the name 
-                            masks.append(fpath)
-                        else:
-                            im_temp.append(fpath)         # all without seg are image files, store them in a list for each folder
-                images.append(im_temp)                    # add image files for each folder to a list
-                im_temp=[]
-    return images, masks
-    
+    # makes a list of all image paths inside a directory
+    def make_dataset(data_dir):
+        all_files = []
+        images=[]
+        masks=[]
+        im_temp=[]
+        assert os.path.isdir(data_dir), '%s is not a valid directory' % data_dir
+        
+        for root, fol, _ in sorted(os.walk(data_dir)): # list folders and root
+            for folder in fol:                    # for each folder
+                 path=os.path.join(root, folder)  # combine root path with folder path
+                 for root1, _, fnames in os.walk(path):       #list all file names in the folder         
+                    for f in fnames:                          # go through each file name
+                        fpath=os.path.join(root1,f)
+                        if is_image_file(f):                  # check if expected extension
+                            if re.search("seg",f):            # look for the mask files- have'seg' in the name 
+                                masks.append(fpath)
+                            else:
+                                im_temp.append(fpath)         # all without seg are image files, store them in a list for each folder
+                    images.append(im_temp)                    # add image files for each folder to a list
+                    im_temp=[]
+        return images, masks
+        
 
 
-# A source: https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/brats_segmentation_3d.ipynb
-class ConvertToMultiChannelBasedOnBratsClassesd(MapTransform):
-    """
-    Convert masks to multi channels based on brats classes:
-    mask 1 is the peritumoral edema
-    mask 2 is the GD-enhancing tumor
-    mask 3 is the necrotic and non-enhancing tumor core
-    The possible classes are TC (Tumor core), WT (Whole tumor)
-    and ET (Enhancing tumor).
+    # A source: https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/brats_segmentation_3d.ipynb
+    class ConvertToMultiChannelBasedOnBratsClassesd(MapTransform):
+        """
+        Convert masks to multi channels based on brats classes:
+        mask 1 is the peritumoral edema
+        mask 2 is the GD-enhancing tumor
+        mask 3 is the necrotic and non-enhancing tumor core
+        The possible classes are TC (Tumor core), WT (Whole tumor)
+        and ET (Enhancing tumor).
 
-    """
+        """
 
-    def __call__(self, data):
-        d = dict(data)
-        for key in self.keys:
-            result = []
-            # merge mask 2 and mask 3 to construct TC
-            result.append(np.logical_or(d[key] == 2, d[key] == 3))
-            # merge masks 1, 2 and 3 to construct WT
-            result.append(
-                np.logical_or(
-                    np.logical_or(d[key] == 2, d[key] == 3), d[key] == 1
+        def __call__(self, data):
+            d = dict(data)
+            for key in self.keys:
+                result = []
+                # merge mask 2 and mask 3 to construct TC
+                result.append(np.logical_or(d[key] == 2, d[key] == 3))
+                # merge masks 1, 2 and 3 to construct WT
+                result.append(
+                    np.logical_or(
+                        np.logical_or(d[key] == 2, d[key] == 3), d[key] == 1
+                    )
                 )
-            )
-            # mask 2 is ET
-            result.append(d[key] == 2)
-            d[key] = np.stack(result, axis=0).astype(np.float32)
-        return d
+                # mask 2 is ET
+                result.append(d[key] == 2)
+                d[key] = np.stack(result, axis=0).astype(np.float32)
+            return d
 
 
-indexes=np.arange(100)
+    indexes=np.arange(args.max_samples)
+    fold=int(args.max_samples/10)
 
-for i in range(1,11):
-    if i==int(args.fold_num):
-        val_indices=indexes[(i-1)*10:i*10]
-        train_indices=np.delete(indexes,val_indices)
+    for i in range(1,11):
+        if i==int(args.fold_num):
+            val_indices=indexes[(i-1)*fold:i*fold]
+            train_indices=np.delete(indexes,val_indices)
+               
+    class BratsDataset(Dataset):
+        def __init__(self,data_dir,transform=None):
+            self.image_list=make_dataset(data_dir)[0]  
+            self.mask_list=make_dataset(data_dir)[1] 
+            self.transform=transform
+            
+        def __len__(self):
+    #         return len(os.listdir(self.mask_dir))
+            return min(args.max_samples,len(self.mask_list))
+        
+        def __getitem__(self,idx):
+            image=self.image_list[idx]
+        
+            mask=self.mask_list[idx] 
+
+                
+            item_dict={"image":image,"mask":mask}
+            
+            if self.transform:
+                item_dict={"image":image,"mask": mask}
+                item_dict=self.transform(item_dict)
+                
+            
+            return item_dict
+
+
+
+
+        
+    KEYS=("image","mask")
+    print("Transforms not defined yet")
+    train_transform = Compose(
+        [
+            # load 4 Nifti images and stack them together
+            LoadImaged(keys=["image", "mask"]),
+            EnsureChannelFirstD(keys="image"),
+            ConvertToMultiChannelBasedOnBratsClassesd(keys="mask"),
+            SpacingD(
+                keys=["image", "mask"],
+                pixdim=(1.0, 1.0, 1.0),
+                mode=("bilinear", "nearest"),
+            ),
+            OrientationD(keys=["image", "mask"], axcodes="RAS"),
+            RandSpatialCropd(keys=["image", "mask"], roi_size=[192, 192, 144], random_size=False),
            
-class BratsDataset(Dataset):
-    def __init__(self,data_dir,transform=None):
-        self.image_list=make_dataset(data_dir)[0]  
-        self.mask_list=make_dataset(data_dir)[1] 
-        self.transform=transform
+            RandRotateD(keys=["image","mask"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),
+           
+            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
+            RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),
+            EnsureTyped(keys=["image", "mask"]),
+        ]
+    )
+    val_transform = Compose(
+        [
+            LoadImaged(keys=["image", "mask"]),
+            EnsureChannelFirstD(keys="image"),
+            ConvertToMultiChannelBasedOnBratsClassesd(keys="mask"),
+            SpacingD(
+                keys=["image", "mask"],
+                pixdim=(1.0, 1.0, 1.0),
+                mode=("bilinear", "nearest"),
+            ),
+            OrientationD(keys=["image", "mask"], axcodes="RAS"),
+            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            RandSpatialCropd(keys=["image", "mask"], roi_size=[192, 192, 144], random_size=False),
+            EnsureTyped(keys=["image", "mask"]),
+        ]
+    )
+
+    #dataset=DecathlonDataset(root_dir="./", task="Task05_Prostate",section="training", transform=xform, download=True)
+    train_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
+
+    val_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_ValidationData",transform=val_transform)
+
+    if args.CV_flag==1:
+        print("loading cross val data")
+        val_dataset=Subset(train_dataset,val_indices)
+        train_dataset=Subset(train_dataset,train_indices)
         
-    def __len__(self):
-#         return len(os.listdir(self.mask_dir))
-        return min(args.max_samples,len(self.mask_list))
-    
-    def __getitem__(self,idx):
-        image=self.image_list[idx]
-    
-        mask=self.mask_list[idx] 
-
-            
-        item_dict={"image":image,"mask":mask}
         
-        if self.transform:
-            item_dict={"image":image,"mask": mask}
-            item_dict=self.transform(item_dict)
-            
-        
-        return item_dict
+    print("number of files processed: ", train_dataset.__len__())
+    train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
+    val_loader=DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+    print("All Datasets assigned")
 
+    root_dir="./"
 
+    max_epochs = args.epochs
+    val_interval = 1
+    VAL_AMP = True
 
+    # standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
+    device = torch.device("cuda:0")
 
-    
-KEYS=("image","mask")
-print("Transforms not defined yet")
-train_transform = Compose(
-    [
-        # load 4 Nifti images and stack them together
-        LoadImaged(keys=["image", "mask"]),
-        EnsureChannelFirstD(keys="image"),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="mask"),
-        SpacingD(
-            keys=["image", "mask"],
-            pixdim=(1.0, 1.0, 1.0),
-            mode=("bilinear", "nearest"),
-        ),
-        OrientationD(keys=["image", "mask"], axcodes="RAS"),
-        RandSpatialCropd(keys=["image", "mask"], roi_size=[192, 192, 144], random_size=False),
-       
-        RandRotateD(keys=["image","mask"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),
-       
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
-        RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),
-        EnsureTyped(keys=["image", "mask"]),
-    ]
-)
-val_transform = Compose(
-    [
-        LoadImaged(keys=["image", "mask"]),
-        EnsureChannelFirstD(keys="image"),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="mask"),
-        SpacingD(
-            keys=["image", "mask"],
-            pixdim=(1.0, 1.0, 1.0),
-            mode=("bilinear", "nearest"),
-        ),
-        OrientationD(keys=["image", "mask"], axcodes="RAS"),
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        RandSpatialCropd(keys=["image", "mask"], roi_size=[192, 192, 144], random_size=False),
-        EnsureTyped(keys=["image", "mask"]),
-    ]
-)
+    if args.model=="UNet":
+         model=UNet(
+            spatial_dims=3,
+            in_channels=4,
+            out_channels=3,
+            channels=(64,128,256,512,1024),
+            strides=(2,2,2,2)
+            ).to(device)
+    elif args.model=="SegResNet":
+        model = SegResNet(
+            blocks_down=[1, 2, 2, 4],
+            blocks_up=[1, 1, 1],
+            init_filters=32,
+            norm="instance",
+            in_channels=4,
+            out_channels=3,
+            upsample_mode=UpsampleMode[args.upsample]    
+            ).to(device)
 
-#dataset=DecathlonDataset(root_dir="./", task="Task05_Prostate",section="training", transform=xform, download=True)
-train_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
-
-val_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_ValidationData",transform=val_transform)
-
-if args.CV_flag==1:
-    print("loading cross val data")
-    val_dataset=Subset(train_dataset,val_indices)
-    train_dataset=Subset(train_dataset,train_indices)
-    
-    
-print("number of files processed: ", train_dataset.__len__())
-train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
-val_loader=DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
-print("All Datasets assigned")
-
-root_dir="./"
-
-max_epochs = 100
-val_interval = 1
-VAL_AMP = True
-
-# standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
-device = torch.device("cuda:0")
-
-if args.model=="UNet":
-     model=UNet(
-        spatial_dims=3,
-        in_channels=4,
-        out_channels=3,
-        channels=(64,128,256,512,1024),
-        strides=(2,2,2,2)
-        ).to(device)
-elif args.model=="SegResNet":
-    model = SegResNet(
-        blocks_down=[1, 2, 2, 4],
-        blocks_up=[1, 1, 1],
-        init_filters=32,
-        norm="instance",
-        in_channels=4,
-        out_channels=3,
-        upsample_mode=UpsampleMode[args.upsample]    
-        ).to(device)
-
-else:
-    model = locals() [args.model](4,3).to(device)
-
-with torch.cuda.amp.autocast():
-    summary(model,(4,192,192,144))
-
-model=torch.nn.DataParallel(model)
-print("Model defined and passed to GPU")
-
-loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
-optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=1e-5)
-lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
-
-dice_metric = DiceMetric(include_background=True, reduction="mean")
-dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
-
-post_trans = Compose(
-    [EnsureType(), Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
-    
-def inference(input):
-
-    def _compute(input):
-        return sliding_window_inference(
-            inputs=input,
-            roi_size=(192,192, 144),
-            sw_batch_size=1,
-            predictor=model,
-            overlap=0.5,
-        )
-
-    if VAL_AMP:
-        with torch.cuda.amp.autocast():
-            return _compute(input)
     else:
-        return _compute(input)
+        model = locals() [args.model](4,3).to(device)
 
+    with torch.cuda.amp.autocast():
+        summary(model,(4,192,192,144))
 
-# use amp to accelerate training
-scaler = torch.cuda.amp.GradScaler()
-# enable cuDNN benchmark
-torch.backends.cudnn.benchmark = True
+    model=torch.nn.DataParallel(model)
+    print("Model defined and passed to GPU")
 
-best_metric = -1
-best_metric_epoch = -1
-best_metrics_epochs_and_time = [[], [], []]
-epoch_loss_values = []
-metric_values = []
-metric_values_tc = []
-metric_values_wt = []
-metric_values_et = []
+    loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
+    optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=1e-5)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
 
-total_start = time.time()
+    dice_metric = DiceMetric(include_background=True, reduction="mean")
+    dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
 
-print("starting epochs")
-for epoch in range(max_epochs):
-    epoch_start = time.time()
-    print("-" * 10)
-    print(f"epoch {epoch + 1}/{max_epochs}")
-    model.train()
-    epoch_loss = 0
-    step = 0
-    for batch_data in train_loader:
-        step_start = time.time()
-        step += 1
-        inputs, masks = (
-            batch_data["image"].to(device),
-            batch_data["mask"].to(device),
-        )
-        optimizer.zero_grad()
-        with torch.cuda.amp.autocast():
-            outputs = model(inputs)
-            loss = loss_function(outputs, masks)
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
-        epoch_loss += loss.item()
-        if step%10==0:
-            print(
-                f"{step}/{len(train_dataset) // train_loader.batch_size}"
-                f", train_loss: {loss.item():.4f}"
-                f", step time: {(time.time() - step_start):.4f}"
+    post_trans = Compose(
+        [EnsureType(), Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
+        
+    def inference(input):
+
+        def _compute(input):
+            return sliding_window_inference(
+                inputs=input,
+                roi_size=(192,192, 144),
+                sw_batch_size=1,
+                predictor=model,
+                overlap=0.5,
             )
-    lr_scheduler.step()
-    epoch_loss /= step
-    epoch_loss_values.append(epoch_loss)
-    print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
 
-    if (epoch + 1) % val_interval == 0:
-        model.eval()
-        with torch.no_grad():
+        if VAL_AMP:
+            with torch.cuda.amp.autocast():
+                return _compute(input)
+        else:
+            return _compute(input)
 
-            for val_data in val_loader:
-                val_inputs, val_masks = (
-                    val_data["image"].to(device),
-                    val_data["mask"].to(device),
+
+    # use amp to accelerate training
+    scaler = torch.cuda.amp.GradScaler()
+    # enable cuDNN benchmark
+    torch.backends.cudnn.benchmark = True
+
+    best_metric = -1
+    best_metric_epoch = -1
+    best_metrics_epochs_and_time = [[], [], []]
+    epoch_loss_values = []
+    metric_values = []
+    metric_values_tc = []
+    metric_values_wt = []
+    metric_values_et = []
+
+    total_start = time.time()
+
+    print("starting epochs")
+    for epoch in range(max_epochs):
+        epoch_start = time.time()
+        print("-" * 10)
+        print(f"epoch {epoch + 1}/{max_epochs}")
+        model.train()
+        epoch_loss = 0
+        step = 0
+        for batch_data in train_loader:
+            step_start = time.time()
+            step += 1
+            inputs, masks = (
+                batch_data["image"].to(device),
+                batch_data["mask"].to(device),
+            )
+            optimizer.zero_grad()
+            with torch.cuda.amp.autocast():
+                outputs = model(inputs)
+                loss = loss_function(outputs, masks)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            epoch_loss += loss.item()
+            if step%10==0:
+                print(
+                    f"{step}/{len(train_dataset) // train_loader.batch_size}"
+                    f", train_loss: {loss.item():.4f}"
+                    f", step time: {(time.time() - step_start):.4f}"
                 )
-                val_outputs = inference(val_inputs)
-                val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
-                dice_metric(y_pred=val_outputs, y=val_masks)
-                dice_metric_batch(y_pred=val_outputs, y=val_masks)
+        lr_scheduler.step()
+        epoch_loss /= step
+        epoch_loss_values.append(epoch_loss)
+        print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
 
-            metric = dice_metric.aggregate().item()
-            metric_values.append(metric)
-            metric_batch = dice_metric_batch.aggregate()
-            metric_tc = metric_batch[0].item()
-            metric_values_tc.append(metric_tc)
-            metric_wt = metric_batch[1].item()
-            metric_values_wt.append(metric_wt)
-            metric_et = metric_batch[2].item()
-            metric_values_et.append(metric_et)
-            dice_metric.reset()
-            dice_metric_batch.reset()
+        if (epoch + 1) % val_interval == 0:
+            model.eval()
+            with torch.no_grad():
 
-            if metric > best_metric:
-                best_metric = metric
-                best_metric_epoch = epoch + 1
-                best_metrics_epochs_and_time[0].append(best_metric)
-                best_metrics_epochs_and_time[1].append(best_metric_epoch)
-                best_metrics_epochs_and_time[2].append(time.time() - total_start)
-                if args.CV_flag==1:
-                    torch.save(
-                        model.state_dict(),
-                        os.path.join(root_dir, date.today().isoformat()+ args.model+"CV"+str(args.fold_num)),
+                for val_data in val_loader:
+                    val_inputs, val_masks = (
+                        val_data["image"].to(device),
+                        val_data["mask"].to(device),
                     )
-                else:
-                    torch.save(
-                        model.state_dict(),
-                        os.path.join(root_dir, date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model),
-                    )
-                print("saved new best metric model")
-            print(
-                f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
-                f" tc: {metric_tc:.4f} wt: {metric_wt:.4f} et: {metric_et:.4f}"
-                f"\nbest mean dice: {best_metric:.4f}"
-                f" at epoch: {best_metric_epoch}"
-            )
-    print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
-total_time = time.time() - total_start
+                    val_outputs = inference(val_inputs)
+                    val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
+                    dice_metric(y_pred=val_outputs, y=val_masks)
+                    dice_metric_batch(y_pred=val_outputs, y=val_masks)
 
-print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}, total time: {total_time}.")
+                metric = dice_metric.aggregate().item()
+                metric_values.append(metric)
+                metric_batch = dice_metric_batch.aggregate()
+                metric_tc = metric_batch[0].item()
+                metric_values_tc.append(metric_tc)
+                metric_wt = metric_batch[1].item()
+                metric_values_wt.append(metric_wt)
+                metric_et = metric_batch[2].item()
+                metric_values_et.append(metric_et)
+                dice_metric.reset()
+                dice_metric_batch.reset()
+
+                if metric > best_metric:
+                    best_metric = metric
+                    best_metric_epoch = epoch + 1
+                    best_metrics_epochs_and_time[0].append(best_metric)
+                    best_metrics_epochs_and_time[1].append(best_metric_epoch)
+                    best_metrics_epochs_and_time[2].append(time.time() - total_start)
+                    if args.CV_flag==1:
+                        torch.save(
+                            model.state_dict(),
+                            os.path.join(root_dir, date.today().isoformat()+ args.model+"CV"+str(args.fold_num)+"ms"+str(args.max_samples)),
+                        )
+                    else:
+                        torch.save(
+                            model.state_dict(),
+                            os.path.join(root_dir, date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model),
+                        )
+                    print("saved new best metric model")
+                print(
+                    f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
+                    f" tc: {metric_tc:.4f} wt: {metric_wt:.4f} et: {metric_et:.4f}"
+                    f"\nbest mean dice: {best_metric:.4f}"
+                    f" at epoch: {best_metric_epoch}"
+                )
+        print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
+    total_time = time.time() - total_start
+
+    print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}, total time: {total_time}.")
 
