@@ -360,6 +360,31 @@ class SpatialAttention(nn.Module):
         x = x + shortcut
         return x
 
+class LNDoubleConv(nn.Module):
+    """(convolution => [BN] => ReLU) * 2"""
+
+    def __init__(self, in_channels, out_channels,H,W,D, mid_channels=None):
+        super(LNDoubleConv,self).__init__()
+        self.in_channels=in_channels
+        self.out_channels=out_channels
+        if not mid_channels:
+            mid_channels = out_channels
+        self.double_conv = nn.Sequential(
+            nn.Conv3d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False,groups=1),
+            nn.LayerNorm([mid_channels,H,W,D],elementwise_affine=False),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False,groups=1),
+            nn.LayerNorm([out_channels,H,W,D],elementwise_affine=False),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        
+        if self.in_channels==self.out_channels:
+            x=self.double_conv(x)+x
+        else:
+            x=self.double_conv(x)
+        return x
         
 class VANet(nn.Module):
     def __init__(self, n_channels, n_classes, bilinear=True):
@@ -369,25 +394,25 @@ class VANet(nn.Module):
         self.bilinear = bilinear
 
         
-        self.pool1=DownConv(n_channels,64,2)
-        self.inc1=SpatialAttention(64)
+        self.pool1=DownConv(n_channels,32,2)
+        self.inc1=SpatialAttention(32)
         
-        self.pool2=DownConv(64,128,2)
-        self.inc2=SpatialAttention(128)
+        self.pool2=DownConv(32,64,2)
+        self.inc2=SpatialAttention(64)
         
-        self.pool3=DownConv(128,320,2)
-        self.inc3=SpatialAttention(320)
+        self.pool3=DownConv(64,160,2)
+        self.inc3=SpatialAttention(160)
         
-        self.pool4=DownConv(320,512,2)
-        self.inc4=SpatialAttention(512)
+        self.pool4=DownConv(160,256,2)
+        self.inc4=SpatialAttention(256)
         
-        self.up1 = sUp(512, 256, bilinear)
-        self.up2 = sUp(256, 128 , bilinear)
-        self.up3 = sUp(128, 64 , bilinear)
-        self.up4 = sUp(64, 32 , bilinear)
+        self.up1 = UpConv(256, 160,2)
+        self.up2 = UpConv(320, 64 , 2)
+        self.up3 = UpConv(128, 32 , 2)
+        self.up4 = UpConv(64, 16 ,2)
                
         
-        self.outc = OutConv(32, n_classes)
+        self.outc = OutConv(16, n_classes)
 
     def forward(self, x):
         x1 = self.pool1(x)
@@ -414,15 +439,17 @@ class VANet(nn.Module):
         x4=self.inc4(x4)
         x4=self.inc4(x4)
         # print("X4:", x4.shape)
-               
-        
         
         x = self.up1(x4)
         # print("up1:", x.shape)
+        x=torch.cat((x,x3),dim=1)
         x = self.up2(x)
         # print("up2:", x.shape)
+        x=torch.cat((x,x2),dim=1)
         x = self.up3(x)
         # print("up3:", x.shape)
+        x=torch.cat((x,x1),dim=1)
+        
         x = self.up4(x)
         # print("up4:", x.shape)
         
@@ -613,9 +640,11 @@ class UptoShape(nn.Module):
 class UpConv(nn.Module):
     def __init__(self,in_chan,out_chan,factor):
         super(UpConv,self).__init__()
-        self.up = nn.ConvTranspose3d(in_chan,out_chan,kernel_size=factor,stride=factor)
+        self.up = nn.Upsample(scale_factor=factor, mode="nearest")
+        self.conv=DoubleConv(in_chan,out_chan)
     def forward(self,x):
         x=self.up(x)
+        x=self.conv(x)
         return x  
 
 class Up(nn.Module):
@@ -658,6 +687,8 @@ class DoubleConv(nn.Module):
         else:
             x=self.double_conv(x)
         return x
+        
+
         
 class DownConv(nn.Module):
     
