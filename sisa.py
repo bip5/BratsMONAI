@@ -292,9 +292,9 @@ class manSegResNet(nn.Module):
         
         self.up1 = sUp(256, 128, bilinear)
         self.up2 = sUp(128, 64 , bilinear)
-        self.up3 = sUp(64, 32 , bilinear)
+        self.up3 = sUp(64, 16 , bilinear)
       
-        self.outc = wOutConv(32, n_classes)
+        self.outc = wOutConv(16, n_classes)
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -393,26 +393,26 @@ class VANet(nn.Module):
         self.n_classes = n_classes
         self.bilinear = bilinear
 
+        filt=32
+        self.pool1=DownConv(n_channels,filt,2)
+        self.inc1=SpatialAttention(filt)
         
-        self.pool1=DownConv(n_channels,32,2)
-        self.inc1=SpatialAttention(32)
+        self.pool2=DownConv(filt,filt*2,2)
+        self.inc2=SpatialAttention(filt*2)
         
-        self.pool2=DownConv(32,64,2)
-        self.inc2=SpatialAttention(64)
+        self.pool3=DownConv(filt*2,filt*5,2)
+        self.inc3=SpatialAttention(filt*5)
         
-        self.pool3=DownConv(64,160,2)
-        self.inc3=SpatialAttention(160)
+        self.pool4=DownConv(filt*5,filt*8,2)
+        self.inc4=SpatialAttention(filt*8)
         
-        self.pool4=DownConv(160,256,2)
-        self.inc4=SpatialAttention(256)
-        
-        self.up1 = UpConv(256, 160,2)
-        self.up2 = UpConv(320, 64 , 2)
-        self.up3 = UpConv(128, 32 , 2)
-        self.up4 = UpConv(64, 16 ,2)
+        self.up1 = UpConv(filt*8, filt*5,2)
+        self.up2 = UpConv(filt*10, filt*2 , 2)
+        self.up3 = UpConv(filt*4, filt , 2)
+        self.up4 = UpConv(filt*2, filt ,2)
                
         
-        self.outc = OutConv(16, n_classes)
+        self.outc = OutConv(filt, n_classes)
 
     def forward(self, x):
         x1 = self.pool1(x)
@@ -457,37 +457,7 @@ class VANet(nn.Module):
         logits = self.outc(x)
         
         return logits
-        
-class LKNet(nn.Module):
-    def __init__(self,n_channels,n_classes):
-        super(LKNet,self).__init__()
-        self.pool1=LKConv(4,1,kernel_size=(169,169,121))
-        self.pool2=LKConv(4,1,kernel_size=(145,145,96))
-        self.pool3=LKConv(4,1, kernel_size=(97,97,49))
-        self.pool4=LKConv(4,1,kernel_size=(1))
-        
-        self.up=UptoShape([192,192,144])
-        self.outc = OutConv(4, n_classes)
-    
-    def forward(self,x):
-    
-        x1p = self.pool1(x)   
-        x1=self.up(x1p)
-                  
-        x2p =self.pool2(x)
-        x2=self.up(x2p) 
-   
-        x3p = self.pool3(x)
-        x3=self.up(x3p)    
-        
-        x4p = self.pool4(x)
-        x4=self.up(x4p)
-        
-        xout=torch.cat((x1,x2,x3,x4),dim=1)
-        logits=self.outc(xout)
-        
-        return logits
-        
+
         
         
         
@@ -641,10 +611,10 @@ class UpConv(nn.Module):
     def __init__(self,in_chan,out_chan,factor):
         super(UpConv,self).__init__()
         self.up = nn.Upsample(scale_factor=factor, mode="nearest")
-        self.conv=DoubleConv(in_chan,out_chan)
+        
     def forward(self,x):
         x=self.up(x)
-        x=self.conv(x)
+       
         return x  
 
 class Up(nn.Module):
