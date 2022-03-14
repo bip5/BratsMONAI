@@ -406,10 +406,10 @@ class VANet(nn.Module):
         self.pool4=DownConv(filt*5,filt*8,2)
         self.inc4=SpatialAttention(filt*8)
         
-        self.up1 = UpConv(filt*8, filt*5,2)
-        self.up2 = UpConv(filt*10, filt*2 , 2)
-        self.up3 = UpConv(filt*4, filt , 2)
-        self.up4 = UpConv(filt*2, filt ,2)
+        self.up1 = UpConv(filt*8, filt*5)
+        self.up2 = UpConv(filt*10, filt*2 )
+        self.up3 = UpConv(filt*4, filt)
+        self.up4 = UpConv(filt*2, filt)
                
         
         self.outc = OutConv(filt, n_classes)
@@ -608,13 +608,13 @@ class UptoShape(nn.Module):
         return x
 
 class UpConv(nn.Module):
-    def __init__(self,in_chan,out_chan,factor):
+    def __init__(self,in_chan,out_chan):
         super(UpConv,self).__init__()
-        self.up = nn.Upsample(scale_factor=factor, mode="nearest")
+        self.up = nn.ConvTranspose3d(in_chan,out_chan,kernel_size=2,stride=2)
         
     def forward(self,x):
         x=self.up(x)
-       
+        
         return x  
 
 class Up(nn.Module):
