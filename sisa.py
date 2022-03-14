@@ -611,9 +611,14 @@ class UpConv(nn.Module):
     def __init__(self,in_chan,out_chan):
         super(UpConv,self).__init__()
         self.up = nn.ConvTranspose3d(in_chan,out_chan,kernel_size=2,stride=2)
+        self.activation = nn.GELU()
+        self.LN=nn.InstanceNorm3d(out_chan)
+        
         
     def forward(self,x):
         x=self.up(x)
+        x=self.activation(x)
+        x=self.LN(x)
         
         return x  
 
