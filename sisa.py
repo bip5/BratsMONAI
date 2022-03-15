@@ -407,9 +407,9 @@ class VANet(nn.Module):
         self.inc4=SpatialAttention(filt*8)
         
         self.up1 = UpConv(filt*8, filt*5)
-        self.up2 = UpConv(filt*10, filt*2 )
-        self.up3 = UpConv(filt*4, filt)
-        self.up4 = UpConv(filt*2, int(filt/2))
+        self.up2 = UpConv(filt*5, filt*2 )
+        self.up3 = UpConv(filt*2, filt)
+        self.up4 = UpConv(filt, int(filt/2))
                
         
         self.outc = OutConv(int(filt/2), n_classes)
@@ -442,13 +442,13 @@ class VANet(nn.Module):
         
         x = self.up1(x4)
         # print("up1:", x.shape)
-        x=torch.cat((x,x3),dim=1)
+        x=x+x3
         x = self.up2(x)
         # print("up2:", x.shape)
-        x=torch.cat((x,x2),dim=1)
+        x=x+x2
         x = self.up3(x)
         # print("up3:", x.shape)
-        x=torch.cat((x,x1),dim=1)
+        x=x+x1
         
         x = self.up4(x)
         # print("up4:", x.shape)
