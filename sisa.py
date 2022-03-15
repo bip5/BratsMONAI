@@ -393,7 +393,7 @@ class VANet(nn.Module):
         self.n_classes = n_classes
         self.bilinear = bilinear
 
-        filt=32
+        filt=64
         self.pool1=DownConv(n_channels,filt,2)
         self.inc1=SpatialAttention(filt)
         
@@ -409,10 +409,10 @@ class VANet(nn.Module):
         self.up1 = UpConv(filt*8, filt*5)
         self.up2 = UpConv(filt*10, filt*2 )
         self.up3 = UpConv(filt*4, filt)
-        self.up4 = UpConv(filt*2, filt)
+        self.up4 = UpConv(filt*2, int(filt/2))
                
         
-        self.outc = OutConv(filt, n_classes)
+        self.outc = OutConv(int(filt/2), n_classes)
 
     def forward(self, x):
         x1 = self.pool1(x)
@@ -610,13 +610,17 @@ class UptoShape(nn.Module):
 class UpConv(nn.Module):
     def __init__(self,in_chan,out_chan):
         super(UpConv,self).__init__()
-        self.up = nn.ConvTranspose3d(in_chan,out_chan,kernel_size=2,stride=2)
+        self.up = nn.ConvTranspose3d(in_chan,out_chan,kernel_size=2,stride=2)        
         self.activation = nn.GELU()
         self.LN=nn.InstanceNorm3d(out_chan)
+        self.conv=nn.Conv3d(out_chan,out_chan,kernel_size=3,padding=1)
         
         
     def forward(self,x):
         x=self.up(x)
+        x=self.activation(x)
+        x=self.LN(x)
+        x=self.conv(x)
         x=self.activation(x)
         x=self.LN(x)
         
@@ -649,10 +653,10 @@ class DoubleConv(nn.Module):
         self.double_conv = nn.Sequential(
             nn.Conv3d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False,groups=1),
             nn.InstanceNorm3d(mid_channels),
-            nn.ReLU(inplace=True),
+            # nn.ReLU(inplace=True),
             nn.Conv3d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False,groups=1),
             nn.InstanceNorm3d(out_channels),
-            nn.ReLU(inplace=True)
+            # nn.ReLU(inplace=True)
         )
 
     def forward(self, x):
@@ -992,7 +996,7 @@ if __name__=="__main__":
                     f", train_loss: {loss.item():.4f}"
                     f", step time: {(time.time() - step_start):.4f}"
                 )
-        lr_scheduler.step()
+        # lr_scheduler.step()
         epoch_loss /= step
         epoch_loss_values.append(epoch_loss)
         print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
