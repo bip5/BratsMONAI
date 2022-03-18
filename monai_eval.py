@@ -380,9 +380,9 @@ if __name__=="__main__":
             )
             evaluator.run()
             
-            print("validation stats: ",evaluator.get_validation_stats())
-            print("metric_tc,wt,et",evaluator.state.metrics, type(evaluator.state.metrics))#jbc
-            print("evaluator best metric:",evaluator.state.best_metric)
+            # print("validation stats: ",evaluator.get_validation_stats())
+            print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",evaluator.state.metrics["Channelwise"][0],"whole tumor:",evaluator.state.metrics["Channelwise"][1],"enhancing tumor:",evaluator.state.metrics["Channelwise"][2])#jbc
+            # print("evaluator best metric:",evaluator.state.best_metric)
         
         
         
@@ -406,8 +406,9 @@ if __name__=="__main__":
                 EnsureTyped(keys=["pred"+str(i) for i in range(10)]),
                 Activationsd(keys=["pred"+str(i) for i in range(10)], sigmoid=True),
                 # transform data into discrete before voting
-                AsDiscreted(keys=["pred"+str(i) for i in range(10)], threshold=0.5),
+                
                 VoteEnsembled(keys=["pred"+str(i) for i in range(10)], output_key="pred"),
+                AsDiscreted(keys="pred", threshold=0.5),
             ]
         )
         ensemble_evaluate(vote_post_transforms, models)
