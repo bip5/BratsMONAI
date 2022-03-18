@@ -463,7 +463,7 @@ if __name__=="__main__":
             models.append(model)
 
         def ensemble_evaluate(post_transforms, models):
-            print(f"{postprocessing=}")
+            print(f"{post_transforms=}")
             evaluator = EnsembleEvaluator(
                 device=device,
                 val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
