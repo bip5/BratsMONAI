@@ -37,6 +37,7 @@ from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     AdjustContrastD,
     RandKSpaceSpikeNoiseD,
     RandGaussianSharpenD,
+
     MeanEnsembled,
     VoteEnsembled,
     EnsureType,
@@ -48,7 +49,14 @@ from monai.engines import (
     SupervisedEvaluator,
     SupervisedTrainer
 )
-
+from monai.config.type_definitions import NdarrayOrTensor
+from monai.networks import one_hot
+from monai.networks.layers import GaussianFilter, apply_filter
+from monai.transforms.transform import Transform
+from monai.transforms.utils import fill_holes, get_largest_connected_component_mask
+from monai.transforms.utils_pytorch_numpy_unification import unravel_index
+from monai.utils import TransformBackends, convert_data_type, deprecated_arg, ensure_tuple, look_up_option
+from monai.utils.type_conversion import convert_to_dst_type
 from monai.losses import DiceLoss
 from monai.utils import UpsampleMode
 from monai.data import decollate_batch, list_data_collate
@@ -251,25 +259,120 @@ if __name__=="__main__":
 
 
     ########### ~~~~~~~~~~~~~~~~~~~~~~~ Evaluation ~~~~~~~~~~~~~~~~~~~~~FIX this
+    
+    
+    class Ensemble:
+        @staticmethod
+        def get_stacked_torch(img: Union[Sequence[NdarrayOrTensor], NdarrayOrTensor]) -> torch.Tensor:
+            """Get either a sequence or single instance of np.ndarray/torch.Tensor. Return single torch.Tensor."""
+            if isinstance(img, Sequence) and isinstance(img[0], np.ndarray):
+                img = [torch.as_tensor(i) for i in img]
+            elif isinstance(img, np.ndarray):
+                img = torch.as_tensor(img)
+            out: torch.Tensor = torch.stack(img) if isinstance(img, Sequence) else img  # type: ignore
+            return out
+
+        @staticmethod
+        def post_convert(img: torch.Tensor, orig_img: Union[Sequence[NdarrayOrTensor], NdarrayOrTensor]) -> NdarrayOrTensor:
+            orig_img_ = orig_img[0] if isinstance(orig_img, Sequence) else orig_img
+            out, *_ = convert_to_dst_type(img, orig_img_)
+            return out
+            
+
+    class ConfEnsemble(Ensemble, Transform):
+
+
+        backend = [TransformBackends.TORCH]
+
+        def __init__(self, weights: Optional[Union[Sequence[float], NdarrayOrTensor]] = None) -> None:
+            self.weights = torch.as_tensor(weights, dtype=torch.float) if weights is not None else None
+
+        def __call__(self, img: Union[Sequence[NdarrayOrTensor], NdarrayOrTensor]) -> NdarrayOrTensor:
+            img_ = self.get_stacked_torch(img)
+            if self.weights is not None:
+                self.weights = self.weights.to(img_.device)
+                shape = tuple(self.weights.shape)
+                for _ in range(img_.ndimension() - self.weights.ndimension()):
+                    shape += (1,)
+                weights = self.weights.reshape(*shape)
+
+                img_ = img_ * weights / weights.mean(dim=0, keepdim=True)
+                
+            
+            img_=torch.sort(img_,dim=0).values
+            
+            print(type(img_))
+
+            out_pt = torch.mean(img_[:,0:2], dim=0)
+            return self.post_convert(out_pt, img)
+            
+    class Ensembled(MapTransform):
+       
+
+        backend = list(set(ConfEnsemble.backend) )
+
+        def __init__(
+            self, keys,ensemble,
+            output_key = None,
+            allow_missing_keys = False,
+        ) -> None:
+       
+            super().__init__(keys, allow_missing_keys)
+            if not callable(ensemble):
+                raise TypeError(f"ensemble must be callable but is {type(ensemble).__name__}.")
+            self.ensemble = ensemble
+            if len(self.keys) > 1 and output_key is None:
+                raise ValueError("Incompatible values: len(self.keys) > 1 and output_key=None.")
+            self.output_key = output_key if output_key is not None else self.keys[0]
+
+        def __call__(self, data):
+            d = dict(data)
+            
+            if len(self.keys) == 1 and self.keys[0] in d:
+                items = d[self.keys[0]]
+            else:
+                items = [d[key] for key in self.key_iterator(d)]
+
+            if len(items) > 0:
+                d[self.output_key] = self.ensemble(items)
+
+            return d
+            
+    class ConfEnsembled(Ensembled):
+        """
+        Dictionary-based wrapper of :py:class:`monai.transforms.MeanEnsemble`.
+        """
+
+        backend = ConfEnsemble.backend
+
+        def __init__(
+            self,
+            keys,
+            output_key = None,
+            weights = None,
+        ) -> None:
+    
+            ensemble = ConfEnsemble(weights=weights)
+            super().__init__(keys, ensemble, output_key)
 
     test_transforms0 = Compose(
         [
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstD(keys=["image"]),
             ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-            SpacingD(
-                keys=["image", "label"],
-                pixdim=(1.0, 1.0, 1.0),
-                mode=("bilinear", "nearest"),
-            ),
-            OrientationD(keys=["image", "label"], axcodes="RAS"),
+            # SpacingD(
+                # keys=["image", "label"],
+                # pixdim=(1.0, 1.0, 1.0),
+                # mode=("bilinear", "nearest"),
+            # ),
+            # OrientationD(keys=["image", "label"], axcodes="RAS"),
             # RandSpatialCropd(keys=["image", "label"], roi_size=[192, 192, 144], random_size=False),
            
-            RandRotateD(keys=["image","label"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),
+            # RandRotateD(keys=["image","label"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),
            
-            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-            RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
-            RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),
+            # NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            # RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
+            # RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),
 
             NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
             EnsureTyped(keys=["image", "label"]),
@@ -381,17 +484,17 @@ if __name__=="__main__":
             evaluator.run()
             
             # print("validation stats: ",evaluator.get_validation_stats())
-            print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",evaluator.state.metrics["Channelwise"][0],"whole tumor:",evaluator.state.metrics["Channelwise"][1],"enhancing tumor:",evaluator.state.metrics["Channelwise"][2])#jbc
+            print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",float(evaluator.state.metrics["Channelwise"][0]),"whole tumor:",float(evaluator.state.metrics["Channelwise"][1]),"enhancing tumor:",float(evaluator.state.metrics["Channelwise"][2]))#jbc
             # print("evaluator best metric:",evaluator.state.best_metric)
         
         
         
-        mean_post_transforms = Compose(
+        conf_post_transforms = Compose(
             [
                 EnsureTyped(keys=["pred"+str(i) for i in range(10)]), #gives pred0..pred9
                 # SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
                 
-                MeanEnsembled(
+                ConfEnsembled(
                     keys=["pred"+str(i) for i in range(10)], 
                     output_key="pred",
                     # in this particular example, we use validation metrics as weights
@@ -406,12 +509,11 @@ if __name__=="__main__":
                 EnsureTyped(keys=["pred"+str(i) for i in range(10)]),
                 Activationsd(keys=["pred"+str(i) for i in range(10)], sigmoid=True),
                 # transform data into discrete before voting
-                
+                AsDiscreted(keys=["pred"+str(i) for i in range(10)], threshold=0.1),
                 VoteEnsembled(keys=["pred"+str(i) for i in range(10)], output_key="pred"),
-                AsDiscreted(keys="pred", threshold=0.5),
             ]
         )
-        ensemble_evaluate(vote_post_transforms, models)
+        ensemble_evaluate(conf_post_transforms, models)
         # ensemble_evaluate(mean_post_transforms, models)
 
     else:
