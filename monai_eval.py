@@ -463,6 +463,7 @@ if __name__=="__main__":
             models.append(model)
 
         def ensemble_evaluate(post_transforms, models):
+            print(f"{postprocessing=}")
             evaluator = EnsembleEvaluator(
                 device=device,
                 val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
@@ -471,7 +472,7 @@ if __name__=="__main__":
                 inferer=SlidingWindowInferer(
                     roi_size=(96, 96, 96), sw_batch_size=4, overlap=0.5),
                 postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
-                print(f"{postprocessing=}")
+                
                 key_val_metric={
                     "test_mean_dice": MeanDice(
                         include_background=True,
@@ -517,7 +518,7 @@ if __name__=="__main__":
                 VoteEnsembled(keys=["pred"+str(i) for i in range(10)], output_key="pred"),
             ]
         )
-        ensemble_evaluate(conf_post_transforms, models)
+        ensemble_evaluate(vote_post_transforms, models)
         # ensemble_evaluate(mean_post_transforms, models)
 
     else:
