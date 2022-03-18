@@ -52,7 +52,6 @@ from monai.engines import (
 from monai.losses import DiceLoss
 from monai.utils import UpsampleMode
 from monai.data import decollate_batch, list_data_collate
-from monai.handlers.utils import from_engine
 from monai.handlers import MeanDice, StatsHandler, ValidationHandler, from_engine
 from monai.networks.nets import SegResNet,UNet
 from monai.metrics import DiceMetric,compute_meandice
@@ -258,6 +257,19 @@ if __name__=="__main__":
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstD(keys=["image"]),
             ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+            SpacingD(
+                keys=["image", "label"],
+                pixdim=(1.0, 1.0, 1.0),
+                mode=("bilinear", "nearest"),
+            ),
+            OrientationD(keys=["image", "label"], axcodes="RAS"),
+            # RandSpatialCropd(keys=["image", "label"], roi_size=[192, 192, 144], random_size=False),
+           
+            RandRotateD(keys=["image","label"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),
+           
+            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
+            RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),
 
             NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
             EnsureTyped(keys=["image", "label"]),
@@ -306,16 +318,16 @@ if __name__=="__main__":
 
     post_transforms = Compose([
         EnsureTyped(keys="pred"),
-        Invertd(
-            keys="pred",
-            transform=test_transforms0,
-            orig_keys="image",
-            meta_keys="pred_meta_dict",
-            orig_meta_keys="image_meta_dict",
-            meta_key_postfix="meta_dict",
-            nearest_interp=False,
-            to_tensor=True, #this sends to GPU so removing will cause problems
-        ), # inversal is only done on the prediction?
+        # Invertd(
+            # keys="pred",
+            # transform=test_transforms0,
+            # orig_keys="image",
+            # meta_keys="pred_meta_dict",
+            # orig_meta_keys="image_meta_dict",
+            # meta_key_postfix="meta_dict",
+            # nearest_interp=False,
+            # to_tensor=True, #this sends to GPU so removing will cause problems
+        # ), # inversal is only done on the prediction?
         ToTensorD(keys="pred"),
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
@@ -325,9 +337,11 @@ if __name__=="__main__":
     
         if args.model=="UNet":
             model_names=['2022-03-09T0UNetCV1','2022-03-09T1UNetCV2','2022-03-09T1UNetCV3','2022-03-09T1UNetCV4','2022-03-09T1UNetCV5','2022-03-09T1UNetCV6','2022-03-09T1UNetCV7','2022-03-09T1UNetCV8','2022-03-09T1UNetCV9','2022-03-09UNetCV10']
+            wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
         elif args.model=="SegResNet":
             model_names=['2022-03-09T2SegResNetCV1','2022-03-09SegResNetCV2','2022-03-09SegResNetCV3','2022-03-09SegResNetCV4','2022-03-09SegResNetCV5','2022-03-09SegResNetCV6','2022-03-09SegResNetCV7','2022-03-09SegResNetCV8','2022-03-09SegResNetCV9','2022-03-09SegResNetCV10']
+            wts=[0.8912,0.7912,0.6377,0.7312,0.7685,0.8118,0.6724,0.7227,0.6093,0.6378]
         
 
         else:
@@ -346,7 +360,7 @@ if __name__=="__main__":
             evaluator = EnsembleEvaluator(
                 device=device,
                 val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
-                pred_keys=["pred"+str(i) for i in range(10)], #just a list at this point
+                pred_keys=["pred"+str(i) for i in range(10)], 
                 networks=models, # models defined above
                 inferer=SlidingWindowInferer(
                     roi_size=(96, 96, 96), sw_batch_size=4, overlap=0.5),
@@ -354,33 +368,34 @@ if __name__=="__main__":
                 key_val_metric={
                     "test_mean_dice": MeanDice(
                         include_background=True,
-                        output_transform=from_engine(["pred", "label"])                     
+                        output_transform=from_engine(["pred", "label"])  # takes all the preds and labels and turns them into one list each
                         
                     )},
                 additional_metrics={ 
                     "Channelwise": MeanDice(
                     include_background=True,
                     output_transform=from_engine(["pred", "label"]),
-                    reduction="mean_channel")
+                    reduction="mean_batch")
                 }
             )
             evaluator.run()
             
             print("validation stats: ",evaluator.get_validation_stats())
-            print("evaluator metrics:",evaluator.state.metrics)
+            print("metric_tc,wt,et",evaluator.state.metrics, type(evaluator.state.metrics))#jbc
             print("evaluator best metric:",evaluator.state.best_metric)
         
         
         
         mean_post_transforms = Compose(
             [
-                EnsureTyped(keys=["pred"+str(i) for i in range(10)]),
-                SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
+                EnsureTyped(keys=["pred"+str(i) for i in range(10)]), #gives pred0..pred9
+                # SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
+                
                 MeanEnsembled(
-                    keys=["pred"+str(i) for i in range(10)],
+                    keys=["pred"+str(i) for i in range(10)], 
                     output_key="pred",
                     # in this particular example, we use validation metrics as weights
-                    weights=[0.8912,0.7912,0.6377,0.7312,0.7685,0.8118,0.6724,0.7227,0.6093,0.6378],
+                    weights=wts,
                 ),
                 Activationsd(keys="pred", sigmoid=True),
                 AsDiscreted(keys="pred", threshold=0.5),
@@ -388,17 +403,14 @@ if __name__=="__main__":
         )
         vote_post_transforms = Compose(
             [
-                EnsureTyped(keys=["pred0", "pred1", "pred2", "pred3", "pred4"]),
-                Activationsd(keys=["pred0", "pred1", "pred2",
-                                   "pred3", "pred4"], sigmoid=True),
+                EnsureTyped(keys=["pred"+str(i) for i in range(10)]),
+                Activationsd(keys=["pred"+str(i) for i in range(10)], sigmoid=True),
                 # transform data into discrete before voting
-                AsDiscreted(keys=["pred0", "pred1", "pred2", "pred3",
-                                  "pred4"], threshold=0.5),
-                VoteEnsembled(keys=["pred0", "pred1", "pred2",
-                                    "pred3", "pred4"], output_key="pred"),
+                AsDiscreted(keys=["pred"+str(i) for i in range(10)], threshold=0.5),
+                VoteEnsembled(keys=["pred"+str(i) for i in range(10)], output_key="pred"),
             ]
         )
-        ensemble_evaluate(mean_post_transforms, models)
+        ensemble_evaluate(vote_post_transforms, models)
         # ensemble_evaluate(mean_post_transforms, models)
 
     else:
@@ -417,9 +429,8 @@ if __name__=="__main__":
               
                 
                 #print("test outputs",test_outputs[0].shape)
-                #test_outputs=test_outputs.to(device)
-                #test_labels=test_labels.to(device)
-                # test_labels[0]=test_labels[0].to(device)
+            
+                test_labels[0]=test_labels[0].to(device)
                 # dice_score=(2*torch.sum( test_outputs[0].flatten()*test_labels[0].flatten()))/( test_outputs[0].sum()+test_labels[0].sum())
                 # print("dice",dice_score)
                 
