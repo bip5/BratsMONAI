@@ -471,7 +471,7 @@ if __name__=="__main__":
                 inferer=SlidingWindowInferer(
                     roi_size=(96, 96, 96), sw_batch_size=4, overlap=0.5),
                 postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
-                print(f"{postprocessing=})
+                print(f"{postprocessing=}")
                 key_val_metric={
                     "test_mean_dice": MeanDice(
                         include_background=True,
