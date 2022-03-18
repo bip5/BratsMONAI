@@ -299,12 +299,15 @@ if __name__=="__main__":
                 img_ = img_ * weights / weights.mean(dim=0, keepdim=True)
                 
             
-            img_=torch.sort(img_,dim=0).values
+            img_=torch.sort(img_,dim=0,descending=True).values #img is a tensor        
             
-            print(type(img_))
-
-            out_pt = torch.mean(img_[:,0:2], dim=0)
-            return self.post_convert(out_pt, img)
+            # print(img_.shape)
+            out_pt = torch.mean(img_[0:3,:,:,:,:], dim=0)
+            # print(out_pt.shape)
+            x=self.post_convert(out_pt, img)
+            
+           
+            return x
             
     class Ensembled(MapTransform):
        
@@ -443,8 +446,8 @@ if __name__=="__main__":
             wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
         elif args.model=="SegResNet":
-            model_names=['2022-03-09T2SegResNetCV1','2022-03-09SegResNetCV2','2022-03-09SegResNetCV3','2022-03-09SegResNetCV4','2022-03-09SegResNetCV5','2022-03-09SegResNetCV6','2022-03-09SegResNetCV7','2022-03-09SegResNetCV8','2022-03-09SegResNetCV9','2022-03-09SegResNetCV10']
-            wts=[0.8912,0.7912,0.6377,0.7312,0.7685,0.8118,0.6724,0.7227,0.6093,0.6378]
+            model_names=['2022-03-18SegResNetCV1ms200','2022-03-18SegResNetCV2ms200','2022-03-18SegResNetCV3ms200','2022-03-18SegResNetCV4ms200','2022-03-18SegResNetCV5ms200','2022-03-18SegResNetCV6ms200','2022-03-18SegResNetCV7ms200','2022-03-18SegResNetCV8ms200','2022-03-18SegResNetCV9ms200','2022-03-18SegResNetCV10ms200']
+            wts=[0.5651,0.5252,0.5537,0.5137,0.5744,0.4862,0.5255,0.5559,0.5755,0.5060]
         
 
         else:
@@ -455,7 +458,7 @@ if __name__=="__main__":
 
         models=[]
         for i,name in enumerate(model_names):
-            model.load_state_dict(torch.load("./saved models/"+name))
+            model.load_state_dict(torch.load("./"+name))
             model.eval()
             models.append(model)
 
@@ -468,6 +471,7 @@ if __name__=="__main__":
                 inferer=SlidingWindowInferer(
                     roi_size=(96, 96, 96), sw_batch_size=4, overlap=0.5),
                 postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
+                print(f"{postprocessing=})
                 key_val_metric={
                     "test_mean_dice": MeanDice(
                         include_background=True,
@@ -509,7 +513,7 @@ if __name__=="__main__":
                 EnsureTyped(keys=["pred"+str(i) for i in range(10)]),
                 Activationsd(keys=["pred"+str(i) for i in range(10)], sigmoid=True),
                 # transform data into discrete before voting
-                AsDiscreted(keys=["pred"+str(i) for i in range(10)], threshold=0.1),
+                AsDiscreted(keys=["pred"+str(i) for i in range(10)], threshold=0.3),
                 VoteEnsembled(keys=["pred"+str(i) for i in range(10)], output_key="pred"),
             ]
         )
@@ -518,7 +522,7 @@ if __name__=="__main__":
 
     else:
         
-        model.load_state_dict(torch.load("./saved models/"+args.load_name))
+        model.load_state_dict(torch.load("./"+args.load_name))
         model.eval()
 
         with torch.no_grad():
