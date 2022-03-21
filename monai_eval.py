@@ -416,7 +416,7 @@ if __name__=="__main__":
             
             return test_list
 
-    test_ds=TestDataset("./RSNA_ASNR_MICCAI_:BraTS2021_TestData",transform=test_transforms0)
+    test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData",transform=test_transforms0)
 
 
 
@@ -463,7 +463,7 @@ if __name__=="__main__":
         
 
         models=[]
-        for i,name in enumerate(model_names[9:10])
+        for i,name in enumerate(model_names[9:10]):
             model.load_state_dict(torch.load("./saved models/"+name))
             model.eval()
             models.append(model)
