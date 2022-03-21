@@ -275,7 +275,7 @@ if __name__=="__main__":
                 # print("conversion wasn't necessary")
             if isinstance(img,Sequence):
                 img=[torch.unsqueeze(a,dim=0) for a in img]
-            out: torch.Tensor = torch.cat(img,dim=0) if isinstance(img, Sequence) else img  # type: ignore
+            out: torch.Tensor = torch.cat(img,dim=0) if isinstance(img, Sequence) else torch.unsqueeze(img ,dim=0) # type: ignore
             return out
 
         @staticmethod
