@@ -266,10 +266,16 @@ if __name__=="__main__":
         def get_stacked_torch(img: Union[Sequence[NdarrayOrTensor], NdarrayOrTensor]) -> torch.Tensor:
             """Get either a sequence or single instance of np.ndarray/torch.Tensor. Return single torch.Tensor."""
             if isinstance(img, Sequence) and isinstance(img[0], np.ndarray):
+                print("converting pred list to tensor")
                 img = [torch.as_tensor(i) for i in img]
             elif isinstance(img, np.ndarray):
+                print("converting pred list to tensor")  
                 img = torch.as_tensor(img)
-            out: torch.Tensor = torch.stack(img) if isinstance(img, Sequence) else img  # type: ignore
+            # else:
+                # print("conversion wasn't necessary")
+            if isinstance(img,Sequence):
+                img=[torch.unsqueeze(a,dim=0) for a in img]
+            out: torch.Tensor = torch.cat(img,dim=0) if isinstance(img, Sequence) else img  # type: ignore
             return out
 
         @staticmethod
@@ -299,10 +305,10 @@ if __name__=="__main__":
                 img_ = img_ * weights / weights.mean(dim=0, keepdim=True)
                 
             
-            img_=torch.sort(img_,dim=0,descending=True).values #img is a tensor        
+            # img_=torch.sort(img_,dim=0,descending=True).values #img is a tensor        
             
-            # print(img_.shape)
-            out_pt = torch.mean(img_[0:3,:,:,:,:], dim=0)
+            # print(img_[0,2,100,100,70],img_[1,2,100,100,70],img_[2,2,100,100,70],img_[3,2,100,100,70],img_[4,2,100,100,70])
+            out_pt = torch.mean(img_, dim=0)#[0:3,:,:,:,:]
             # print(out_pt.shape)
             x=self.post_convert(out_pt, img)
             
@@ -410,7 +416,7 @@ if __name__=="__main__":
             
             return test_list
 
-    test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData",transform=test_transforms0)
+    test_ds=TestDataset("./RSNA_ASNR_MICCAI_:BraTS2021_TestData",transform=test_transforms0)
 
 
 
@@ -434,7 +440,7 @@ if __name__=="__main__":
             # nearest_interp=False,
             # to_tensor=True, #this sends to GPU so removing will cause problems
         # ), # inversal is only done on the prediction?
-        ToTensorD(keys="pred"),
+        ToTensorD(keys=["pred","label"]),
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
     ])
@@ -446,8 +452,8 @@ if __name__=="__main__":
             wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
         elif args.model=="SegResNet":
-            model_names=['2022-03-18SegResNetCV1ms200','2022-03-18SegResNetCV2ms200','2022-03-18SegResNetCV3ms200','2022-03-18SegResNetCV4ms200','2022-03-18SegResNetCV5ms200','2022-03-18SegResNetCV6ms200','2022-03-18SegResNetCV7ms200','2022-03-18SegResNetCV8ms200','2022-03-18SegResNetCV9ms200','2022-03-18SegResNetCV10ms200']
-            wts=[0.5651,0.5252,0.5537,0.5137,0.5744,0.4862,0.5255,0.5559,0.5755,0.5060]
+            model_names=['2022-03-12SegResNetCV1ms200','2022-03-12SegResNetCV2ms200','2022-03-12SegResNetCV3ms200','2022-03-12SegResNetCV4ms200','2022-03-12SegResNetCV5ms200','2022-03-12SegResNetCV6ms200','2022-03-12SegResNetCV7ms200','2022-03-12SegResNetCV8ms200','2022-03-12SegResNetCV9ms200','2022-03-12SegResNetCV10ms200']
+            wts=np.ones(10)#[0.5651,0.5252,0.5537,0.5137,0.5744,0.4862,0.5255,0.5559,0.5755,0.5060]
         
 
         else:
@@ -457,20 +463,20 @@ if __name__=="__main__":
         
 
         models=[]
-        for i,name in enumerate(model_names):
-            model.load_state_dict(torch.load("./"+name))
+        for i,name in enumerate(model_names[9:10])
+            model.load_state_dict(torch.load("./saved models/"+name))
             model.eval()
             models.append(model)
 
         def ensemble_evaluate(post_transforms, models):
-            print(f"{post_transforms=}")
+            print(post_transforms.transforms)
             evaluator = EnsembleEvaluator(
                 device=device,
                 val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
-                pred_keys=["pred"+str(i) for i in range(10)], 
+                pred_keys=["pred"+str(i) for i in range(len(models))], 
                 networks=models, # models defined above
                 inferer=SlidingWindowInferer(
-                    roi_size=(96, 96, 96), sw_batch_size=4, overlap=0.5),
+                    roi_size=(192,192, 144), sw_batch_size=4, overlap=0),
                 postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
                 
                 key_val_metric={
@@ -496,14 +502,14 @@ if __name__=="__main__":
         
         conf_post_transforms = Compose(
             [
-                EnsureTyped(keys=["pred"+str(i) for i in range(10)]), #gives pred0..pred9
+                EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred9
                 # SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
                 
                 ConfEnsembled(
-                    keys=["pred"+str(i) for i in range(10)], 
+                    keys=["pred"+str(i) for i in range(len(models))], 
                     output_key="pred",
                     # in this particular example, we use validation metrics as weights
-                    weights=wts,
+                    # weights=wts,
                 ),
                 Activationsd(keys="pred", sigmoid=True),
                 AsDiscreted(keys="pred", threshold=0.5),
@@ -511,19 +517,19 @@ if __name__=="__main__":
         )
         vote_post_transforms = Compose(
             [
-                EnsureTyped(keys=["pred"+str(i) for i in range(10)]),
-                Activationsd(keys=["pred"+str(i) for i in range(10)], sigmoid=True),
+                EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]),
+                Activationsd(keys=["pred"+str(i) for i in range(len(models))], sigmoid=True),
                 # transform data into discrete before voting
-                AsDiscreted(keys=["pred"+str(i) for i in range(10)], threshold=0.3),
-                VoteEnsembled(keys=["pred"+str(i) for i in range(10)], output_key="pred"),
+                AsDiscreted(keys=["pred"+str(i) for i in range(len(models))], threshold=0.3),
+                VoteEnsembled(keys=["pred"+str(i) for i in range(len(models))], output_key="pred"),
             ]
         )
-        ensemble_evaluate(vote_post_transforms, models)
+        ensemble_evaluate(conf_post_transforms, models)
         # ensemble_evaluate(mean_post_transforms, models)
 
     else:
         
-        model.load_state_dict(torch.load("./"+args.load_name))
+        model.load_state_dict(torch.load("./saved models/"+args.load_name))
         model.eval()
 
         with torch.no_grad():
