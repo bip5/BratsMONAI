@@ -274,9 +274,8 @@ if __name__=="__main__":
                 img = torch.as_tensor(img)
             # else:
                 # print("conversion wasn't necessary")
-            if isinstance(img,Sequence):
-                img=[torch.unsqueeze(a,dim=0) for a in img]
-            out: torch.Tensor = torch.cat(img,dim=0) if isinstance(img, Sequence) else torch.unsqueeze(img ,dim=0) # type: ignore
+            
+            out: torch.Tensor = torch.stack(img,dim=0) if isinstance(img, Sequence) else torch.unsqueeze(img ,dim=0) # type: ignore
             return out
 
         @staticmethod
@@ -454,7 +453,7 @@ if __name__=="__main__":
             wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
         elif args.model=="SegResNet":
-            model_names=['2022-03-12SegResNetCV1ms200','2022-03-12SegResNetCV2ms200','2022-03-12SegResNetCV3ms200','2022-03-12SegResNetCV4ms200','2022-03-12SegResNetCV5ms200','2022-03-12SegResNetCV6ms200','2022-03-12SegResNetCV7ms200','2022-03-12SegResNetCV8ms200','2022-03-12SegResNetCV9ms200']#,'2022-03-12SegResNetCV10ms200'
+            model_names=['2022-03-12SegResNetCV1ms200','2022-03-12SegResNetCV2ms200','2022-03-12SegResNetCV3ms200','2022-03-12SegResNetCV4ms200','2022-03-12SegResNetCV5ms200','2022-03-12SegResNetCV6ms200','2022-03-12SegResNetCV7ms200','2022-03-12SegResNetCV8ms200','2022-03-12SegResNetCV9ms200','2022-03-12SegResNetCV10ms200']#
             wts=np.ones(10)#[0.5651,0.5252,0.5537,0.5137,0.5744,0.4862,0.5255,0.5559,0.5755,0.5060]
         
 
@@ -466,7 +465,31 @@ if __name__=="__main__":
 
         models=[]
         for i,name in enumerate(model_names):
-            model.load_state_dict(torch.load("./saved models/"+name))
+            if args.model=="UNet":
+                 model=UNet(
+                    spatial_dims=3,
+                    in_channels=4,
+                    out_channels=3,
+                    channels=(64,128,256,512,1024),
+                    strides=(2,2,2,2)
+                    ).to(device)
+            elif args.model=="SegResNet":
+                model = SegResNet(
+                    blocks_down=[1, 2, 2, 4],
+                    blocks_up=[1, 1, 1],
+                    init_filters=32,
+                    norm="instance",
+                    in_channels=4,
+                    out_channels=3,
+                    upsample_mode=UpsampleMode[args.upsample]    
+                    ).to(device)
+
+            else:
+                model = locals() [args.model](4,3).to(device)
+            
+            model=torch.nn.DataParallel(model)
+            
+            model.load_state_dict(torch.load("./saved models/"+name),strict=False)
             model.eval()
             models.append(model)
             
@@ -536,13 +559,15 @@ if __name__=="__main__":
                     test_outputs = sliding_window_inference(
                         test_inputs, roi_size, 1, models[i])
                     all_test_outputs.append(test_outputs) # list of all predictions on the same image
-
-                all_test_outputs = torch.stack(all_test_outputs, dim=0)
+                    
+                all_test_outputs=[torch.unsqueeze(a,dim=0) for a in all_test_outputs]
+                all_test_outputs = torch.cat(all_test_outputs, dim=0)
                 all_test_outputs = torch.mean(all_test_outputs, dim=0) # mean of all predictions
         
                     
                     
-                test_outputs=[post_pred(i) for i in decollate_batch(all_test_outputs)] #reverse the transform and get sigmoid then binarise
+                # test_outputs=[post_pred(i) for i in decollate_batch(all_test_outputs)] #reverse the transform and get sigmoid then binarise
+                test_outputs=post_pred(all_test_outputs)
                 test_labels =post_label(test_labels)
                 
                 
