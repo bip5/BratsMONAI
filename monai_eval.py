@@ -41,6 +41,7 @@ from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     MeanEnsembled,
     VoteEnsembled,
     EnsureType,
+    Activations,
     SplitChanneld,
 )
 
@@ -444,7 +445,8 @@ if __name__=="__main__":
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
     ])
-
+    post_pred= Compose([EnsureType(),Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
+    post_label = Compose([EnsureType()])
     if args.ensemble==1:
     
         if args.model=="UNet":
@@ -452,7 +454,7 @@ if __name__=="__main__":
             wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
         elif args.model=="SegResNet":
-            model_names=['2022-03-12SegResNetCV1ms200','2022-03-12SegResNetCV2ms200','2022-03-12SegResNetCV3ms200','2022-03-12SegResNetCV4ms200','2022-03-12SegResNetCV5ms200','2022-03-12SegResNetCV6ms200','2022-03-12SegResNetCV7ms200','2022-03-12SegResNetCV8ms200','2022-03-12SegResNetCV9ms200','2022-03-12SegResNetCV10ms200']
+            model_names=['2022-03-12SegResNetCV1ms200','2022-03-12SegResNetCV2ms200','2022-03-12SegResNetCV3ms200','2022-03-12SegResNetCV4ms200','2022-03-12SegResNetCV5ms200','2022-03-12SegResNetCV6ms200','2022-03-12SegResNetCV7ms200','2022-03-12SegResNetCV8ms200','2022-03-12SegResNetCV9ms200']#,'2022-03-12SegResNetCV10ms200'
             wts=np.ones(10)#[0.5651,0.5252,0.5537,0.5137,0.5744,0.4862,0.5255,0.5559,0.5755,0.5060]
         
 
@@ -463,39 +465,16 @@ if __name__=="__main__":
         
 
         models=[]
-        for i,name in enumerate(model_names[9:10]):
+        for i,name in enumerate(model_names):
             model.load_state_dict(torch.load("./saved models/"+name))
             model.eval()
             models.append(model)
-
-        def ensemble_evaluate(post_transforms, models):
-            print(post_transforms.transforms)
-            evaluator = EnsembleEvaluator(
-                device=device,
-                val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
-                pred_keys=["pred"+str(i) for i in range(len(models))], 
-                networks=models, # models defined above
-                inferer=SlidingWindowInferer(
-                    roi_size=(192,192, 144), sw_batch_size=4, overlap=0),
-                postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
-                
-                key_val_metric={
-                    "test_mean_dice": MeanDice(
-                        include_background=True,
-                        output_transform=from_engine(["pred", "label"])  # takes all the preds and labels and turns them into one list each
-                        
-                    )},
-                additional_metrics={ 
-                    "Channelwise": MeanDice(
-                    include_background=True,
-                    output_transform=from_engine(["pred", "label"]),
-                    reduction="mean_batch")
-                }
-            )
-            evaluator.run()
+            
+        num_models=len(models)
+        
             
             # print("validation stats: ",evaluator.get_validation_stats())
-            print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",float(evaluator.state.metrics["Channelwise"][0]),"whole tumor:",float(evaluator.state.metrics["Channelwise"][1]),"enhancing tumor:",float(evaluator.state.metrics["Channelwise"][2]))#jbc
+            # print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",float(evaluator.state.metrics["Channelwise"][0]),"whole tumor:",float(evaluator.state.metrics["Channelwise"][1]),"enhancing tumor:",float(evaluator.state.metrics["Channelwise"][2]))#jbc
             # print("evaluator best metric:",evaluator.state.best_metric)
         
         
@@ -509,7 +488,23 @@ if __name__=="__main__":
                     keys=["pred"+str(i) for i in range(len(models))], 
                     output_key="pred",
                     # in this particular example, we use validation metrics as weights
-                    # weights=wts,
+                    weights=wts[:len(models)],
+                ),
+                Activationsd(keys="pred", sigmoid=True),
+                AsDiscreted(keys=["pred","label"], argmax=[True, False], to_onehot=2),
+            ]
+        )
+
+        mean_post_transforms = Compose(
+            [
+                EnsureTyped(keys=["pred"+str(i) for i in range(len(models))][:len(models)]), #gives pred0..pred9
+                # SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
+                
+                MeanEnsembled(
+                    keys=["pred"+str(i) for i in range(len(models))][:len(models)], 
+                    output_key="pred",
+                    # in this particular example, we use validation metrics as weights
+                    weights=wts[:len(models)],
                 ),
                 Activationsd(keys="pred", sigmoid=True),
                 AsDiscreted(keys="pred", threshold=0.5),
@@ -524,8 +519,53 @@ if __name__=="__main__":
                 VoteEnsembled(keys=["pred"+str(i) for i in range(len(models))], output_key="pred"),
             ]
         )
-        ensemble_evaluate(conf_post_transforms, models)
-        # ensemble_evaluate(mean_post_transforms, models)
+        
+        
+        with torch.no_grad():
+
+            for test_data in test_loader: # each image
+                test_inputs,test_labels =(
+                    test_data["image"].to(device),
+                    test_data["label"].to(device)
+                    )# pass to gpu
+                 #perform inference
+                #print(test_data["pred"].shape)
+                all_test_outputs=[]
+                roi_size= (192,192, 144)
+                for i in range(num_models):
+                    test_outputs = sliding_window_inference(
+                        test_inputs, roi_size, 1, models[i])
+                    all_test_outputs.append(test_outputs) # list of all predictions on the same image
+
+                all_test_outputs = torch.stack(all_test_outputs, dim=0)
+                all_test_outputs = torch.mean(all_test_outputs, dim=0) # mean of all predictions
+        
+                    
+                    
+                test_outputs=[post_pred(i) for i in decollate_batch(all_test_outputs)] #reverse the transform and get sigmoid then binarise
+                test_labels =post_label(test_labels)
+                
+                
+                
+                                    
+                dice_metric(y_pred=test_outputs, y=test_labels)
+                dice_metric_batch(y_pred=test_outputs, y=test_labels)
+
+
+            
+            metric_org = dice_metric.aggregate().item()
+            
+            metric_batch_org = dice_metric_batch.aggregate()
+
+            dice_metric.reset()
+            dice_metric_batch.reset()
+
+        metric_tc, metric_wt, metric_et = metric_batch_org[0].item(), metric_batch_org[1].item(), metric_batch_org[2].item()
+
+        print("Metric on original image spacing: ", metric_org)
+        print(f"metric_tc: {metric_tc:.4f}")
+        print(f"metric_wt: {metric_wt:.4f}")
+        print(f"metric_et: {metric_et:.4f}")
 
     else:
         
