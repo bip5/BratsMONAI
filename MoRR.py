@@ -81,6 +81,7 @@ if __name__=="__main__":
     parser.add_argument("--fold_num",default=1,type=str,help="cross-validation fold number")
     parser.add_argument("--epochs",default=150,type=int,help="number of epochs to run")
     parser.add_argument("--CV_flag",default=0,type=int,help="is this a cross validation fold? 1=yes")
+    parser.add_argument("--bunch",default=10, type=int, help="how many data samples to bunch together to feed to each model")
 
     args=parser.parse_args()
 
@@ -430,17 +431,23 @@ if __name__=="__main__":
     total_start = time.time()
 
     print("starting epochs")
+    bunch=args.bunch
+    all_indices=np.arange(len(train_dataset))
     for epoch in range(max_epochs): # For a given number of epochs
         max_index=0
+        indices1=all_indices[0:bunch]
+        indices2=all_indices[bunch:2*bunch]
+        indices3=all_indices[2*bunch:3*bunch] #get the data bunchs to feed to each model
+        max_index=3*bunch
         while max_index<train_dataset.__len__():
-            indices1=i
-            indices2=i+1
-            indices3=i+2  # get the indices to pass to each model
-            max_index=indices3
+           
+              # get the indices to pass to each model
             
-            train_dataset1=Subset(train_dataset,[indices1])
-            train_dataset2=Subset(train_dataset,[indices2])
-            train_dataset3=Subset(train_dataset,[indices3])
+            
+            
+            train_dataset1=Subset(train_dataset,indices1)
+            train_dataset2=Subset(train_dataset,indices2)
+            train_dataset3=Subset(train_dataset,indices3)
             
             
             train_loader1=DataLoader(train_dataset1, batch_size=args.batch_size, shuffle=False)    
@@ -832,34 +839,34 @@ if __name__=="__main__":
                     print("1 was best with an avg score of : ",metric1, "3 & 2 :",metric3,metric2)
                     if metric2>metric3: # 1>2>3
                         print("updating 3")
-                        indices3= max_index+1                   
-                        max_index+=1
+                        indices3= all_indices[max_index:max_index+bunch]                   
+                        max_index+=bunch
                     else: #1>3>2
                         print("updating 2")
-                        indices2=max_index+1
-                        max_index+=1
+                        indices2=all_indices[max_index:max_index+bunch]                   
+                        max_index+=bunch
                         
                 else: # 3>1>2
                     print("updating 2")
-                    indices2= max_index+1
-                    max_index+=1
+                    indices2= all_indices[max_index:max_index+bunch]                   
+                    max_index+=bunch
                     print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
             else:
                 if metric2>metric3:
                     print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
                     if metric1>metric3: #2>1>3
                         print("updating 3")
-                        indices3 =max_index+1
-                        max_index+=1
+                        indices3 =all_indices[max_index:max_index+bunch]                   
+                        max_index+=bunch
                     else: # 2>3>1
                         print("updating 1")
-                        indices1 =max_index+1
-                        max_index+=1
+                        indices1 =all_indices[max_index:max_index+bunch]                   
+                        max_index+=bunch
                     
                 elif metric3>metric2: #3>2>1
                     print("updating 1")
-                    indices1= max_index+1
-                    max_index+=1
+                    indices1= all_indices[max_index:max_index+bunch]                   
+                    max_index+=bunch
                     print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                 
                     
