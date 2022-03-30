@@ -836,36 +836,36 @@ if __name__=="__main__":
             
             if metric1>metric2:
                 if metric1>metric3: 
-                    print("1 was best with an avg score of : ",metric1, "3 & 2 :",metric3,metric2)
+                    print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
                     if metric2>metric3: # 1>2>3
-                        print("updating 3")
-                        indices3= all_indices[max_index:max_index+bunch]                   
+                        print("updating 1")
+                        indices1= all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                     else: #1>3>2
-                        print("updating 2")
-                        indices2=all_indices[max_index:max_index+bunch]                   
+                        print("updating 1")
+                        indices1=all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                         
                 else: # 3>1>2
-                    print("updating 2")
-                    indices2= all_indices[max_index:max_index+bunch]                   
+                    print("updating 3")
+                    indices3= all_indices[max_index:max_index+bunch]                   
                     max_index+=bunch
                     print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
             else:
                 if metric2>metric3:
                     print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
                     if metric1>metric3: #2>1>3
-                        print("updating 3")
-                        indices3 =all_indices[max_index:max_index+bunch]                   
+                        print("updating 2")
+                        indices2 =all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                     else: # 2>3>1
-                        print("updating 1")
-                        indices1 =all_indices[max_index:max_index+bunch]                   
+                        print("updating 2")
+                        indices2 =all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                     
                 elif metric3>metric2: #3>2>1
-                    print("updating 1")
-                    indices1= all_indices[max_index:max_index+bunch]                   
+                    print("updating 3")
+                    indices3= all_indices[max_index:max_index+bunch]                   
                     max_index+=bunch
                     print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                 
