@@ -504,11 +504,11 @@ if __name__=="__main__":
                 dice_metric_batch.reset()
 
                     
-                # print(
-                    # f"model 1 sample: {epoch + 1} current dice on train sample 1: {metric11:.4f}"
-                    # f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
+                print(
+                    f"model 1 current dice on train sample 1: {metric11:.4f}"
+                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
-                # )              
+                )              
                 if metric11 > best_metric11: # In case we want to use this later
                     best_metric11 = metric11
                     
@@ -535,11 +535,11 @@ if __name__=="__main__":
                 dice_metric_batch.reset()
 
                     
-                # print(
-                    # f"model 1 sample: {epoch + 1} current dice on train sample 2: {metric12:.4f}"
-                    # f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
+                print(
+                    f"model 1 current dice on train sample 2: {metric12:.4f}"
+                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
-                # )              
+                )              
                 
                 if metric12 > best_metric12: # In case we want to use this later
                     best_metric12 = metric12
@@ -569,11 +569,11 @@ if __name__=="__main__":
                 dice_metric_batch.reset()
 
                     
-                # print(
-                    # f"model 1 sample: {epoch + 1} current dice on train sample 3: {metric13:.4f}"
-                    # f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
+                print(
+                    f"model 1 current dice on train sample 3: {metric13:.4f}"
+                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
-                # )              
+                )              
                 
                 if metric13 > best_metric13: # In case we want to use this later
                     best_metric13 = metric13
@@ -626,11 +626,11 @@ if __name__=="__main__":
                 dice_metric_batch.reset()
 
                     
-                # print(
-                    # f"model 2 sample: {epoch + 1} current dice on train sample 1: {metric21:.4f}"
-                    # f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
+                print(
+                    f"model 2 current dice on train sample 1: {metric21:.4f}"
+                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
-                # )              
+                )              
                 if metric21 > best_metric21: # In case we want to use this later
                     best_metric21 = metric21
                     
@@ -657,11 +657,11 @@ if __name__=="__main__":
                 dice_metric_batch.reset()
 
                     
-                # print(
-                    # f"model 2 sample: {epoch + 1} current dice on train sample 2: {metric22:.4f}"
-                    # f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
+                print(
+                    f"model 2 current dice on train sample 2: {metric22:.4f}"
+                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
-                # )              
+                )              
                 
                 if metric22 > best_metric22: # In case we want to use this later
                     best_metric22 = metric22
@@ -691,11 +691,11 @@ if __name__=="__main__":
                 dice_metric_batch.reset()
 
                     
-                # print(
-                    # f"model 2 sample: {epoch + 1} current dice on train sample 3: {metric23:.4f}"
-                    # f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
+                print(
+                    f"model 2 current dice on train sample 3: {metric23:.4f}"
+                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
-                # )              
+                )              
                 
                 if metric23 > best_metric23: # In case we want to use this later
                     best_metric23 = metric23
@@ -748,11 +748,11 @@ if __name__=="__main__":
                 dice_metric_batch.reset()
 
                     
-                # print(
-                    # f"model 3 sample: {epoch + 1} current dice on train sample 1: {metric31:.4f}"
-                    # f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
+                print(
+                    f"model 3 current dice on train sample 1: {metric31:.4f}"
+                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
-                # )              
+                )              
                 if metric31 > best_metric31: # In case we want to use this later
                     best_metric31 = metric31
                     
@@ -779,11 +779,11 @@ if __name__=="__main__":
                 dice_metric_batch.reset()
 
                     
-                # print(
-                    # f"model 3 sample: {epoch + 1} current dice on train sample 3: {metric32:.4f}"
-                    # f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
+                print(
+                    f"model 3 current dice on train sample 2: {metric32:.4f}"
+                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
-                # )              
+                )              
                 
                 if metric32 > best_metric32: # In case we want to use this later
                     best_metric32 = metric32
@@ -813,31 +813,34 @@ if __name__=="__main__":
                 dice_metric_batch.reset()
 
                     
-                # print(
-                    # f"model 3 sample: {epoch + 1} current dice on train sample 3: {metric33:.4f}"
-                    # f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
+                print(
+                    f"model 3 current dice on train sample 3: {metric33:.4f}"
+                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
-                # )              
+                )              
                 
                 if metric33 > best_metric33: # In case we want to use this later
                     best_metric33 = metric33
                     best_metric_epoch1 = epoch + 1                
             
-            metric1=(metric12+metric13)/(2*metric11)
-            metric2=(metric21+metric23)/(2*metric22)
-            metric3=(metric31+metric32)/(2*metric33)
+            metric1=(metric12+metric13)/2
+            metric2=(metric21+metric23)/2
+            metric3=(metric31+metric32)/2
             
             if metric1>metric2:
                 if metric1>metric3: 
                     print("1 was best with an avg score of : ",metric1, "3 & 2 :",metric3,metric2)
                     if metric2>metric3: # 1>2>3
+                        print("updating 3")
                         indices3= max_index+1                   
                         max_index+=1
                     else: #1>3>2
+                        print("updating 2")
                         indices2=max_index+1
                         max_index+=1
                         
                 else: # 3>1>2
+                    print("updating 2")
                     indices2= max_index+1
                     max_index+=1
                     print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
@@ -845,13 +848,16 @@ if __name__=="__main__":
                 if metric2>metric3:
                     print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
                     if metric1>metric3: #2>1>3
+                        print("updating 3")
                         indices3 =max_index+1
                         max_index+=1
                     else: # 2>3>1
+                        print("updating 1")
                         indices1 =max_index+1
                         max_index+=1
                     
                 elif metric3>metric2: #3>2>1
+                    print("updating 1")
                     indices1= max_index+1
                     max_index+=1
                     print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
