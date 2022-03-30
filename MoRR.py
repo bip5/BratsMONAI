@@ -610,7 +610,7 @@ if __name__=="__main__":
             model2.eval()
             with torch.no_grad():
 
-                for val_data in train_loader2:
+                for val_data in train_loader1:
                     val_inputs, val_masks = (
                         val_data["image"].to(device),
                         val_data["mask"].to(device),
@@ -760,8 +760,8 @@ if __name__=="__main__":
                     f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
 
                 )              
-                if metric31 > best_metric31: # In case we want to use this later
-                    best_metric31 = metric31
+                # if metric31 > best_metric31: # In case we want to use this later
+                    # best_metric31 = metric31
                     
                 for val_data in train_loader2:
                     val_inputs, val_masks = (
@@ -838,51 +838,51 @@ if __name__=="__main__":
                 if metric1>metric3: 
                     print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
                     metric=metric1
+                    model=model1
                     if metric2>metric3: # 1>2>3
-                        print("Adding to 3")
-                        indices3= np.concatenate((indices3,all_indices[max_index:max_index+bunch]))                   
+                        print("updating 1")
+                        indices1= all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                     else: #1>3>2
-                        print("Adding to 2")
-                        indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch] ))                  
+                        print("updating 1")
+                        indices1=all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                         
                 else: # 3>1>2
-                    print("Adding to 2")
-                    indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch] ))                   
+                    print("updating 3")
+                    indices3= all_indices[max_index:max_index+bunch]                   
                     max_index+=bunch
-                    
-                    print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     metric=metric3
+                    model=model3
+                    print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
             else:
                 if metric2>metric3:
                     print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
                     metric=metric2
-                    
+                    model=model2
                     if metric1>metric3: #2>1>3
-                        print("Adding to 3")
-                        indices3= np.concatenate((indices3,all_indices[max_index:max_index+bunch]))        
+                        print("updating 2")
+                        indices2 =all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                     else: # 2>3>1
-                        print("Adding to 1")
-                        
-                        indices1= np.concatenate((indices1,all_indices[max_index:max_index+bunch]))                   
+                        print("updating 2")
+                        indices2 =all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                     
                 elif metric3>metric2: #3>2>1
-                    print("Adding to 1")
-                    indices1= np.concatenate((indices1,all_indices[max_index:max_index+bunch]))                   
+                    print("updating 3")
+                    indices3= all_indices[max_index:max_index+bunch]                   
                     max_index+=bunch
-                    
                     print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     metric=metric3
+                    model=model3
                 
-        if metric>best_metric:
-            best_metric = metric
-            best_metric_epoch = epoch + 1
-            torch.save(
-                        model.state_dict(),
-                        os.path.join(root_dir,"MBIS"+ date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model))
+            if metric>best_metric:
+                best_metric = metric
+                best_metric_epoch = epoch + 1
+                torch.save(
+                            model.state_dict(),
+                            os.path.join(root_dir,"MBIS"+ date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model))
                 
         print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
     total_time = time.time() - total_start
