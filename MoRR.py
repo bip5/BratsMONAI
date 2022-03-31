@@ -435,21 +435,23 @@ if __name__=="__main__":
     all_indices=np.arange(len(train_dataset))
     for epoch in range(max_epochs): # For a given number of epochs
         max_index=0
-        indices3=all_indices[0:bunch]
-        indices2=all_indices[bunch:2*bunch]
-        indices1=all_indices[2*bunch:3*bunch] #get the data bunchs to feed to each model
-        max_index=3*bunch
+        indices0=all_indices[0:bunch]
+        indices1=all_indices[bunch:2*bunch]
+        indices2=all_indices[2*bunch:3*bunch] #get the data bunchs to feed to each model
+        indices3=all_indices[3*bunch:4*bunch] 
+        max_index=4*bunch
         while max_index<train_dataset.__len__():
            
               # get the indices to pass to each model
             
             
             
+            train_dataset0=Subset(train_dataset,indices0)
             train_dataset1=Subset(train_dataset,indices1)
             train_dataset2=Subset(train_dataset,indices2)
             train_dataset3=Subset(train_dataset,indices3)
             
-            
+            train_loader0=DataLoader(train_dataset0, batch_size=args.batch_size, shuffle=False) 
             train_loader1=DataLoader(train_dataset1, batch_size=args.batch_size, shuffle=False)    
             train_loader2=DataLoader(train_dataset2, batch_size=args.batch_size, shuffle=False)        
             train_loader3=DataLoader(train_dataset3, batch_size=args.batch_size, shuffle=False)
@@ -464,7 +466,7 @@ if __name__=="__main__":
             step1 = 0
             step2 = 0
             step3 = 0
-            for batch_data in train_loader1:
+            for batch_data in train_loader0:
                 step_start = time.time()
                 step1 += 1
                 inputs, masks = (
@@ -608,287 +610,69 @@ if __name__=="__main__":
                     # f", step time: {(time.time() - step_start):.4f}"
                 # )
                 
-            model2.eval()
-            with torch.no_grad():
-
-                for val_data in train_loader1:
-                    val_inputs, val_masks = (
-                        val_data["image"].to(device),
-                        val_data["mask"].to(device),
-                    )
-                    val_outputs = inference2(val_inputs)
-                    val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
-                    dice_metric(y_pred=val_outputs, y=val_masks)
-                    dice_metric_batch(y_pred=val_outputs, y=val_masks)
-
-                metric21 = dice_metric.aggregate().item()
-                metric_values2.append(metric21)
-                metric_batch1 = dice_metric_batch.aggregate()
-                metric_tc1 = metric_batch1[0].item()
-                metric_values_tc1.append(metric_tc1)
-                metric_wt1 = metric_batch1[1].item()
-                metric_values_wt1.append(metric_wt1)
-                metric_et1 = metric_batch1[2].item()
-                metric_values_et1.append(metric_et1)
-                dice_metric.reset()
-                dice_metric_batch.reset()
-
-                    
-                print(
-                    f"model 2 current dice on train sample 1: {metric21:.4f}"
-                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
-
-                )              
-                if metric21 > best_metric21: # In case we want to use this later
-                    best_metric21 = metric21
-                    
-                for val_data in train_loader2:
-                    val_inputs, val_masks = (
-                        val_data["image"].to(device),
-                        val_data["mask"].to(device),
-                    )
-                    val_outputs = inference2(val_inputs)
-                    val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
-                    dice_metric(y_pred=val_outputs, y=val_masks)
-                    dice_metric_batch(y_pred=val_outputs, y=val_masks)
-
-                metric22 = dice_metric.aggregate().item()
-                metric_values2.append(metric22)
-                metric_batch1 = dice_metric_batch.aggregate()
-                metric_tc1 = metric_batch1[0].item()
-                metric_values_tc1.append(metric_tc1)
-                metric_wt1 = metric_batch1[1].item()
-                metric_values_wt1.append(metric_wt1)
-                metric_et1 = metric_batch1[2].item()
-                metric_values_et1.append(metric_et1)
-                dice_metric.reset()
-                dice_metric_batch.reset()
-
-                    
-                print(
-                    f"model 2 current dice on train sample 2: {metric22:.4f}"
-                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
-
-                )              
-                
-                if metric22 > best_metric22: # In case we want to use this later
-                    best_metric22 = metric22
-
-
-
-                for val_data in train_loader3:
-                    val_inputs, val_masks = (
-                        val_data["image"].to(device),
-                        val_data["mask"].to(device),
-                    )
-                    val_outputs = inference2(val_inputs)
-                    val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
-                    dice_metric(y_pred=val_outputs, y=val_masks)
-                    dice_metric_batch(y_pred=val_outputs, y=val_masks)
-
-                metric23 = dice_metric.aggregate().item()
-                metric_values2.append(metric23)
-                metric_batch1 = dice_metric_batch.aggregate()
-                metric_tc1 = metric_batch1[0].item()
-                metric_values_tc1.append(metric_tc1)
-                metric_wt1 = metric_batch1[1].item()
-                metric_values_wt1.append(metric_wt1)
-                metric_et1 = metric_batch1[2].item()
-                metric_values_et1.append(metric_et1)
-                dice_metric.reset()
-                dice_metric_batch.reset()
-
-                    
-                print(
-                    f"model 2 current dice on train sample 3: {metric23:.4f}"
-                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
-
-                )              
-                
-                if metric23 > best_metric23: # In case we want to use this later
-                    best_metric23 = metric23
-                    best_metric_epoch1 = epoch + 1    
-                    
-            model3.train()
-            for batch_data in train_loader3:
-                step_start = time.time()
-                step3 += 1
-                inputs, masks = (
-                    batch_data["image"].to(device),
-                    batch_data["mask"].to(device),
-                )
-                optimizer3.zero_grad()
-                with torch.cuda.amp.autocast():
-                    outputs = model3(inputs)
-                    loss = loss_function(outputs, masks)
-                scaler.scale(loss).backward()
-                scaler.step(optimizer3)
-                scaler.update()
-           
-                # print(
-                    # f"{step3}/{len(train_dataset3) // train_loader3.batch_size}"
-                    # f", train_loss: {loss.item():.4f}"
-                    # f", step time: {(time.time() - step_start):.4f}"
-                # )
-                
-            model3.eval()
-            with torch.no_grad():
-
-                for val_data in train_loader1:
-                    val_inputs, val_masks = (
-                        val_data["image"].to(device),
-                        val_data["mask"].to(device),
-                    )
-                    val_outputs = inference3(val_inputs)
-                    val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
-                    dice_metric(y_pred=val_outputs, y=val_masks)
-                    dice_metric_batch(y_pred=val_outputs, y=val_masks)
-
-                metric31 = dice_metric.aggregate().item()
-                metric_values3.append(metric31)
-                metric_batch1 = dice_metric_batch.aggregate()
-                metric_tc1 = metric_batch1[0].item()
-                metric_values_tc1.append(metric_tc1)
-                metric_wt1 = metric_batch1[1].item()
-                metric_values_wt1.append(metric_wt1)
-                metric_et1 = metric_batch1[2].item()
-                metric_values_et1.append(metric_et1)
-                dice_metric.reset()
-                dice_metric_batch.reset()
-
-                    
-                print(
-                    f"model 3 current dice on train sample 1: {metric31:.4f}"
-                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
-
-                )              
-                # if metric31 > best_metric31: # In case we want to use this later
-                    # best_metric31 = metric31
-                    
-                for val_data in train_loader2:
-                    val_inputs, val_masks = (
-                        val_data["image"].to(device),
-                        val_data["mask"].to(device),
-                    )
-                    val_outputs = inference3(val_inputs)
-                    val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
-                    dice_metric(y_pred=val_outputs, y=val_masks)
-                    dice_metric_batch(y_pred=val_outputs, y=val_masks)
-
-                metric32 = dice_metric.aggregate().item()
-                metric_values3.append(metric32)
-                metric_batch1 = dice_metric_batch.aggregate()
-                metric_tc1 = metric_batch1[0].item()
-                metric_values_tc1.append(metric_tc1)
-                metric_wt1 = metric_batch1[1].item()
-                metric_values_wt1.append(metric_wt1)
-                metric_et1 = metric_batch1[2].item()
-                metric_values_et1.append(metric_et1)
-                dice_metric.reset()
-                dice_metric_batch.reset()
-
-                    
-                print(
-                    f"model 3 current dice on train sample 2: {metric32:.4f}"
-                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
-
-                )              
-                
-                if metric32 > best_metric32: # In case we want to use this later
-                    best_metric32 = metric32
-
-
-
-                for val_data in train_loader3:
-                    val_inputs, val_masks = (
-                        val_data["image"].to(device),
-                        val_data["mask"].to(device),
-                    )
-                    val_outputs = inference3(val_inputs)
-                    val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
-                    dice_metric(y_pred=val_outputs, y=val_masks)
-                    dice_metric_batch(y_pred=val_outputs, y=val_masks)
-
-                metric33 = dice_metric.aggregate().item()
-                metric_values3.append(metric33)
-                metric_batch1 = dice_metric_batch.aggregate()
-                metric_tc1 = metric_batch1[0].item()
-                metric_values_tc1.append(metric_tc1)
-                metric_wt1 = metric_batch1[1].item()
-                metric_values_wt1.append(metric_wt1)
-                metric_et1 = metric_batch1[2].item()
-                metric_values_et1.append(metric_et1)
-                dice_metric.reset()
-                dice_metric_batch.reset()
-
-                    
-                print(
-                    f"model 3 current dice on train sample 3: {metric33:.4f}"
-                    f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}"                   
-
-                )              
-                
-                if metric33 > best_metric33: # In case we want to use this later
-                    best_metric33 = metric33
-                    best_metric_epoch1 = epoch + 1                
+               
             
-            metric1=(metric12+metric13)/2
-            metric2=(metric21+metric23)/2
-            metric3=(metric31+metric32)/2
+            metric1=metric11
+            metric2=metric12            
+            metric3=metric13
             
             if metric1>metric2:
                 if metric1>metric3: 
                     print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
                     metric=metric1
-                    model=model1
+                   
                     if metric2>metric3: # 1>2>3
-                        print("Adding to 3")
-                        indices3= np.concatenate((indices3,all_indices[max_index:max_index+bunch]))                   
+                        print("Adding 3")
+                        indices0= np.concatenate((indices3,indices0))  
+                        indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
                     else: #1>3>2
-                        print("Adding to 2")
-                        indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch] ))                  
+                        print("Adding 2")
+                        indices0= np.concatenate((indices2,indices0))  
+                        indices2=all_indices[max_index:max_index+bunch]                  
                         max_index+=bunch
                         
                 else: # 3>1>2
-                    print("Adding to 2")
-                    indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch] ))                   
+                    print("Adding  2")
+                    indices0= np.concatenate((indices2,indices0))  
+                    indices2=all_indices[max_index:max_index+bunch]                  
                     max_index+=bunch
                     
                     print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     metric=metric3
-                    model=model3
+                    
             else:
                 if metric2>metric3:
                     print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
                     metric=metric2
-                    model=model2
+                    
                     
                     if metric1>metric3: #2>1>3
-                        print("Adding to 3")
-                        indices3= np.concatenate((indices3,all_indices[max_index:max_index+bunch]))        
+                        print("Adding 3")
+                        indices0= np.concatenate((indices3,indices0))  
+                        indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
                     else: # 2>3>1
-                        print("Adding to 1")
-                        
-                        indices1= np.concatenate((indices1,all_indices[max_index:max_index+bunch]))                   
+                        print("Adding 1")
+                        indices0= np.concatenate((indices1,indices0))  
+                        indices1=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
                     
                 elif metric3>metric2: #3>2>1
-                    print("Adding to 1")
-                    indices1= np.concatenate((indices1,all_indices[max_index:max_index+bunch]))                   
+                    print("Adding 1")
+                    indices0= np.concatenate((indices1,indices0))  
+                    indices1=all_indices[max_index:max_index+bunch]
                     max_index+=bunch
-                    
                     print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     metric=metric3
-                    model=model3
+                    
                 
         if metric>best_metric:
             best_metric = metric
             best_metric_epoch = epoch + 1
             torch.save(
-                        model.state_dict(),
-                        os.path.join(root_dir,"MBIS"+ date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model))
+                        model1.state_dict(),
+                        os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model1))
                 
         print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
     total_time = time.time() - total_start
