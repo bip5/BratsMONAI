@@ -443,7 +443,7 @@ if __name__=="__main__":
         max_index=4*bunch
         epoch_start = time.time()
         
-        
+        metric=0
         while max_index<train_dataset.__len__():
            
               # get the indices to pass to each model
@@ -465,7 +465,7 @@ if __name__=="__main__":
             model1.train()
             
             
-            lr_scheduler.step()
+            
 
             step1 = 0
             step2 = 0
@@ -490,7 +490,7 @@ if __name__=="__main__":
                     # f", train_loss: {loss.item():.4f}"
                     # f", step time: {(time.time() - step_start):.4f}"
                 # )
-                
+            lr_scheduler.step()    
             model1.eval()
             with torch.no_grad():
                 step1 += 1
@@ -608,13 +608,13 @@ if __name__=="__main__":
                         indices0= np.concatenate((indices3,indices0))  
                         indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
-                        metric+=metric3/step1
+                        metric= (metric+metric3)/step1
                     else: #1>3>2
                         print("Adding 2")
                         indices0= np.concatenate((indices2,indices0))  
                         indices2=all_indices[max_index:max_index+bunch]                  
                         max_index+=bunch
-                        metric+=metric2/step1
+                        metric=(metric+metric2)/step1
                         
                 else: # 3>1>2
                     print("Adding  2")
@@ -623,7 +623,7 @@ if __name__=="__main__":
                     max_index+=bunch
                     
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
-                    metric+=metric2/step1
+                    metric=(metric+metric2)/step1
                     
             else:
                 if metric2>metric3:
@@ -636,14 +636,14 @@ if __name__=="__main__":
                         indices0= np.concatenate((indices3,indices0))  
                         indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
-                        metric+=metric3/step1
+                        metric=(metric+metric3)/step1
                         
                     else: # 2>3>1
                         print("Adding 1")
                         indices0= np.concatenate((indices1,indices0))  
                         indices1=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
-                        metric+=metric1/step1
+                        metric=(metric+metric1)/step1
                     
                 elif metric3>metric2: #3>2>1
                     print("Adding 1")
@@ -651,7 +651,7 @@ if __name__=="__main__":
                     indices1=all_indices[max_index:max_index+bunch]
                     max_index+=bunch
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
-                    metric+=metric1/step1
+                    metric=(metric+metric1)/step1
                     
                 print(f"time consumption of look {step1} is: {(time.time() - look_start):.4f}")
                     
@@ -663,7 +663,7 @@ if __name__=="__main__":
             torch.save(
                         model1.state_dict(),
                         os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+'b'+ str(args.bunch)+"ms"+str(args.max_samples)+"e"+str(best_metric_epoch)))
-        print(f"The best metric so far is {best_metric} at {best_metric_epoch}")    
+        print(f"The best metric so far is {best_metric} at epoch {best_metric_epoch}")    
         print(f"time consumption of look {step1} is: {(time.time() - epoch_start):.4f}")
         print("added samples: ",indices0[bunch:])
         
