@@ -613,13 +613,13 @@ if __name__=="__main__":
                         indices0= np.concatenate((indices3,indices0))  
                         indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
-                        metric= (metric+metric3)/step1
+                        metric= (metric+metric3)
                     else: #1>3>2
                         print("Adding 2")
                         indices0= np.concatenate((indices2,indices0))  
                         indices2=all_indices[max_index:max_index+bunch]                  
                         max_index+=bunch
-                        metric=(metric+metric2)/step1
+                        metric=(metric+metric2)
                         
                 else: # 3>1>2
                     print("Adding  2")
@@ -628,7 +628,7 @@ if __name__=="__main__":
                     max_index+=bunch
                     
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
-                    metric=(metric+metric2)/step1
+                    metric=(metric+metric2)
                     
             else:
                 if metric2>metric3:
@@ -641,14 +641,14 @@ if __name__=="__main__":
                         indices0= np.concatenate((indices3,indices0))  
                         indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
-                        metric=(metric+metric3)/step1
+                        metric=(metric+metric3)
                         
                     else: # 2>3>1
                         print("Adding 1")
                         indices0= np.concatenate((indices1,indices0))  
                         indices1=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
-                        metric=(metric+metric1)/step1
+                        metric=(metric+metric1)
                     
                 elif metric3>metric2: #3>2>1
                     print("Adding 1")
@@ -656,11 +656,12 @@ if __name__=="__main__":
                     indices1=all_indices[max_index:max_index+bunch]
                     max_index+=bunch
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
-                    metric=(metric+metric1)/step1
+                    metric=(metric+metric1)
                     
             print(f"time consumption of look {step1} is: {(time.time() - look_start):.4f}")
-                    
-        print(f"The best lowest dice score for {epoch+1} epoch was {metric}")  
+        
+        metric=metric/step1
+        print(f"The average lowest dice score for {epoch+1} epoch was {metric}")  
         
         if metric>best_metric:
             best_metric = metric
