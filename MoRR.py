@@ -444,6 +444,9 @@ if __name__=="__main__":
         epoch_start = time.time()
         
         metric=0
+        step1 = 0
+        step2 = 0
+        step3 = 0
         while max_index<train_dataset.__len__():
            
               # get the indices to pass to each model
@@ -467,9 +470,7 @@ if __name__=="__main__":
             
             
 
-            step1 = 0
-            step2 = 0
-            step3 = 0
+            
             for batch_data in train_loader0:
                 step_start = time.time()
                 
