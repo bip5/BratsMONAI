@@ -444,15 +444,17 @@ if __name__=="__main__":
         epoch_start = time.time()
         
         metric=0
-        step1 = 0
+        
         step2 = 0
         step3 = 0
+        step1 = 0
         while max_index<train_dataset.__len__():
-           
+           # one completion of this =one epoch
               # get the indices to pass to each model
             
             
             look_start = time.time()
+            
             train_dataset0=Subset(train_dataset,indices0)
             train_dataset1=Subset(train_dataset,indices1)
             train_dataset2=Subset(train_dataset,indices2)
@@ -472,6 +474,7 @@ if __name__=="__main__":
 
             
             for batch_data in train_loader0:
+                #one look is completed when this is exited.
                 step_start = time.time()
                 
                 inputs, masks = (
@@ -493,8 +496,9 @@ if __name__=="__main__":
                 # )
             lr_scheduler.step()    
             model1.eval()
+            step1 += 1 #adding to the look count
             with torch.no_grad():
-                step1 += 1
+                
 
                 for val_data in train_loader1:
                     val_inputs, val_masks = (
@@ -654,7 +658,7 @@ if __name__=="__main__":
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     metric=(metric+metric1)/step1
                     
-                print(f"time consumption of look {step1} is: {(time.time() - look_start):.4f}")
+            print(f"time consumption of look {step1} is: {(time.time() - look_start):.4f}")
                     
         print(f"The best lowest dice score for {epoch+1} epoch was {metric}")  
         
