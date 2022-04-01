@@ -408,7 +408,7 @@ if __name__=="__main__":
     best_metric32 = -1 
     best_metric33 = -1
     
-    best_metric_epoch3 = -1
+    best_metric_epoch = 0
     
     best_metrics_epochs_and_time = [[], [], []]
     epoch_loss_values = []
@@ -434,18 +434,22 @@ if __name__=="__main__":
     bunch=args.bunch
     all_indices=np.arange(len(train_dataset))
     for epoch in range(max_epochs): # For a given number of epochs
+        np.random.shuffle(all_indices)
         max_index=0
         indices0=all_indices[0:bunch]
         indices1=all_indices[bunch:2*bunch]
         indices2=all_indices[2*bunch:3*bunch] #get the data bunchs to feed to each model
         indices3=all_indices[3*bunch:4*bunch] 
         max_index=4*bunch
+        epoch_start = time.time()
+        
+        
         while max_index<train_dataset.__len__():
            
               # get the indices to pass to each model
             
             
-            
+            look_start = time.time()
             train_dataset0=Subset(train_dataset,indices0)
             train_dataset1=Subset(train_dataset,indices1)
             train_dataset2=Subset(train_dataset,indices2)
@@ -455,20 +459,20 @@ if __name__=="__main__":
             train_loader1=DataLoader(train_dataset1, batch_size=args.batch_size, shuffle=False)    
             train_loader2=DataLoader(train_dataset2, batch_size=args.batch_size, shuffle=False)        
             train_loader3=DataLoader(train_dataset3, batch_size=args.batch_size, shuffle=False)
-            epoch_start = time.time()
+            
             print("-" * 10)
             print(f"epoch {epoch + 1}/{max_epochs}")
             model1.train()
             
             
-            
+            lr_scheduler.step()
 
             step1 = 0
             step2 = 0
             step3 = 0
             for batch_data in train_loader0:
                 step_start = time.time()
-                step1 += 1
+                
                 inputs, masks = (
                     batch_data["image"].to(device),
                     batch_data["mask"].to(device),
@@ -489,6 +493,7 @@ if __name__=="__main__":
                 
             model1.eval()
             with torch.no_grad():
+                step1 += 1
 
                 for val_data in train_loader1:
                     val_inputs, val_masks = (
@@ -586,30 +591,8 @@ if __name__=="__main__":
                 
                 if metric13 > best_metric13: # In case we want to use this later
                     best_metric13 = metric13
-                    best_metric_epoch1 = epoch + 1
-            
-            model2.train()
-            for batch_data in train_loader2:
-                step_start = time.time()
-                step2 += 1
-                inputs, masks = (
-                    batch_data["image"].to(device),
-                    batch_data["mask"].to(device),
-                )
-                optimizer2.zero_grad()
-                with torch.cuda.amp.autocast():
-                    outputs = model2(inputs)
-                    loss = loss_function(outputs, masks)
-                scaler.scale(loss).backward()
-                scaler.step(optimizer2)
-                scaler.update()
-           
-                # print(
-                    # f"{step2}/{len(train_dataset2) // train_loader2.batch_size}"
-                    # f", train_loss: {loss.item():.4f}"
-                    # f", step time: {(time.time() - step_start):.4f}"
-                # )
-                
+                    best_metric_epoch1 = epoch + 1          
+              
                
             
             metric1=metric11
@@ -618,19 +601,20 @@ if __name__=="__main__":
             
             if metric1>metric2:
                 if metric1>metric3: 
-                    print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
-                    metric=metric1
+                    # print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
                    
                     if metric2>metric3: # 1>2>3
                         print("Adding 3")
                         indices0= np.concatenate((indices3,indices0))  
                         indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
+                        metric+=metric3/step1
                     else: #1>3>2
                         print("Adding 2")
                         indices0= np.concatenate((indices2,indices0))  
                         indices2=all_indices[max_index:max_index+bunch]                  
                         max_index+=bunch
+                        metric+=metric2/step1
                         
                 else: # 3>1>2
                     print("Adding  2")
@@ -638,13 +622,13 @@ if __name__=="__main__":
                     indices2=all_indices[max_index:max_index+bunch]                  
                     max_index+=bunch
                     
-                    print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
-                    metric=metric3
+                    # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
+                    metric+=metric2/step1
                     
             else:
                 if metric2>metric3:
-                    print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
-                    metric=metric2
+                    # print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
+                    
                     
                     
                     if metric1>metric3: #2>1>3
@@ -652,29 +636,37 @@ if __name__=="__main__":
                         indices0= np.concatenate((indices3,indices0))  
                         indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
+                        metric+=metric3/step1
+                        
                     else: # 2>3>1
                         print("Adding 1")
                         indices0= np.concatenate((indices1,indices0))  
                         indices1=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
+                        metric+=metric1/step1
                     
                 elif metric3>metric2: #3>2>1
                     print("Adding 1")
                     indices0= np.concatenate((indices1,indices0))  
                     indices1=all_indices[max_index:max_index+bunch]
                     max_index+=bunch
-                    print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
-                    metric=metric3
+                    # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
+                    metric+=metric1/step1
                     
-                
+                print(f"time consumption of look {step1} is: {(time.time() - look_start):.4f}")
+                    
+        print(f"The best lowest dice score for {epoch+1} epoch was {metric}")  
+        
         if metric>best_metric:
             best_metric = metric
             best_metric_epoch = epoch + 1
             torch.save(
                         model1.state_dict(),
-                        os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model1))
-                
-        print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
+                        os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+'b'+ str(args.bunch)+"ms"+str(args.max_samples)+"e"+str(best_metric_epoch)))
+        print(f"The best metric so far is {best_metric} at {best_metric_epoch}")    
+        print(f"time consumption of look {step1} is: {(time.time() - epoch_start):.4f}")
+        print("added samples: ",indices0[bunch:])
+        
     total_time = time.time() - total_start
 
     # print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}, total time: {total_time}.")
