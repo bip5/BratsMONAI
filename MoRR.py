@@ -669,7 +669,7 @@ if __name__=="__main__":
                         model1.state_dict(),
                         os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+'b'+ str(args.bunch)+"ms"+str(args.max_samples)+"e"+str(best_metric_epoch)))
         print(f"The best metric so far is {best_metric} at epoch {best_metric_epoch}")    
-        print(f"time consumption of look {step1} is: {(time.time() - epoch_start):.4f}")
+        print(f"time consumption of epoch {epoch+1} is: {(time.time() - epoch_start):.4f}")
         print("added samples: ",indices0[bunch:])
         
     total_time = time.time() - total_start
