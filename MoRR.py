@@ -82,6 +82,8 @@ if __name__=="__main__":
     parser.add_argument("--epochs",default=150,type=int,help="number of epochs to run")
     parser.add_argument("--CV_flag",default=0,type=int,help="is this a cross validation fold? 1=yes")
     parser.add_argument("--bunch",default=10, type=int, help="how many data samples to bunch together to feed to each model")
+    parser.add_argument("--flush",default=0,type=int, help="flush val samples each look")
+    parser.add_argument("--shuffle",default=0,type=int,help="shuffle indices at start of each epoch")
 
     args=parser.parse_args()
 
@@ -433,8 +435,11 @@ if __name__=="__main__":
     print("starting epochs")
     bunch=args.bunch
     all_indices=np.arange(len(train_dataset))
+    all_added=np.array((),dtype=int)
+   
     for epoch in range(max_epochs): # For a given number of epochs
-        np.random.shuffle(all_indices)
+        if args.shuffle==1:
+            np.random.shuffle(all_indices)
         max_index=0
         indices0=all_indices[0:bunch]
         indices1=all_indices[bunch:2*bunch]
@@ -488,13 +493,14 @@ if __name__=="__main__":
                 scaler.scale(loss).backward()
                 scaler.step(optimizer1)
                 scaler.update()
+                lr_scheduler.step() 
            
                 # print(
                     # f"{step1}/{len(train_dataset1) // train_loader1.batch_size}"
                     # f", train_loss: {loss.item():.4f}"
                     # f", step time: {(time.time() - step_start):.4f}"
                 # )
-            lr_scheduler.step()    
+               
             model1.eval()
             step1 += 1 #adding to the look count
             with torch.no_grad():
@@ -613,19 +619,35 @@ if __name__=="__main__":
                         indices0= np.concatenate((indices3,indices0))  
                         indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
+                        if args.flush==1:
+                            indices2=all_indices[max_index:max_index+bunch]
+                            max_index+=bunch
+                            indices1=all_indices[max_index:max_index+bunch]
+                            max_index+=bunch
                         metric= (metric+metric3)
                     else: #1>3>2
                         print("Adding 2")
                         indices0= np.concatenate((indices2,indices0))  
-                        indices2=all_indices[max_index:max_index+bunch]                  
+                        
+                        indices2=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
+                        if args.flush==1:
+                            indices3=all_indices[max_index:max_index+bunch]
+                            max_index+=bunch
+                            indices1=all_indices[max_index:max_index+bunch]
+                            max_index+=bunch
                         metric=(metric+metric2)
                         
                 else: # 3>1>2
                     print("Adding  2")
                     indices0= np.concatenate((indices2,indices0))  
-                    indices2=all_indices[max_index:max_index+bunch]                  
+                    indices2=all_indices[max_index:max_index+bunch]
                     max_index+=bunch
+                    if args.flush==1:
+                        indices3=all_indices[max_index:max_index+bunch]
+                        max_index+=bunch
+                        indices1=all_indices[max_index:max_index+bunch]
+                        max_index+=bunch
                     
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     metric=(metric+metric2)
@@ -641,6 +663,12 @@ if __name__=="__main__":
                         indices0= np.concatenate((indices3,indices0))  
                         indices3=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
+                        if args.flush==1:
+                            indices2=all_indices[max_index:max_index+bunch]
+                            max_index+=bunch
+                            indices1=all_indices[max_index:max_index+bunch]
+                            max_index+=bunch
+                       
                         metric=(metric+metric3)
                         
                     else: # 2>3>1
@@ -648,6 +676,13 @@ if __name__=="__main__":
                         indices0= np.concatenate((indices1,indices0))  
                         indices1=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
+                        if args.flush==1:
+                            indices3=all_indices[max_index:max_index+bunch]
+                            max_index+=bunch
+                            indices2=all_indices[max_index:max_index+bunch]
+                            max_index+=bunch
+                        
+                       
                         metric=(metric+metric1)
                     
                 elif metric3>metric2: #3>2>1
@@ -655,6 +690,11 @@ if __name__=="__main__":
                     indices0= np.concatenate((indices1,indices0))  
                     indices1=all_indices[max_index:max_index+bunch]
                     max_index+=bunch
+                    if args.flush==1:
+                        indices3=all_indices[max_index:max_index+bunch]
+                        max_index+=bunch
+                        indices2=all_indices[max_index:max_index+bunch]
+                        max_index+=bunch
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     metric=(metric+metric1)
                     
@@ -671,7 +711,11 @@ if __name__=="__main__":
                         os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+'b'+ str(args.bunch)+"ms"+str(args.max_samples)+"e"+str(best_metric_epoch)))
         print(f"The best metric so far is {best_metric} at epoch {best_metric_epoch}")    
         print(f"time consumption of epoch {epoch+1} is: {(time.time() - epoch_start):.4f}")
-        print("added samples: ",indices0[bunch:])
+        # print("added samples: ",indices0[bunch:])
+        all_added= np.append(all_samples,indices0[bunch:])
+        
+        unique, counts = np.unique(x, return_counts=True)
+        print ("samples and frequency of training", dict(np.asarray((unique, counts)).T))
         
     total_time = time.time() - total_start
 
