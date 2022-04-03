@@ -624,6 +624,11 @@ if __name__=="__main__":
                             max_index+=bunch
                             indices1=all_indices[max_index:max_index+bunch]
                             max_index+=bunch
+                        elif args.flush==2:
+                            indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
+                            max_index+=bunch
+                            indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
+                            max_index+=bunch 
                         metric= (metric+metric3)
                     else: #1>3>2
                         print("Adding 2")
@@ -635,6 +640,11 @@ if __name__=="__main__":
                             indices3=all_indices[max_index:max_index+bunch]
                             max_index+=bunch
                             indices1=all_indices[max_index:max_index+bunch]
+                            max_index+=bunch                            
+                        elif args.flush==2:
+                            indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
+                            max_index+=bunch
+                            indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
                             max_index+=bunch
                         metric=(metric+metric2)
                         
@@ -648,7 +658,11 @@ if __name__=="__main__":
                         max_index+=bunch
                         indices1=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
-                    
+                    elif args.flush==2:
+                        indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
+                        max_index+=bunch
+                        indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
+                        max_index+=bunch
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     metric=(metric+metric2)
                     
@@ -668,6 +682,11 @@ if __name__=="__main__":
                             max_index+=bunch
                             indices1=all_indices[max_index:max_index+bunch]
                             max_index+=bunch
+                        elif args.flush==2:
+                            indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
+                            max_index+=bunch
+                            indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
+                            max_index+=bunch
                        
                         metric=(metric+metric3)
                         
@@ -681,6 +700,11 @@ if __name__=="__main__":
                             max_index+=bunch
                             indices2=all_indices[max_index:max_index+bunch]
                             max_index+=bunch
+                        elif args.flush==2:
+                            indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
+                            max_index+=bunch
+                            indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
+                            max_index+=bunch                     
                         
                        
                         metric=(metric+metric1)
@@ -695,6 +719,12 @@ if __name__=="__main__":
                         max_index+=bunch
                         indices2=all_indices[max_index:max_index+bunch]
                         max_index+=bunch
+                    elif args.flush==2:
+                        indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
+                        max_index+=bunch
+                        indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
+                        max_index+=bunch
+                    
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     metric=(metric+metric1)
                     
