@@ -450,9 +450,8 @@ if __name__=="__main__":
         
         metric=0
         
-        step2 = 0
-        step3 = 0
-        step1 = 0
+        
+        steps = 0
         while max_index<train_dataset.__len__():
            # one completion of this =one epoch
               # get the indices to pass to each model
@@ -480,7 +479,7 @@ if __name__=="__main__":
             
             for batch_data in train_loader0:
                 #one look is completed when this is exited.
-                step_start = time.time()
+                steps_start = time.time()
                 
                 inputs, masks = (
                     batch_data["image"].to(device),
@@ -496,13 +495,13 @@ if __name__=="__main__":
                 lr_scheduler.step() 
            
                 # print(
-                    # f"{step1}/{len(train_dataset1) // train_loader1.batch_size}"
+                    # f"{steps}/{len(train_dataset1) // train_loader1.batch_size}"
                     # f", train_loss: {loss.item():.4f}"
-                    # f", step time: {(time.time() - step_start):.4f}"
+                    # f", steps time: {(time.time() - steps_start):.4f}"
                 # )
                
             model1.eval()
-            step1 += 1 #adding to the look count
+            steps += 1 #adding to the look count
             with torch.no_grad():
                 
 
@@ -600,15 +599,30 @@ if __name__=="__main__":
 
                 )              
                 
-                if metric13 > best_metric13: # In case we want to use this later
-                    best_metric13 = metric13
-                    best_metric_epoch1 = epoch + 1          
+                # if metric13 > best_metric13: # In case we want to use this later
+                    # best_metric13 = metric13
+                    # best_metric_epoch1 = epoch + 1  
+                
+                metric1=metric11
+                metric2=metric12            
+                metric3=metric13
+                metric=(metric1+metric2+metric3)/3
+                
+                
+                if metric>best_metric:
+                    best_metric = metric
+                    best_metric_epoch = epoch + 1
+                    best_metric_look=steps
+                    if epoch>1 or steps>50:
+                        torch.save(
+                                    model1.state_dict(),
+                                    os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+'b'+ str(args.bunch)+"ms"+str(args.max_samples)+"ep"+str(best_metric_epoch)+"s"+str(steps)))
+                print(f"The best metric so far is {best_metric} at epoch {best_metric_epoch} at look {best_metric_look}")  
+                    
               
                
             
-            metric1=metric11
-            metric2=metric12            
-            metric3=metric13
+            
             
             if metric1>metric2:
                 if metric1>metric3: 
@@ -629,7 +643,7 @@ if __name__=="__main__":
                             max_index+=bunch
                             indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
                             max_index+=bunch 
-                        metric= (metric+metric3)
+                        
                     else: #1>3>2
                         print("Adding 2")
                         indices0= np.concatenate((indices2,indices0))  
@@ -646,7 +660,7 @@ if __name__=="__main__":
                             max_index+=bunch
                             indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
                             max_index+=bunch
-                        metric=(metric+metric2)
+                        
                         
                 else: # 3>1>2
                     print("Adding  2")
@@ -664,7 +678,7 @@ if __name__=="__main__":
                         indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
                         max_index+=bunch
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
-                    metric=(metric+metric2)
+                    
                     
             else:
                 if metric2>metric3:
@@ -688,7 +702,7 @@ if __name__=="__main__":
                             indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
                             max_index+=bunch
                        
-                        metric=(metric+metric3)
+                        
                         
                     else: # 2>3>1
                         print("Adding 1")
@@ -707,7 +721,7 @@ if __name__=="__main__":
                             max_index+=bunch                     
                         
                        
-                        metric=(metric+metric1)
+                        
                     
                 elif metric3>metric2: #3>2>1
                     print("Adding 1")
@@ -726,23 +740,17 @@ if __name__=="__main__":
                         max_index+=bunch
                     
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
-                    metric=(metric+metric1)
                     
-            print(f"time consumption of look {step1} is: {(time.time() - look_start):.4f}")
+                    
+            print(f"time consumption of look {steps} is: {(time.time() - look_start):.4f}")
         
-        metric=metric/step1
-        print(f"The average lowest dice score for {epoch+1} epoch was {metric}")  
         
-        if metric>best_metric:
-            best_metric = metric
-            best_metric_epoch = epoch + 1
-            torch.save(
-                        model1.state_dict(),
-                        os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+'b'+ str(args.bunch)+"ms"+str(args.max_samples)+"e"+str(best_metric_epoch)))
-        print(f"The best metric so far is {best_metric} at epoch {best_metric_epoch}")    
+        print(f"The best dice score for {epoch+1} epoch was {best_metric}")  
+        
+          
         print(f"time consumption of epoch {epoch+1} is: {(time.time() - epoch_start):.4f}")
         # print("added samples: ",indices0[bunch:])
-        all_added= np.append(all_samples,indices0[bunch:])
+        all_added= np.append(all_added,indices0[bunch:])
         
         unique, counts = np.unique(x, return_counts=True)
         print ("samples and frequency of training", dict(np.asarray((unique, counts)).T))
