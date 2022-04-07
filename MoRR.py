@@ -254,7 +254,7 @@ if __name__=="__main__":
     device = torch.device("cuda:0")
 
     if args.model=="UNet":
-         model=UNet(
+         model1=UNet(
             spatial_dims=3,
             in_channels=4,
             out_channels=3,
@@ -298,14 +298,14 @@ if __name__=="__main__":
         summary(model1,(4,192,192,144))
 
     model1=torch.nn.DataParallel(model1)
-    model2=torch.nn.DataParallel(model2)
-    model3=torch.nn.DataParallel(model3)
+    # model2=torch.nn.DataParallel(model2)
+    # model3=torch.nn.DataParallel(model3)
     print("Model defined and passed to GPU")
 
     loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
     optimizer1 = torch.optim.Adam(model1.parameters(), args.lr, weight_decay=1e-5)
-    optimizer2 = torch.optim.Adam(model2.parameters(), args.lr, weight_decay=1e-5)
-    optimizer3 = torch.optim.Adam(model3.parameters(), args.lr, weight_decay=1e-5)
+    # optimizer2 = torch.optim.Adam(model2.parameters(), args.lr, weight_decay=1e-5)
+    # optimizer3 = torch.optim.Adam(model3.parameters(), args.lr, weight_decay=1e-5)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer1, T_max=max_epochs)
 
     dice_metric = DiceMetric(include_background=True, reduction="mean")
@@ -621,123 +621,168 @@ if __name__=="__main__":
                     
               
                
-            
-            
-            
             if metric1>metric2:
                 if metric1>metric3: 
-                    # print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
-                   
+                    print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
                     if metric2>metric3: # 1>2>3
-                        print("Adding 3")
-                        indices0= np.concatenate((indices3,indices0))  
-                        indices3=all_indices[max_index:max_index+bunch]
+                        print("updating 1")
+                        indices0=np.concatenate((indices0,indices2))
+                        indices2= all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
-                        if args.flush==1:
-                            indices2=all_indices[max_index:max_index+bunch]
-                            max_index+=bunch
-                            indices1=all_indices[max_index:max_index+bunch]
-                            max_index+=bunch
-                        elif args.flush==2:
-                            indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
-                            max_index+=bunch
-                            indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
-                            max_index+=bunch 
-                        
                     else: #1>3>2
-                        print("Adding 2")
-                        indices0= np.concatenate((indices2,indices0))  
-                        
-                        indices2=all_indices[max_index:max_index+bunch]
+                        print("updating 1")
+                        indices0=np.concatenate((indices0,indices3))
+                        indices3=all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
-                        if args.flush==1:
-                            indices3=all_indices[max_index:max_index+bunch]
-                            max_index+=bunch
-                            indices1=all_indices[max_index:max_index+bunch]
-                            max_index+=bunch                            
-                        elif args.flush==2:
-                            indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
-                            max_index+=bunch
-                            indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
-                            max_index+=bunch
-                        
                         
                 else: # 3>1>2
-                    print("Adding  2")
-                    indices0= np.concatenate((indices2,indices0))  
-                    indices2=all_indices[max_index:max_index+bunch]
+                    print("updating 3")
+                    indices0=np.concatenate((indices0,indices1))
+                    indices1= all_indices[max_index:max_index+bunch]                   
                     max_index+=bunch
-                    if args.flush==1:
-                        indices3=all_indices[max_index:max_index+bunch]
+                    print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
+            else:
+                if metric2>metric3:
+                    print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
+                    if metric1>metric3: #2>1>3
+                        print("updating 2")
+                        indices0=np.concatenate((indices0,indices1))
+                        indices1 =all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
-                        indices1=all_indices[max_index:max_index+bunch]
+                    else: # 2>3>1
+                        print("updating 2")
+                        indices0=np.concatenate((indices0,indices3))
+                        indices3 =all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
-                    elif args.flush==2:
-                        indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
-                        max_index+=bunch
-                        indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
-                        max_index+=bunch
+                    
+                elif metric3>metric2: #3>2>1
+                    print("updating 3")
+                    indices0=np.concatenate((indices0,indices2))
+                    indices2= all_indices[max_index:max_index+bunch]                   
+                    max_index+=bunch
+                    print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
+            
+            
+            # if metric1>metric2:
+                # if metric1>metric3: 
+                    # print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
+                   
+                    # if metric2>metric3: # 1>2>3
+                        # print("Adding 3")
+                        # indices0= np.concatenate((indices3,indices0))
+                        # all_added=np.concatenate((all_added, indices3))
+                        # indices3=all_indices[max_index:max_index+bunch]
+                        # max_index+=bunch
+                        # if args.flush==1:
+                            # indices2=all_indices[max_index:max_index+bunch]
+                            # max_index+=bunch
+                            # indices1=all_indices[max_index:max_index+bunch]
+                            # max_index+=bunch
+                        # elif args.flush==2:
+                            # indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
+                            # max_index+=bunch
+                            # indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
+                            # max_index+=bunch 
+                        
+                    # else: #1>3>2
+                        # print("Adding 2")
+                        # indices0= np.concatenate((indices2,indices0))
+                        # all_added=np.concatenate((all_added, indices2))
+                        
+                        # indices2=all_indices[max_index:max_index+bunch]
+                        # max_index+=bunch
+                        # if args.flush==1:
+                            # indices3=all_indices[max_index:max_index+bunch]
+                            # max_index+=bunch
+                            # indices1=all_indices[max_index:max_index+bunch]
+                            # max_index+=bunch                            
+                        # elif args.flush==2:
+                            # indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
+                            # max_index+=bunch
+                            # indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
+                            # max_index+=bunch
+                        
+                        
+                # else: # 3>1>2
+                    # print("Adding  2")
+                    # indices0= np.concatenate((indices2,indices0))
+                    # all_added=np.concatenate((all_added, indices2))                        
+                    # indices2=all_indices[max_index:max_index+bunch]
+                    # max_index+=bunch
+                    # if args.flush==1:
+                        # indices3=all_indices[max_index:max_index+bunch]
+                        # max_index+=bunch
+                        # indices1=all_indices[max_index:max_index+bunch]
+                        # max_index+=bunch
+                    # elif args.flush==2:
+                        # indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
+                        # max_index+=bunch
+                        # indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
+                        # max_index+=bunch
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     
                     
-            else:
-                if metric2>metric3:
+            # else:
+                # if metric2>metric3:
                     # print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
                     
                     
                     
-                    if metric1>metric3: #2>1>3
-                        print("Adding 3")
-                        indices0= np.concatenate((indices3,indices0))  
-                        indices3=all_indices[max_index:max_index+bunch]
-                        max_index+=bunch
-                        if args.flush==1:
-                            indices2=all_indices[max_index:max_index+bunch]
-                            max_index+=bunch
-                            indices1=all_indices[max_index:max_index+bunch]
-                            max_index+=bunch
-                        elif args.flush==2:
-                            indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
-                            max_index+=bunch
-                            indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
-                            max_index+=bunch
+                    # if metric1>metric3: #2>1>3
+                        # print("Adding 3")
+                        # indices0= np.concatenate((indices3,indices0))  
+                        # all_added=np.concatenate((all_added, indices3))
+                        # indices3=all_indices[max_index:max_index+bunch]
+                        # max_index+=bunch
+                        # if args.flush==1:
+                            # indices2=all_indices[max_index:max_index+bunch]
+                            # max_index+=bunch
+                            # indices1=all_indices[max_index:max_index+bunch]
+                            # max_index+=bunch
+                        # elif args.flush==2:
+                            # indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
+                            # max_index+=bunch
+                            # indices1=np.concatenate((indices1,all_indices[max_index:max_index+bunch]))
+                            # max_index+=bunch
                        
                         
                         
-                    else: # 2>3>1
-                        print("Adding 1")
-                        indices0= np.concatenate((indices1,indices0))  
-                        indices1=all_indices[max_index:max_index+bunch]
-                        max_index+=bunch
-                        if args.flush==1:
-                            indices3=all_indices[max_index:max_index+bunch]
-                            max_index+=bunch
-                            indices2=all_indices[max_index:max_index+bunch]
-                            max_index+=bunch
-                        elif args.flush==2:
-                            indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
-                            max_index+=bunch
-                            indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
-                            max_index+=bunch                     
+                    # else: # 2>3>1
+                        # print("Adding 1")
+                        # indices0= np.concatenate((indices1,indices0))
+                        # all_added=np.concatenate((all_added, indices1))                        
+                        # indices1=all_indices[max_index:max_index+bunch]
+                        # max_index+=bunch
+                        # if args.flush==1:
+                            # indices3=all_indices[max_index:max_index+bunch]
+                            # max_index+=bunch
+                            # indices2=all_indices[max_index:max_index+bunch]
+                            # max_index+=bunch
+                        # elif args.flush==2:
+                            # indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
+                            # max_index+=bunch
+                            # indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
+                            # max_index+=bunch                     
                         
                        
                         
                     
-                elif metric3>metric2: #3>2>1
-                    print("Adding 1")
-                    indices0= np.concatenate((indices1,indices0))  
-                    indices1=all_indices[max_index:max_index+bunch]
-                    max_index+=bunch
-                    if args.flush==1:
-                        indices3=all_indices[max_index:max_index+bunch]
-                        max_index+=bunch
-                        indices2=all_indices[max_index:max_index+bunch]
-                        max_index+=bunch
-                    elif args.flush==2:
-                        indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
-                        max_index+=bunch
-                        indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
-                        max_index+=bunch
+                # elif metric3>metric2: #3>2>1
+                    # print("Adding 1")
+                    # indices0= np.concatenate((indices1,indices0)) 
+                    # all_added=np.concatenate((all_added, indices1))                        
+                    # indices1=all_indices[max_index:max_index+bunch]
+                    # max_index+=bunch
+                    # if args.flush==1:
+                        # indices3=all_indices[max_index:max_index+bunch]
+                        # max_index+=bunch
+                        # indices2=all_indices[max_index:max_index+bunch]
+                        # max_index+=bunch
+                    # elif args.flush==2:
+                        # indices3=np.concatenate((indices3,all_indices[max_index:max_index+bunch]))
+                        # max_index+=bunch
+                        # indices2=np.concatenate((indices2,all_indices[max_index:max_index+bunch]))
+                        # max_index+=bunch
                     
                     # print("3 was best with an avg score of : ",metric3, "1 & 2 :",metric1,metric2)
                     
@@ -750,12 +795,12 @@ if __name__=="__main__":
           
         print(f"time consumption of epoch {epoch+1} is: {(time.time() - epoch_start):.4f}")
         # print("added samples: ",indices0[bunch:])
-        all_added= np.append(all_added,indices0[bunch:])
-        
-        unique, counts = np.unique(x, return_counts=True)
+       
+    if shuffle==1:    
+        unique, counts = np.unique(all_added, return_counts=True)
         print ("samples and frequency of training", dict(np.asarray((unique, counts)).T))
         
     total_time = time.time() - total_start
 
-    # print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}, total time: {total_time}.")
+    print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}, total time: {total_time}.")
 
