@@ -372,7 +372,9 @@ if __name__=="__main__":
     torch.backends.cudnn.benchmark = True
 
     #dataset=DecathlonDataset(root_dir="./", task="Task05_Prostate",section="training", transform=xform, download=True)
-    train_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
+    train_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform )
+    val_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_ValidationData",transform=val_transform)
+    val_loader=DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
  
     indexes=np.arange(train_dataset.__len__())
     
@@ -407,6 +409,7 @@ if __name__=="__main__":
     best_metric_epoch2 = -1
     
     best_metric = -1 
+    best_metric_train=-1
     best_metric32 = -1 
     best_metric33 = -1
     
@@ -609,34 +612,62 @@ if __name__=="__main__":
                 metric=(metric1+metric2+metric3)/3
                 
                 
-                if metric>best_metric:
-                    best_metric = metric
-                    best_metric_epoch = epoch + 1
-                    best_metric_look=steps
-                    if epoch>1 or steps>50:
-                        torch.save(
-                                    model1.state_dict(),
-                                    os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+'b'+ str(args.bunch)+"ms"+str(args.max_samples)+"ep"+str(best_metric_epoch)+"s"+str(steps)))
+                if metric>best_metric_train:
+                    best_metric_train = metric
+                    
+                    for val_data in val_loader:
+                        val_inputs, val_masks = (
+                            val_data["image"].to(device),
+                            val_data["mask"].to(device),
+                        )
+                        val_outputs = inference1(val_inputs)
+                        val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
+                        dice_metric(y_pred=val_outputs, y=val_masks)
+                        dice_metric_batch(y_pred=val_outputs, y=val_masks)
+
+                    metric_val = dice_metric.aggregate().item()
+                    metric_batch1 = dice_metric_batch.aggregate()
+                    metric_tc1 = metric_batch1[0].item()
+                    metric_values_tc1.append(metric_tc1)
+                    metric_wt1 = metric_batch1[1].item()
+                    metric_values_wt1.append(metric_wt1)
+                    metric_et1 = metric_batch1[2].item()
+                    metric_values_et1.append(metric_et1)
+                    dice_metric.reset()
+                    dice_metric_batch.reset()
+                    
+                    if metric_val>best_metric:
+                        best_metric=metric_val
+                        print(
+                            f"model 1 validation dice: {metric_val:.4f}"
+                            f" tc: {metric_tc1:.4f} wt: {metric_wt1:.4f} et: {metric_et1:.4f}" 
+                        
+                        best_metric_epoch = epoch + 1
+                        best_metric_look=steps
+                        if epoch>0 or steps>50:
+                            torch.save(
+                                        model1.state_dict(),
+                                        os.path.join(root_dir,"MBISone"+ date.today().isoformat()+'T'+str(datetime.today().hour)+'b'+ str(args.bunch)+"ms"+str(args.max_samples)+"ep"+str(best_metric_epoch)+"s"+str(steps)))
                 print(f"The best metric so far is {best_metric} at epoch {best_metric_epoch} at look {best_metric_look}")  
                     
               
                
             if metric1>metric2:
                 if metric1>metric3: 
-                    print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
+                    # print("1 was best with an avg score of : ",metric1, " 2 & 3 :",metric2,metric3)
                     if metric2>metric3: # 1>2>3
-                        print("updating 1")
+                       
                         indices0=np.concatenate((indices0,indices2))
                         indices2= all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                     else: #1>3>2
-                        print("updating 1")
+                        
                         indices0=np.concatenate((indices0,indices3))
                         indices3=all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                         
                 else: # 3>1>2
-                    print("updating 3")
+                    
                     indices0=np.concatenate((indices0,indices1))
                     indices1= all_indices[max_index:max_index+bunch]                   
                     max_index+=bunch
@@ -645,18 +676,18 @@ if __name__=="__main__":
                 if metric2>metric3:
                     print("2 was best with an avg score of : ",metric2, "1 & 3 :",metric1,metric3)
                     if metric1>metric3: #2>1>3
-                        print("updating 2")
+                        
                         indices0=np.concatenate((indices0,indices1))
                         indices1 =all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                     else: # 2>3>1
-                        print("updating 2")
+                        
                         indices0=np.concatenate((indices0,indices3))
                         indices3 =all_indices[max_index:max_index+bunch]                   
                         max_index+=bunch
                     
                 elif metric3>metric2: #3>2>1
-                    print("updating 3")
+                    
                     indices0=np.concatenate((indices0,indices2))
                     indices2= all_indices[max_index:max_index+bunch]                   
                     max_index+=bunch
