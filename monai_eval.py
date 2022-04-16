@@ -9,6 +9,7 @@ import monai
 from monai.data import Dataset
 from monai.utils import set_determinism
 from sisa import SISANet
+import matplotlib.pyplot as plt
 
 from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     ScaleIntensityD, SpacingD, OrientationD,\
@@ -75,6 +76,7 @@ import torch
 import time
 import argparse
 from torchsummary import summary
+import gc
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -92,6 +94,7 @@ if __name__=="__main__":
     parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
     parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
     parser.add_argument("--ensemble",default=0,type=int,help="flag to use ensemble with models provided")
+    parser.add_argument("--avgmodel",default=0,type=int,help="flag to create an averaged model from existing models")
 
     args=parser.parse_args()
 
@@ -242,7 +245,7 @@ if __name__=="__main__":
                 roi_size=(192,192, 144),
                 sw_batch_size=1,
                 predictor=model,
-                overlap=0.5,
+                overlap=0,
             )
 
         if VAL_AMP:
@@ -308,7 +311,7 @@ if __name__=="__main__":
             img_=torch.sort(img_,dim=0,descending=True).values #img is a tensor        
             
             # print(img_[0,2,100,100,70],img_[1,2,100,100,70],img_[2,2,100,100,70],img_[3,2,100,100,70],img_[4,2,100,100,70])
-            out_pt = torch.mean(img_[0:5,:,:,:,:], dim=0)#[0:3,:,:,:,:]
+            out_pt = torch.mean(img_[0:10,:,:,:,:], dim=0)#[0:3,:,:,:,:]
             # print(out_pt.shape)
             x=self.post_convert(out_pt, img)
             
@@ -388,7 +391,14 @@ if __name__=="__main__":
         ]
         )
 
+    indexes=np.arange(args.max_samples)
+    fold=int(args.max_samples/10)
 
+    # for i in range(1,11):
+        # if i==int(args.fold_num):
+            # train_indices=indexes[(i-1)*fold:i*fold]
+            # x_val_indices=np.split(np.delete(indexes,train_indices),9)
+            
     class TestDataset(Dataset):
         def __init__(self,data_dir,transform=None):
             self.image_list=make_dataset(data_dir)[0]  
@@ -453,66 +463,13 @@ if __name__=="__main__":
             wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
         elif args.model=="SegResNet":
-            model_names=['2022-03-12SegResNetCV1ms200','2022-03-12SegResNetCV2ms200','2022-03-12SegResNetCV3ms200','2022-03-12SegResNetCV4ms200','2022-03-12SegResNetCV5ms200','2022-03-12SegResNetCV6ms200','2022-03-12SegResNetCV7ms200','2022-03-12SegResNetCV8ms200','2022-03-12SegResNetCV9ms200','2022-03-12SegResNetCV10ms200']#
+            model_names=["2022-04-05T12SegResNetep51","2022-04-05T13SegResNetep52","2022-04-05T13SegResNetep53","2022-04-05T14SegResNetep54","2022-04-05T14SegResNetep55","2022-04-05T15SegResNetep56","2022-04-05T15SegResNetep57","2022-04-05T15SegResNetep58","2022-04-05T16SegResNetep59","2022-04-05T16SegResNetep60","2022-04-05T17SegResNetep61","2022-04-05T17SegResNetep62","2022-04-05T18SegResNetep63","2022-04-05T18SegResNetep64","2022-04-05T19SegResNetep65","2022-04-05T19SegResNetep66","2022-04-05T20SegResNetep67","2022-04-05T20SegResNetep68","2022-04-05T21SegResNetep69","2022-04-05T21SegResNetep70","2022-04-05T22SegResNetep71","2022-04-05T22SegResNetep72","2022-04-05T23SegResNetep73","2022-04-05T23SegResNetep74","2022-04-06T0SegResNetep75","2022-04-06T0SegResNetep76","2022-04-06T0SegResNetep77","2022-04-06T1SegResNetep78","2022-04-06T1SegResNetep79","2022-04-06T2SegResNetep80","2022-04-06T2SegResNetep81","2022-04-06T3SegResNetep82","2022-04-06T3SegResNetep83","2022-04-06T4SegResNetep84","2022-04-06T4SegResNetep85","2022-04-06T5SegResNetep86","2022-04-06T5SegResNetep87","2022-04-06T6SegResNetep88","2022-04-06T6SegResNetep89","2022-04-06T7SegResNetep90","2022-04-06T7SegResNetep91","2022-04-06T8SegResNetep92","2022-04-06T8SegResNetep93","2022-04-06T9SegResNetep94","2022-04-06T9SegResNetep95","2022-04-06T10SegResNetep96","2022-04-06T10SegResNetep97","2022-04-06T10SegResNetep98","2022-04-06T11SegResNetep99"]#['2022-03-12SegResNetCV1ms200','2022-03-12SegResNetCV2ms200','2022-03-12SegResNetCV3ms200','2022-03-12SegResNetCV4ms200','2022-03-12SegResNetCV5ms200','2022-03-12SegResNetCV6ms200','2022-03-12SegResNetCV7ms200','2022-03-12SegResNetCV8ms200','2022-03-12SegResNetCV9ms200','2022-03-12SegResNetCV10ms200']#
             wts=[0.7401,0.7506,0.6364,0.7484, 0.6725,0.7707,0.7219,0.7439,0.8003,0.7458]#[0.5651,0.5252,0.5537,0.5137,0.5744,0.4862,0.5255,0.5559,0.5755,0.5060]
         
 
         else:
             print("No SISA yet")
 
-
-        
-
-        models=[]
-        for i,name in enumerate(model_names):
-            if args.model=="UNet":
-                 model=UNet(
-                    spatial_dims=3,
-                    in_channels=4,
-                    out_channels=3,
-                    channels=(64,128,256,512,1024),
-                    strides=(2,2,2,2)
-                    ).to(device)
-            elif args.model=="SegResNet":
-                model = SegResNet(
-                    blocks_down=[1, 2, 2, 4],
-                    blocks_up=[1, 1, 1],
-                    init_filters=32,
-                    norm="instance",
-                    in_channels=4,
-                    out_channels=3,
-                    upsample_mode=UpsampleMode[args.upsample]    
-                    ).to(device)
-
-            else:
-                model = locals() [args.model](4,3).to(device)
-            
-            model=torch.nn.DataParallel(model)
-            
-            model.load_state_dict(torch.load("./saved models/"+name),strict=False)
-            model.eval()
-            models.append(model)
-            
-        num_models=len(models)
-        
-        mean_post_transforms = Compose(
-            [
-                EnsureTyped(keys=["pred"+str(i) for i in range(num_models)]), #gives pred0..pred9
-                # SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
-                
-                MeanEnsembled(
-                    keys=["pred"+str(i) for i in range(num_models)], 
-                    output_key="pred",
-                    # in this particular example, we use validation metrics as weights
-                    weights=wts,
-                ),
-                Activationsd(keys="pred", sigmoid=True),
-                AsDiscreted(keys="pred", threshold=0.5),
-            ]
-        )            
-        
-        
-        
         def ensemble_evaluate(post_transforms, models):
             print(post_transforms.transforms)
             evaluator = EnsembleEvaluator(
@@ -540,38 +497,145 @@ if __name__=="__main__":
             evaluator.run()
             
             # print("validation stats: ",evaluator.get_validation_stats())
+            mean_dice=evaluator.state.metrics['test_mean_dice']
+            tumor_core=evaluator.state.metrics["Channelwise"][0]
+            whole_tumor=evaluator.state.metrics["Channelwise"][1]
+            enhancing_tumor=evaluator.state.metrics["Channelwise"][2]
             print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",float(evaluator.state.metrics["Channelwise"][0]),"whole tumor:",float(evaluator.state.metrics["Channelwise"][1]),"enhancing tumor:",float(evaluator.state.metrics["Channelwise"][2]))#jbc
-            # print("evaluator best metric:",evaluator.state.best_metric)
+            
+            return mean_dice,tumor_core,whole_tumor,enhancing_tumor
         
         
         
-        conf_post_transforms = Compose(
-            [
-                EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred9
-                # SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
-                
-                ConfEnsembled(
-                    keys=["pred"+str(i) for i in range(len(models))], 
-                    output_key="pred",
-                    # in this particular example, we use validation metrics as weights
-                    # weights=wts,
-                ),
-                Activationsd(keys="pred", sigmoid=True),
-                AsDiscreted(keys="pred", threshold=0.5),
-            ]
-        )
-        vote_post_transforms = Compose(
-            [
-                EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]),
-                Activationsd(keys=["pred"+str(i) for i in range(len(models))], sigmoid=True),
-                # transform data into discrete before voting
-                AsDiscreted(keys=["pred"+str(i) for i in range(len(models))], threshold=0.3),
-                VoteEnsembled(keys=["pred"+str(i) for i in range(len(models))], output_key="pred"),
-            ]
-        )
-        ensemble_evaluate(conf_post_transforms, models)
 
-    else:
+        
+        model_num= len(model_names)
+        mean_dice=[]
+        tumor_core=[]
+        whole_tumor=[]
+        enhancing_tumor=[]
+        for i in range(model_num):
+            model_names=model_names[i:]
+            models=[]
+            for i,name in enumerate(model_names):
+                if args.model=="UNet":
+                     model=UNet(
+                        spatial_dims=3,
+                        in_channels=4,
+                        out_channels=3,
+                        channels=(64,128,256,512,1024),
+                        strides=(2,2,2,2)
+                        ).to(device)
+                elif args.model=="SegResNet":
+                    model = SegResNet(
+                        blocks_down=[1, 2, 2, 4],
+                        blocks_up=[1, 1, 1],
+                        init_filters=32,
+                        norm="instance",
+                        in_channels=4,
+                        out_channels=3,
+                        upsample_mode=UpsampleMode[args.upsample]    
+                        ).to(device)
+
+                else:
+                    model = locals() [args.model](4,3).to(device)
+                
+                model=torch.nn.DataParallel(model)
+                
+                model.load_state_dict(torch.load("./saved models/"+name),strict=False)
+                model.eval()
+                models.append(model)
+                
+            num_models=len(models)  
+            if args.avgmodel:
+                for key in model.state_dict().keys():
+                    for i in models[:-1]:
+                        model.state_dict()[key]=(i.state_dict()[key]+model.state_dict()[key] )
+                    model.state_dict()[key]=model.state_dict()[key]/num_models
+                torch.save(
+                    model.state_dict(),
+                    os.path.join("./saved models", date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"))
+                    
+                print("saved zoo model")
+                
+                args.ensemble = 0
+                args.load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"
+                
+                break
+                    
+               
+                            
+                           
+                     
+                     
+               
+                                
+            # conf_post_transforms = Compose(
+                # [
+                    # EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred9
+                    
+                    
+                    # ConfEnsembled(
+                        # keys=["pred"+str(i) for i in range(len(models))], 
+                        # output_key="pred",
+                        
+                        # weights=wts,
+                    # ),
+                    # Activationsd(keys="pred", sigmoid=True),
+                    # AsDiscreted(keys="pred", threshold=0.5),
+                # ]
+            # )
+            # vote_post_transforms = Compose(
+                # [
+                    # EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]),
+                    # Activationsd(keys=["pred"+str(i) for i in range(len(models))], sigmoid=True),
+                    ###### transform data into discrete before voting
+                    # AsDiscreted(keys=["pred"+str(i) for i in range(len(models))], threshold=0.3),
+                    # VoteEnsembled(keys=["pred"+str(i) for i in range(len(models))], output_key="pred"),
+                # ]
+            # )
+            
+            mean_post_transforms = Compose(
+                [
+                    EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred1...
+                    ## SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
+                    
+                    MeanEnsembled(
+                        keys=["pred"+str(i) for i in range(len(models))], 
+                        output_key="pred",
+                      ##  # in this particular example, we use validation metrics as weights
+                      ### weights=wts,
+                    ),
+                    Activationsd(keys="pred", sigmoid=True),
+                    AsDiscreted(keys="pred", threshold=0.5),
+                ]
+            ) 
+                               
+            md,tc,wt,et=ensemble_evaluate(mean_post_transforms, models)
+            mean_dice.append(md)
+            tumor_core.append(tc)
+            whole_tumor.append(wt)
+            enhancing_tumor.append(et)
+            del models
+            gc.collect()
+            torch.cuda.empty_cache()
+        
+        fig, ax = plt.subplots(figsize=(10,6))
+        
+        ax.plot(mean_dice, label="Mean Dice")
+        ax.set_ylim(0.6,0.95)
+        ax.set_xlabel("Number of models used")
+        ax.set_ylabel("Dice score")
+        ax.plot(tumor_core, label='Tumor Core')
+        ax.plot(whole_tumor, label='Whole tumor')
+        ax.plot(enhancing_tumor,label='Enhancing tumor')
+        ax.legend()
+        ax.set_title("Dice score change with number of models")
+        fig.tight_layout()
+        
+        plt.savefig("Dice score vs model num")
+
+    elif args.ensemble==0:
         
         model.load_state_dict(torch.load("./saved models/"+args.load_name))
         model.eval()
@@ -607,9 +671,8 @@ if __name__=="__main__":
         metric_tc, metric_wt, metric_et = metric_batch_org[0].item(), metric_batch_org[1].item(), metric_batch_org[2].item()
 
         print("Metric on original image spacing: ", metric_org)
-        print(f"metric_tc: {metric_tc:.4f}")
-        print(f"metric_wt: {metric_wt:.4f}")
-        print(f"metric_et: {metric_et:.4f}")
+        print(f"metric_tc: {metric_tc:.4f}", f"   metric_wt: {metric_wt:.4f}", f"   metric_et: {metric_et:.4f}")
+     
 
 
     #####################~~~~~~~~3D Seg End ~~~~~~###################
