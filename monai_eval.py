@@ -95,6 +95,7 @@ if __name__=="__main__":
     parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
     parser.add_argument("--ensemble",default=0,type=int,help="flag to use ensemble with models provided")
     parser.add_argument("--avgmodel",default=0,type=int,help="flag to create an averaged model from existing models")
+    parser.add_argument("--plot",default=0, type=int, help="whether or not to plot performance for various number of models")
 
     args=parser.parse_args()
 
@@ -509,15 +510,136 @@ if __name__=="__main__":
         
 
         
+        
         model_num= len(model_names)
         mean_dice=[]
         tumor_core=[]
         whole_tumor=[]
         enhancing_tumor=[]
-        for i in range(model_num):
-            model_steps=model_names[-i-1:]
+        if args.plot==1:
+            for i in range(model_num):
+                model_steps=model_names[-i-1:]
+                models=[]
+                for i,name in enumerate(model_steps):
+                    if args.model=="UNet":
+                         model=UNet(
+                            spatial_dims=3,
+                            in_channels=4,
+                            out_channels=3,
+                            channels=(64,128,256,512,1024),
+                            strides=(2,2,2,2)
+                            ).to(device)
+                    elif args.model=="SegResNet":
+                        model = SegResNet(
+                            blocks_down=[1, 2, 2, 4],
+                            blocks_up=[1, 1, 1],
+                            init_filters=32,
+                            norm="instance",
+                            in_channels=4,
+                            out_channels=3,
+                            upsample_mode=UpsampleMode[args.upsample]    
+                            ).to(device)
+
+                    else:
+                        model = locals() [args.model](4,3).to(device)
+                    
+                    model=torch.nn.DataParallel(model)
+                    
+                    model.load_state_dict(torch.load("./saved models/"+name),strict=False)
+                    model.eval()
+                    models.append(model)
+                    
+                num_models=len(models)  
+                if args.avgmodel:
+                    for key in model.state_dict().keys():
+                        for i in models[:-1]:
+                            model.state_dict()[key]=(i.state_dict()[key]+model.state_dict()[key] )
+                        model.state_dict()[key]=model.state_dict()[key]/num_models
+                    torch.save(
+                        model.state_dict(),
+                        os.path.join("./saved models", date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"))
+                        
+                    print("saved zoo model")
+                    
+                    args.ensemble = 0
+                    args.load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"
+                    
+                    break
+                        
+                   
+                                
+                               
+                         
+                         
+                   
+                                    
+                # conf_post_transforms = Compose(
+                    # [
+                        # EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred9
+                        
+                        
+                        # ConfEnsembled(
+                            # keys=["pred"+str(i) for i in range(len(models))], 
+                            # output_key="pred",
+                            
+                            # weights=wts,
+                        # ),
+                        # Activationsd(keys="pred", sigmoid=True),
+                        # AsDiscreted(keys="pred", threshold=0.5),
+                    # ]
+                # )
+                # vote_post_transforms = Compose(
+                    # [
+                        # EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]),
+                        # Activationsd(keys=["pred"+str(i) for i in range(len(models))], sigmoid=True),
+                        ###### transform data into discrete before voting
+                        # AsDiscreted(keys=["pred"+str(i) for i in range(len(models))], threshold=0.3),
+                        # VoteEnsembled(keys=["pred"+str(i) for i in range(len(models))], output_key="pred"),
+                    # ]
+                # )
+                
+                mean_post_transforms = Compose(
+                    [
+                        EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred1...
+                        ## SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
+                        
+                        MeanEnsembled(
+                            keys=["pred"+str(i) for i in range(len(models))], 
+                            output_key="pred",
+                          ##  # in this particular example, we use validation metrics as weights
+                          ### weights=wts,
+                        ),
+                        Activationsd(keys="pred", sigmoid=True),
+                        AsDiscreted(keys="pred", threshold=0.5),
+                    ]
+                ) 
+                                   
+                md,tc,wt,et=ensemble_evaluate(mean_post_transforms, models)
+                mean_dice.append(md)
+                tumor_core.append(tc)
+                whole_tumor.append(wt)
+                enhancing_tumor.append(et)
+                del models
+                gc.collect()
+                torch.cuda.empty_cache()
+            
+            fig, ax = plt.subplots(figsize=(10,6))
+            
+            ax.plot(mean_dice, label="Mean Dice")
+            ax.set_ylim(0.6,0.95)
+            ax.set_xlabel("Number of models used")
+            ax.set_ylabel("Dice score")
+            ax.plot(tumor_core, label='Tumor Core')
+            ax.plot(whole_tumor, label='Whole tumor')
+            ax.plot(enhancing_tumor,label='Enhancing tumor')
+            ax.legend()
+            ax.set_title("Dice score change with number of models")
+            fig.tight_layout()
+            
+            plt.savefig("Dice score vs model num")
+        else:          
             models=[]
-            for i,name in enumerate(model_steps):
+            for i,name in enumerate(model_names):
                 if args.model=="UNet":
                      model=UNet(
                         spatial_dims=3,
@@ -616,25 +738,6 @@ if __name__=="__main__":
             tumor_core.append(tc)
             whole_tumor.append(wt)
             enhancing_tumor.append(et)
-            del models
-            gc.collect()
-            torch.cuda.empty_cache()
-        
-        fig, ax = plt.subplots(figsize=(10,6))
-        
-        ax.plot(mean_dice, label="Mean Dice")
-        ax.set_ylim(0.6,0.95)
-        ax.set_xlabel("Number of models used")
-        ax.set_ylabel("Dice score")
-        ax.plot(tumor_core, label='Tumor Core')
-        ax.plot(whole_tumor, label='Whole tumor')
-        ax.plot(enhancing_tumor,label='Enhancing tumor')
-        ax.legend()
-        ax.set_title("Dice score change with number of models")
-        fig.tight_layout()
-        
-        plt.savefig("Dice score vs model num")
-
     elif args.ensemble==0:
         
         model.load_state_dict(torch.load("./saved models/"+args.load_name))
