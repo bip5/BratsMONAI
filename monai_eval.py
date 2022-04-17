@@ -515,9 +515,9 @@ if __name__=="__main__":
         whole_tumor=[]
         enhancing_tumor=[]
         for i in range(model_num):
-            model_names=model_names[i:]
+            model_steps=model_names[-i-1:]
             models=[]
-            for i,name in enumerate(model_names):
+            for i,name in enumerate(model_steps):
                 if args.model=="UNet":
                      model=UNet(
                         spatial_dims=3,
