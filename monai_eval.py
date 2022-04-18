@@ -460,7 +460,7 @@ if __name__=="__main__":
     if args.ensemble==1:
     
         if args.model=="UNet":
-            model_names=['2022-03-09T0UNetCV1','2022-03-09T1UNetCV2','2022-03-09T1UNetCV3','2022-03-09T1UNetCV4','2022-03-09T1UNetCV5','2022-03-09T1UNetCV6','2022-03-09T1UNetCV7','2022-03-09T1UNetCV8','2022-03-09T1UNetCV9','2022-03-09UNetCV10']
+            model_names=['2022-04-08UNetCV1ms1000','2022-04-08UNetCV2ms1000','2022-04-08UNetCV3ms1000','2022-04-08UNetCV4ms1000','2022-04-08UNetCV5ms1000']
             wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
         elif args.model=="SegResNet":
@@ -683,7 +683,7 @@ if __name__=="__main__":
                 args.ensemble = 0
                 args.load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"
                 
-                break
+                
                     
                
                             
