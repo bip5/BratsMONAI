@@ -416,7 +416,7 @@ if __name__=="__main__":
         
     print("number of files processed: ", train_dataset.__len__())
     train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
-    # val_loader=DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+    val_loader=DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     print("All Datasets assigned")
 
     root_dir="./"
@@ -457,7 +457,7 @@ if __name__=="__main__":
     model=torch.nn.DataParallel(model)
     print("Model defined and passed to GPU")
 
-    loss_function = SizeDiceLoss(smooth_nr=0, smooth_dr=1e-5, to_onehot_y=False, sigmoid=True)
+    loss_function = locals()[args.method](smooth_nr=0, smooth_dr=1e-5, to_onehot_y=False, sigmoid=True)
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=1e-5)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
 
