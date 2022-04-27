@@ -225,18 +225,18 @@ class CompleteLoss(SizeDiceLoss):
         smooth_dr = 1e-5,
         batch = False
     ):
-    super().__init__()
-    self.include_background = include_background
-    self.to_onehot_y = to_onehot_y
-    self.sigmoid = sigmoid
-    self.softmax = softmax
-    self.other_act = other_act
+        super().__init__()
+        self.include_background = include_background
+        self.to_onehot_y = to_onehot_y
+        self.sigmoid = sigmoid
+        self.softmax = softmax
+        self.other_act = other_act
 
-    self.w_type = look_up_option(w_type, Weight)
+        self.w_type = look_up_option(w_type, Weight)
 
-    self.smooth_nr = float(smooth_nr)
-    self.smooth_dr = float(smooth_dr)
-    self.batch = batch
+        self.smooth_nr = float(smooth_nr)
+        self.smooth_dr = float(smooth_dr)
+        self.batch = batch
     
     def forward(self, input, target):
         """
@@ -431,10 +431,10 @@ if __name__=="__main__":
         if i==int(args.fold_num):
             if i<5:
                 val_indices=indexes[(i-1)*fold:i*fold]
-                train_indices=np.delete(indexes,val_indices)#indexes[i*fold:(i+1)*fold]#
+                train_indices=indexes[i*fold:(i+1)*fold]#np.delete(indexes,val_indices)#
             else:
                 val_indices=indexes[(i-1)*fold:i*fold]
-                train_indices=np.delete(indexes,val_indices)#indexes[(i-5)*fold:(i-4)*fold]
+                train_indices=indexes[(i-5)*fold:(i-4)*fold]#np.delete(indexes,val_indices)#
                 
                
     class BratsDataset(Dataset):
