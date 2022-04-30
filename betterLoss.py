@@ -210,6 +210,14 @@ class SizeDiceLoss(_Loss):
             raise ValueError(f'Unsupported reduction: {self.reduction}, available options are ["mean", "sum", "none"].')
 
         return f
+        
+class CatLoss(SizeDiceLoss):
+    def __init__(
+        self        
+    ):
+       super().__init__() 
+    def forward(self, input, target):
+
 
 class CompleteLoss(SizeDiceLoss):
     def __init__(
@@ -293,8 +301,8 @@ class CompleteLoss(SizeDiceLoss):
         ground_o = torch.sum(target, reduce_axis)
         pred_o = torch.sum(input, reduce_axis)
         
-        factor=1+torch.square(ground_o-pred_o)/(torch.square(ground_o)+torch.square(pred_o)+1)
-        dist_factor=1+torch.square(input_mean-target_mean)/(torch.square(target_mean)+torch.square(input_mean)+1)
+        factor=1+torch.square(ground_o-pred_o)/(torch.square(ground_o)+torch.square(pred_o)+1)*args.size_factor
+        dist_factor=1+torch.square(input_mean-target_mean)/(torch.square(target_mean)+torch.square(input_mean)+1)*args.dist_factor
         
         
         denominator = ground_o + pred_o
@@ -344,6 +352,9 @@ if __name__=="__main__":
     parser.add_argument("--CV_flag",default=0,type=int,help="is this a cross validation fold? 1=yes")
     parser.add_argument("--seed",default=0,type=int, help="random seed for the script")
     parser.add_argument("--method",default='A', type=str,help='A,B or C')
+    parser.add_argument("--size_factor",default=1.0,type=float,help="factor for loss function range 0-1")
+    parser.add_argument("--dist_factor",default=1.0,type=float,help="factor for loss function range 0-1")
+    parser.add_argument("--save_model",default=1,type=int,help="if you want to save the model for later say 1 ")
     
 
     args=parser.parse_args()
@@ -513,6 +524,7 @@ if __name__=="__main__":
 
     #dataset=DecathlonDataset(root_dir="./", task="Task05_Prostate",section="training", transform=xform, download=True)
     train_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
+    val_dataset=Subset(train_dataset,val_indices)
 
     
 
@@ -649,10 +661,6 @@ if __name__=="__main__":
         epoch_loss_values.append(epoch_loss)
         print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
         
-        # if (epoch+1)>80:
-            # torch.save(
-                            # model.state_dict(),
-                            # os.path.join(root_dir, args.model+"ep"+str(epoch+1)+"rs"+str(args.seed)+args.method))
 
         if (epoch + 1) % val_interval == 0:
             model.eval()
@@ -679,6 +687,8 @@ if __name__=="__main__":
                 metric_values_et.append(metric_et)
                 dice_metric.reset()
                 dice_metric_batch.reset()
+                
+                
 
                 if metric > best_metric:
                     best_metric = metric
@@ -686,17 +696,24 @@ if __name__=="__main__":
                     best_metrics_epochs_and_time[0].append(best_metric)
                     best_metrics_epochs_and_time[1].append(best_metric_epoch)
                     best_metrics_epochs_and_time[2].append(time.time() - total_start)
-                    if args.CV_flag==1:
+                    if args.save_model==1:
+                        if args.CV_flag==1:
+                            torch.save(
+                                model.state_dict(),
+                                os.path.join(root_dir, args.model+ date.today().isoformat()+'T'+str(datetime.today().hour)+"ep"+str(epoch+1)+"rs"+str(args.seed)+"CV"+str(args.fold)+args.method)
+                            )
+                        else:
+                            torch.save(
+                                model.state_dict(),
+                                os.path.join(root_dir, args.model+ date.today().isoformat()+'T'+str(datetime.today().hour)+"ep"+str(epoch+1)+"rs"+str(args.seed)+args.method)
+                            )
+                        print("saved new best metric model")
+                    
+                if args.save_model==1:    
+                    if (epoch+1)>95:
                         torch.save(
-                            model.state_dict(),
-                            os.path.join(root_dir, date.today().isoformat()+ args.model+"CV"+str(args.fold_num)+"ms"+str(args.max_samples)),
-                        )
-                    else:
-                        torch.save(
-                            model.state_dict(),
-                            os.path.join(root_dir, args.model+"ep"+str(epoch+1)+"rs"+str(args.seed)+args.method)
-                        )
-                    print("saved new best metric model")
+                                        model.state_dict(),
+                                        os.path.join(root_dir, args.model+"ep"+str(epoch+1)+"rs"+str(args.seed)+args.method))
                     
                 print(
                     f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
