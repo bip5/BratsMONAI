@@ -56,12 +56,7 @@ import torch.nn.functional as F
 from torch.utils.data import Subset
 
 
-os.environ['PYTHONHASHSEED']=str(0)
-torch.backends.cudnn.deterministic = True
-torch.manual_seed(0)
-np.random.seed(0)
-torch.cuda.manual_seed(0)
-set_determinism(seed=0)
+
 
 class ResBlock(torch.nn.Module):
     def __init__(self, module):
@@ -393,7 +388,7 @@ class VANet(nn.Module):
         self.n_classes = n_classes
         self.bilinear = bilinear
 
-        filt=64
+        filt=16
         self.pool1=DownConv(n_channels,filt,2)
         self.inc1=SpatialAttention(filt)
         
@@ -720,10 +715,19 @@ if __name__=="__main__":
     parser.add_argument("--fold_num",default=1,type=str,help="cross-validation fold number")
     parser.add_argument("--epochs",default=150,type=int,help="number of epochs to run")
     parser.add_argument("--CV_flag",default=0,type=int,help="is this a cross validation fold? 1=yes")
+    parser.add_argument("--seed",default=0,type=int, help="random seed for the script")
+    parser.add_argument("--method",default='A', type=str,help='A,B or C')
 
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
+    
+    os.environ['PYTHONHASHSEED']=str(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
+    set_determinism(seed=args.seed)
 
     IMG_EXTENSIONS = [
         '.jpg', '.JPG', '.jpeg', '.JPEG',
@@ -793,24 +797,33 @@ if __name__=="__main__":
 
 
     indexes=np.arange(args.max_samples)
-    fold=int(args.max_samples/10)
+    fold=int(args.max_samples/5)
 
-    for i in range(1,11):
+    for i in range(1,6):
         if i==int(args.fold_num):
-            val_indices=indexes[(i-1)*fold:i*fold]
-            train_indices=np.delete(indexes,val_indices)
+            if i<5:
+                val_indices=indexes[(i-1)*fold:i*fold]
+                train_indices=np.delete(indexes,val_indices)#indexes[i*fold:(i+1)*fold]#
+            else:
+                val_indices=indexes[(i-1)*fold:i*fold]
+                train_indices=np.delete(indexes,val_indices)#indexes[(i-5)*fold:(i-4)*fold]
+                
                
     class BratsDataset(Dataset):
         def __init__(self,data_dir,transform=None):
-            self.image_list=make_dataset(data_dir)[0]  
+            
+            self.image_list=make_dataset(data_dir)[0]
+             
             self.mask_list=make_dataset(data_dir)[1] 
             self.transform=transform
             
         def __len__(self):
     #         return len(os.listdir(self.mask_dir))
-            return min(args.max_samples,len(self.mask_list))
+            return min(args.max_samples,len(self.mask_list))#
         
         def __getitem__(self,idx):
+            # print(idx)
+           
             image=self.image_list[idx]
         
             mask=self.mask_list[idx] 
@@ -873,12 +886,18 @@ if __name__=="__main__":
     #dataset=DecathlonDataset(root_dir="./", task="Task05_Prostate",section="training", transform=xform, download=True)
     train_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
 
-    val_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_ValidationData",transform=val_transform)
+    
+
 
     if args.CV_flag==1:
         print("loading cross val data")
         val_dataset=Subset(train_dataset,val_indices)
         train_dataset=Subset(train_dataset,train_indices)
+        
+    # else:     
+        # print("loading data for single model training")
+        # val_dataset=Subset(train_dataset,np.arange(800,1000))
+        # train_dataset=Subset(train_dataset,np.arange(800))
         
         
     print("number of files processed: ", train_dataset.__len__())
@@ -894,7 +913,8 @@ if __name__=="__main__":
 
     # standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
     device = torch.device("cuda:0")
-
+    
+    torch.manual_seed(args.seed)
     if args.model=="UNet":
          model=UNet(
             spatial_dims=3,
@@ -1000,6 +1020,11 @@ if __name__=="__main__":
         epoch_loss /= step
         epoch_loss_values.append(epoch_loss)
         print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
+        
+        # if epoch>50:
+            # torch.save(
+                            # model.state_dict(),
+                            # os.path.join(root_dir, date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"ep"+str(epoch+1)))
 
         if (epoch + 1) % val_interval == 0:
             model.eval()
@@ -1036,7 +1061,7 @@ if __name__=="__main__":
                     if args.CV_flag==1:
                         torch.save(
                             model.state_dict(),
-                            os.path.join(root_dir, date.today().isoformat()+ args.model+"CV"+str(args.fold_num)+"ms"+str(args.max_samples)),
+                            os.path.join(root_dir, args.model+"CV"+str(args.fold_num)+"ms"+str(args.max_samples)+"rs"+str(args.seed)+args.method)
                         )
                     else:
                         torch.save(
@@ -1044,14 +1069,21 @@ if __name__=="__main__":
                             os.path.join(root_dir, date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model),
                         )
                     print("saved new best metric model")
+                    
                 print(
                     f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
                     f" tc: {metric_tc:.4f} wt: {metric_wt:.4f} et: {metric_et:.4f}"
                     f"\nbest mean dice: {best_metric:.4f}"
                     f" at epoch: {best_metric_epoch}"
                 )
+                
+
+                
         print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
     total_time = time.time() - total_start
 
     print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}, total time: {total_time}.")
+    with open ('./time_consumption.csv', 'a') as sample:
+        sample.write(f"{args.model},{args.method},{total_time},{date.today().isoformat()},{args.fold_num},{args.CV_flag},{args.seed}\n")
+       
 
