@@ -213,10 +213,99 @@ class SizeDiceLoss(_Loss):
         
 class CatLoss(SizeDiceLoss):
     def __init__(
-        self        
-    ):
+        self,
+        include_background = True,
+        to_onehot_y= False,
+        sigmoid = False,
+        softmax= False,
+        other_act = None,
+        w_type = Weight.SQUARE,
+        reduction = LossReduction.MEAN,
+        smooth_nr = 1e-5,
+        smooth_dr = 1e-5,
+        batch = False,
+    ) -> None:
        super().__init__() 
+   
+       
     def forward(self, input, target):
+    
+        if self.sigmoid:
+            input = torch.sigmoid(input)
+        n_pred_ch = input.shape[1]
+        if self.softmax:
+            if n_pred_ch == 1:
+                warnings.warn("single channel prediction, `softmax=True` ignored.")
+            else:
+                input = torch.softmax(input, 1)
+
+        if self.other_act is not None:
+            input = self.other_act(input)
+
+        if self.to_onehot_y:
+            if n_pred_ch == 1:
+                warnings.warn("single channel prediction, `to_onehot_y=True` ignored.")
+            else:
+                target = one_hot(target, num_classes=n_pred_ch)
+
+        if not self.include_background:
+            if n_pred_ch == 1:
+                warnings.warn("single channel prediction, `include_background=False` ignored.")
+            else:
+                # if skipping background, removing first channel
+                target = target[:, 1:]
+                input = input[:, 1:]
+
+        if target.shape != input.shape:
+            raise AssertionError(f"ground truth has differing shape ({target.shape}) from input ({input.shape})")
+
+        # reducing only spatial dimensions (not batch nor channels)
+        reduce_axis = torch.arange(2, len(input.shape)).tolist()
+        if self.batch:
+            reduce_axis = [0] + reduce_axis
+        intersection = torch.sum(target * input, reduce_axis)
+        
+        target_ind=torch.nonzero(target)
+        target_mean=torch.sum(target_ind)/len(target_ind)
+        
+        input_ind=torch.nonzero(input)
+        input_mean=torch.sum(input_ind)/len(input_ind)
+        
+        
+        ground_o = torch.sum(target, reduce_axis)
+        pred_o = torch.sum(input, reduce_axis)
+        
+        factor=torch.square(ground_o-pred_o)/(torch.square(ground_o)+torch.square(pred_o)+1)*args.size_factor
+        dist_factor=torch.square(input_mean-target_mean)/(torch.square(target_mean)+torch.square(input_mean)+1)*args.dist_factor
+        
+        
+        denominator = ground_o + pred_o
+
+        w = self.w_func(ground_o.float())
+        for b in w:
+            infs = torch.isinf(b)
+            b[infs] = 0.0
+            b[infs] = torch.max(b)
+
+        final_reduce_dim = 0 if self.batch else 1
+        numer = 2.0 * (intersection * w).sum(final_reduce_dim, keepdim=True) + self.smooth_nr
+        denom = (denominator * w).sum(final_reduce_dim, keepdim=True) + self.smooth_dr
+        f = (1.0 - (numer / denom))+factor+dist_factor
+
+        if self.reduction == LossReduction.MEAN.value:
+            f = torch.mean(f)  # the batch and channel average
+        elif self.reduction == LossReduction.SUM.value:
+            f = torch.sum(f)  # sum over the batch and channel dims
+        elif self.reduction == LossReduction.NONE.value:
+            # If we are not computing voxelwise loss components at least
+            # make sure a none reduction maintains a broadcastable shape
+            broadcast_shape = list(f.shape[0:2]) + [1] * (len(input.shape) - 2)
+            f = f.view(broadcast_shape)
+        else:
+            raise ValueError(f'Unsupported reduction: {self.reduction}, available options are ["mean", "sum", "none"].')
+
+        return f
+    
 
 
 class CompleteLoss(SizeDiceLoss):
@@ -302,7 +391,7 @@ class CompleteLoss(SizeDiceLoss):
         pred_o = torch.sum(input, reduce_axis)
         
         factor=1+torch.square(ground_o-pred_o)/(torch.square(ground_o)+torch.square(pred_o)+1)*args.size_factor
-        dist_factor=1+torch.square(input_mean-target_mean)/(torch.square(target_mean)+torch.square(input_mean)+1)*args.dist_factor
+        dist_factor=2-(2/((1+input_mean)/(1+target_mean)+(1+target_mean)/(1+input_mean)))*args.dist_factor
         
         
         denominator = ground_o + pred_o
@@ -331,6 +420,8 @@ class CompleteLoss(SizeDiceLoss):
             raise ValueError(f'Unsupported reduction: {self.reduction}, available options are ["mean", "sum", "none"].')
 
         return f
+
+
 
         
 if __name__=="__main__":
