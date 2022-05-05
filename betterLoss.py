@@ -295,7 +295,7 @@ class CatLoss(SizeDiceLoss):
         intersection_r = torch.sum(target_r * input_r, reduce_axis)
         intersection_rd = torch.sum(target_r * input, reduce_axis)
         
-        factor=1+torch.square(ground_o-pred_o)/(torch.square(ground_o)+torch.square(pred_o)+1)*args.size_factor
+        factor=1+(torch.square(ground_o-pred_o)/(torch.square(ground_o)+torch.square(pred_o)+1))*args.size_factor
         # dist_factor=torch.square(input_mean-target_mean)/(torch.square(target_mean)+torch.square(input_mean)+1)*args.dist_factor
         
         
