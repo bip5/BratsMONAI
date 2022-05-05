@@ -226,6 +226,18 @@ class CatLoss(SizeDiceLoss):
         batch = False,
     ) -> None:
        super().__init__() 
+       
+       self.include_background = include_background
+       self.to_onehot_y = to_onehot_y
+       self.sigmoid = sigmoid
+       self.softmax = softmax
+       self.other_act = other_act
+
+       self.w_type = look_up_option(w_type, Weight)
+
+       self.smooth_nr = float(smooth_nr)
+       self.smooth_dr = float(smooth_dr)
+       self.batch = batch
    
        
     def forward(self, input, target):
@@ -268,6 +280,9 @@ class CatLoss(SizeDiceLoss):
         target_ind=torch.nonzero(target)
         target_mean=torch.sum(target_ind)/len(target_ind)
         
+        target_r=torch.ones_like(target)-target
+        input_r=torch.ones_like(input)-input
+        
         input_ind=torch.nonzero(input)
         input_mean=torch.sum(input_ind)/len(input_ind)
         
@@ -275,11 +290,18 @@ class CatLoss(SizeDiceLoss):
         ground_o = torch.sum(target, reduce_axis)
         pred_o = torch.sum(input, reduce_axis)
         
-        factor=torch.square(ground_o-pred_o)/(torch.square(ground_o)+torch.square(pred_o)+1)*args.size_factor
-        dist_factor=torch.square(input_mean-target_mean)/(torch.square(target_mean)+torch.square(input_mean)+1)*args.dist_factor
+        ground_r = torch.sum(target_r, reduce_axis)
+        pred_r = torch.sum(input_r, reduce_axis)
+        intersection_r = torch.sum(target_r * input_r, reduce_axis)
+        intersection_rd = torch.sum(target_r * input, reduce_axis)
+        
+        factor=1+torch.square(ground_o-pred_o)/(torch.square(ground_o)+torch.square(pred_o)+1)*args.size_factor
+        # dist_factor=torch.square(input_mean-target_mean)/(torch.square(target_mean)+torch.square(input_mean)+1)*args.dist_factor
         
         
         denominator = ground_o + pred_o
+        denominator_r=ground_r+pred_r
+        denominator_rd=ground_r+pred_o
 
         w = self.w_func(ground_o.float())
         for b in w:
@@ -288,9 +310,17 @@ class CatLoss(SizeDiceLoss):
             b[infs] = torch.max(b)
 
         final_reduce_dim = 0 if self.batch else 1
-        numer = 2.0 * (intersection * w).sum(final_reduce_dim, keepdim=True) + self.smooth_nr
-        denom = (denominator * w).sum(final_reduce_dim, keepdim=True) + self.smooth_dr
-        f = (1.0 - (numer / denom))+factor+dist_factor
+        numer = 2*(intersection ).sum(final_reduce_dim, keepdim=True) + self.smooth_nr
+        denom = (denominator ).sum(final_reduce_dim, keepdim=True) + self.smooth_dr
+        
+        numer_r = 2*(intersection_r ).sum(final_reduce_dim, keepdim=True) + self.smooth_nr
+        denom_r= (denominator_rd ).sum(final_reduce_dim, keepdim=True) + self.smooth_dr
+        
+        numer_rd = 2*(intersection_rd ).sum(final_reduce_dim, keepdim=True) + self.smooth_nr
+        denom_rd=(denominator_rd ).sum(final_reduce_dim, keepdim=True) + self.smooth_dr
+        
+        # f = (5.0 - (4*(numer / denom)+(numer_r/denom_r)))*factor
+        f = (1- (numer / denom)+(numer_rd/denom_rd))*factor
 
         if self.reduction == LossReduction.MEAN.value:
             f = torch.mean(f)  # the batch and channel average
