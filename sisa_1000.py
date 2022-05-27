@@ -244,6 +244,7 @@ if __name__=="__main__":
 
     #dataset=DecathlonDataset(root_dir="./", task="Task05_Prostate",section="training", transform=xform, download=True)
     train_dataset=BratsDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
+    # val_dataset=Subset(train_dataset,val_indices)
 
     
 
@@ -260,7 +261,7 @@ if __name__=="__main__":
         
         
     print("number of files processed: ", train_dataset.__len__())
-    train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
+    train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     # val_loader=DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     print("All Datasets assigned")
 
@@ -301,10 +302,14 @@ if __name__=="__main__":
 
     model=torch.nn.DataParallel(model)
     print("Model defined and passed to GPU")
+    
+    if args.load_save==1:
+        model.load_state_dict(torch.load("./saved models/"+args.load_path),strict=False)
+        print("loaded saved model ", args.load_path)
 
     loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=1e-5)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=4)
 
     dice_metric = DiceMetric(include_background=True, reduction="mean")
     dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
@@ -375,10 +380,16 @@ if __name__=="__main__":
                     f", train_loss: {loss.item():.4f}"
                     f", step time: {(time.time() - step_start):.4f}"
                 )
-        # lr_scheduler.step()
+        lr_scheduler.step()
+        print("lr_scheduler.get_last_lr() = ",lr_scheduler.get_last_lr())
         epoch_loss /= step
         epoch_loss_values.append(epoch_loss)
         print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
+        
+        if args.load_save==1:
+            torch.save(
+                                model.state_dict(),
+                                os.path.join(root_dir, args.model+"ep"+str(int(args.load_path[11:13])+epoch+1)+"rs"+str(args.seed)+args.method))
         
         if (epoch+1)>50:
             torch.save(
