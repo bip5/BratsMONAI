@@ -303,10 +303,14 @@ if __name__=="__main__":
 
     model=torch.nn.DataParallel(model)
     print("Model defined and passed to GPU")
+    
+    if args.load_save==1:
+        model.load_state_dict(torch.load("./saved models/"+args.load_path),strict=False)
+        print("loaded saved model ", args.load_path)
 
     loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=1e-5)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=4)
 
     dice_metric = DiceMetric(include_background=True, reduction="mean")
     dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
@@ -422,7 +426,7 @@ if __name__=="__main__":
                     if args.CV_flag==1:
                         torch.save(
                             model.state_dict(),
-                            os.path.join(root_dir, date.today().isoformat()+ args.model+"CV"+str(args.fold_num)+"ms"+str(args.max_samples)+"rs"+str(args.seed)+args.method)
+                            os.path.join(root_dir, args.model+"CV"+str(args.fold_num)+"ms"+str(args.max_samples)+"rs"+str(args.seed)+args.method)
                         )
                     else:
                         torch.save(
