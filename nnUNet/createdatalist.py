@@ -14,7 +14,8 @@ def create_datalist(
     seed: int,
 ):
     task_name = {
-        "500": "Task500_BraTS2021"
+        "001": "Task001_BrainTumour",
+        "500": "Task500_BraTS"
         
     }
 
@@ -26,11 +27,14 @@ def create_datalist(
         dataset = json.load(f)
 
     dataset_with_folds = dataset.copy()
-
-    keys = [line["image"].split("/")[-1].split(".")[0] for line in dataset["training"]]
-    
-    training_list=[{'image':[line["image"][:-7]+f'_000{x}.nii.gz' for x in [0,1,2,3]],'label':line['label']} for line in dataset["training"]] 
-    dataset_train_dict = dict(zip(keys, training_list))
+    if task_id=='500':
+        keys = [line["image"].split("/")[-1].split(".")[0] for line in dataset["training"]]
+        
+        training_list=[{'image':[line["image"][:-7]+f'_000{x}.nii.gz' for x in [0,1,2,3]],'label':line['label']} for line in dataset["training"]] 
+        dataset_train_dict = dict(zip(keys, training_list))
+    else:
+        keys = [line["image"].split("/")[-1].split(".")[0] for line in dataset["training"]]
+        dataset_train_dict = dict(zip(keys, dataset["training"]))
     all_keys_sorted = np.sort(keys)
     kfold = KFold(n_splits=num_folds, shuffle=True, random_state=seed)
     for i, (train_idx, test_idx) in enumerate(kfold.split(all_keys_sorted)):
@@ -45,7 +49,7 @@ def create_datalist(
 
         dataset_with_folds["validation_fold{}".format(i)] = val_data
         dataset_with_folds["train_fold{}".format(i)] = train_data
-        print(train_data)
+        # print(train_data)
     del dataset
 
     if not os.path.exists(output_dir):
