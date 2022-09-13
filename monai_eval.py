@@ -74,6 +74,7 @@ import sys
 import re
 import torch
 import time
+from torch.utils.data import Subset
 import argparse
 from torchsummary import summary
 import gc
@@ -95,8 +96,8 @@ if __name__=="__main__":
     parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
     parser.add_argument("--ensemble",default=0,type=int,help="flag to use ensemble with models provided")
     parser.add_argument("--avgmodel",default=0,type=int,help="flag to create an averaged model from existing models")
-    parser.add_argument("--plot",default=0, type=int, help="whether or not to plot performance for various number of models")
-
+    parser.add_argument("--plot",default=0, type=int, help="plot=1,ensembleand plot, plot=2 evaluate all models in list")
+    parser.add_argument("--val",default=0, type=int, help="val or not")
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
@@ -408,7 +409,10 @@ if __name__=="__main__":
             
         def __len__(self):
     #         return len(os.listdir(self.label_dir))
-            return min(args.max_samples,len(self.label_list))
+            if args.val==1:
+                return len(self.label_list)
+            else:
+                return min(args.max_samples,len(self.label_list))
         
         def __getitem__(self,idx):
             image=self.image_list[idx]
@@ -426,12 +430,20 @@ if __name__=="__main__":
                 
             
             return test_list
+            
+    val_indices=np.arange(1000)
+    
 
-    test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData",transform=test_transforms0)
+    
+    if args.val==1:
+        test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData",transform=test_transforms0)
+        test_ds=Subset(test_ds,val_indices)
+    else:
+        test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData",transform=test_transforms0)
 
 
 
-    test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4) # this should return 10 different instances
+    test_loader = DataLoader(test_ds, batch_size=4, shuffle=False, num_workers=8) # this should return 10 different instances
 
     # print("input type",type(next(iter(test_loader))))
 
@@ -457,22 +469,37 @@ if __name__=="__main__":
     ])
     post_pred= Compose([EnsureType(),Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
     post_label = Compose([EnsureType()])
+    
+    
+
     if args.ensemble==1:
     
         if args.model=="UNet":
-            model_names=['2022-04-08UNetCV1ms1000','2022-04-08UNetCV2ms1000','2022-04-08UNetCV3ms1000','2022-04-08UNetCV4ms1000','2022-04-08UNetCV5ms1000']
-            wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
+            model_names= ["UNetep100rs4C","UNetep99rs4C","UNetep98rs4C","UNetep97rs4C","UNetep96rs4C"]
+
+
+            print(model_names)
+            # wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
         elif args.model=="SegResNet":
-            model_names=["2022-04-05T12SegResNetep51","2022-04-05T13SegResNetep52","2022-04-05T13SegResNetep53","2022-04-05T14SegResNetep54","2022-04-05T14SegResNetep55","2022-04-05T15SegResNetep56","2022-04-05T15SegResNetep57","2022-04-05T15SegResNetep58","2022-04-05T16SegResNetep59","2022-04-05T16SegResNetep60","2022-04-05T17SegResNetep61","2022-04-05T17SegResNetep62","2022-04-05T18SegResNetep63","2022-04-05T18SegResNetep64","2022-04-05T19SegResNetep65","2022-04-05T19SegResNetep66","2022-04-05T20SegResNetep67","2022-04-05T20SegResNetep68","2022-04-05T21SegResNetep69","2022-04-05T21SegResNetep70","2022-04-05T22SegResNetep71","2022-04-05T22SegResNetep72","2022-04-05T23SegResNetep73","2022-04-05T23SegResNetep74","2022-04-06T0SegResNetep75","2022-04-06T0SegResNetep76","2022-04-06T0SegResNetep77","2022-04-06T1SegResNetep78","2022-04-06T1SegResNetep79","2022-04-06T2SegResNetep80","2022-04-06T2SegResNetep81","2022-04-06T3SegResNetep82","2022-04-06T3SegResNetep83","2022-04-06T4SegResNetep84","2022-04-06T4SegResNetep85","2022-04-06T5SegResNetep86","2022-04-06T5SegResNetep87","2022-04-06T6SegResNetep88","2022-04-06T6SegResNetep89","2022-04-06T7SegResNetep90","2022-04-06T7SegResNetep91","2022-04-06T8SegResNetep92","2022-04-06T8SegResNetep93","2022-04-06T9SegResNetep94","2022-04-06T9SegResNetep95","2022-04-06T10SegResNetep96","2022-04-06T10SegResNetep97","2022-04-06T10SegResNetep98","2022-04-06T11SegResNetep99"]#['2022-03-12SegResNetCV1ms200','2022-03-12SegResNetCV2ms200','2022-03-12SegResNetCV3ms200','2022-03-12SegResNetCV4ms200','2022-03-12SegResNetCV5ms200','2022-03-12SegResNetCV6ms200','2022-03-12SegResNetCV7ms200','2022-03-12SegResNetCV8ms200','2022-03-12SegResNetCV9ms200','2022-03-12SegResNetCV10ms200']#
-            wts=[0.7401,0.7506,0.6364,0.7484, 0.6725,0.7707,0.7219,0.7439,0.8003,0.7458]#[0.5651,0.5252,0.5537,0.5137,0.5744,0.4862,0.5255,0.5559,0.5755,0.5060]
+            model_names=os.listdir('/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/Evaluation Folder')#["SegResNetep100rs2C","SegResNetep99rs2C","SegResNetep98rs2C","SegResNetep97rs2C","SegResNetep96rs2C"]
+            
+           
+
+
+
+
+
+            
+            print(model_names)
+            # wts=[0.7401,0.7506,0.6364,0.7484, 0.6725,0.7707,0.7219,0.7439,0.8003,0.7458]#[0.5651,0.5252,0.5537,0.5137,0.5744,0.4862,0.5255,0.5559,0.5755,0.5060]
         
 
         else:
             print("No SISA yet")
 
         def ensemble_evaluate(post_transforms, models):
-            print(post_transforms.transforms)
+            # print(post_transforms.transforms)
             evaluator = EnsembleEvaluator(
                 device=device,
                 val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
@@ -516,11 +543,20 @@ if __name__=="__main__":
         tumor_core=[]
         whole_tumor=[]
         enhancing_tumor=[]
-        if args.plot==1:
-            for i in range(model_num):
-                model_steps=model_names[-i-1:]
+        scores={}
+        
+        if args.plot>0:
+            for i in range(int(model_num//5)):
+                if args.plot==1:
+                    model_steps=model_names[:(5*(i+1))]
+                    print(model_steps)  
+                elif args.plot==2:
+                    model_steps=[model_names[i]]
+                    print(model_steps)                   
+                    
                 models=[]
-                for i,name in enumerate(model_steps):
+                for name in model_steps:
+                   
                     if args.model=="UNet":
                          model=UNet(
                             spatial_dims=3,
@@ -545,7 +581,7 @@ if __name__=="__main__":
                     
                     model=torch.nn.DataParallel(model)
                     
-                    model.load_state_dict(torch.load("./saved models/"+name),strict=False)
+                    model.load_state_dict(torch.load("./"+name),strict=False)
                     model.eval()
                     models.append(model)
                     
@@ -557,7 +593,7 @@ if __name__=="__main__":
                         model.state_dict()[key]=model.state_dict()[key]/num_models
                     torch.save(
                         model.state_dict(),
-                        os.path.join("./saved models", date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"))
+                        os.path.join("./saved models", date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg5160"))
                         
                     print("saved zoo model")
                     
@@ -568,35 +604,7 @@ if __name__=="__main__":
                         
                    
                                 
-                               
-                         
-                         
-                   
-                                    
-                # conf_post_transforms = Compose(
-                    # [
-                        # EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred9
-                        
-                        
-                        # ConfEnsembled(
-                            # keys=["pred"+str(i) for i in range(len(models))], 
-                            # output_key="pred",
-                            
-                            # weights=wts,
-                        # ),
-                        # Activationsd(keys="pred", sigmoid=True),
-                        # AsDiscreted(keys="pred", threshold=0.5),
-                    # ]
-                # )
-                # vote_post_transforms = Compose(
-                    # [
-                        # EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]),
-                        # Activationsd(keys=["pred"+str(i) for i in range(len(models))], sigmoid=True),
-                        ###### transform data into discrete before voting
-                        # AsDiscreted(keys=["pred"+str(i) for i in range(len(models))], threshold=0.3),
-                        # VoteEnsembled(keys=["pred"+str(i) for i in range(len(models))], output_key="pred"),
-                    # ]
-                # )
+      
                 
                 mean_post_transforms = Compose(
                     [
@@ -615,6 +623,8 @@ if __name__=="__main__":
                 ) 
                                    
                 md,tc,wt,et=ensemble_evaluate(mean_post_transforms, models)
+                if args.val==1:
+                    scores[model_steps[0]]=md
                 mean_dice.append(md)
                 tumor_core.append(tc)
                 whole_tumor.append(wt)
@@ -622,7 +632,9 @@ if __name__=="__main__":
                 del models
                 gc.collect()
                 torch.cuda.empty_cache()
-            
+            if args.val==1:
+                    sorted_scores=dict(sorted(scores.items(),key=lambda item: item[1])) # sorts the models by score
+                    print (sorted_scores)
             fig, ax = plt.subplots(figsize=(10,6))
             
             ax.plot(mean_dice, label="Mean Dice")
@@ -636,7 +648,9 @@ if __name__=="__main__":
             ax.set_title("Dice score change with number of models")
             fig.tight_layout()
             
-            plt.savefig("Dice score vs model num")
+            plt.savefig("Dice"+ model_names[0]+str(args.plot))
+            
+            print('mean_dice', mean_dice) 
         else:          
             models=[]
             for i,name in enumerate(model_names):
@@ -664,7 +678,7 @@ if __name__=="__main__":
                 
                 model=torch.nn.DataParallel(model)
                 
-                model.load_state_dict(torch.load("./saved models/"+name),strict=False)
+                model.load_state_dict(torch.load("./"+name),strict=False)
                 model.eval()
                 models.append(model)
                 
@@ -682,41 +696,9 @@ if __name__=="__main__":
                 
                 args.ensemble = 0
                 args.load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"
-                
-                
-                    
-               
-                            
-                           
-                     
-                     
-               
+     
                                 
-            # conf_post_transforms = Compose(
-                # [
-                    # EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred9
-                    
-                    
-                    # ConfEnsembled(
-                        # keys=["pred"+str(i) for i in range(len(models))], 
-                        # output_key="pred",
-                        
-                        # weights=wts,
-                    # ),
-                    # Activationsd(keys="pred", sigmoid=True),
-                    # AsDiscreted(keys="pred", threshold=0.5),
-                # ]
-            # )
-            # vote_post_transforms = Compose(
-                # [
-                    # EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]),
-                    # Activationsd(keys=["pred"+str(i) for i in range(len(models))], sigmoid=True),
-                    ###### transform data into discrete before voting
-                    # AsDiscreted(keys=["pred"+str(i) for i in range(len(models))], threshold=0.3),
-                    # VoteEnsembled(keys=["pred"+str(i) for i in range(len(models))], output_key="pred"),
-                # ]
-            # )
-            
+
             mean_post_transforms = Compose(
                 [
                     EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred1...
@@ -754,8 +736,8 @@ if __name__=="__main__":
               
                 
                 #print("test outputs",test_outputs[0].shape)
-            
-                test_labels[0]=test_labels[0].to(device)
+                test_outputs=[i.to(device) for i in test_outputs]
+                test_labels=[i.to(device) for i in test_labels]
                 # dice_score=(2*torch.sum( test_outputs[0].flatten()*test_labels[0].flatten()))/( test_outputs[0].sum()+test_labels[0].sum())
                 # print("dice",dice_score)
                 
