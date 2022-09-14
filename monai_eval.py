@@ -443,7 +443,7 @@ if __name__=="__main__":
 
 
 
-    test_loader = DataLoader(test_ds, batch_size=4, shuffle=False, num_workers=8) # this should return 10 different instances
+    test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=8) # this should return 10 different instances
 
     # print("input type",type(next(iter(test_loader))))
 
@@ -512,7 +512,7 @@ if __name__=="__main__":
                 key_val_metric={
                     "test_mean_dice": MeanDice(
                         include_background=True,
-                        output_transform=from_engine(["pred", "label"])  # takes all the preds and labels and turns them into one list each
+                        output_transform=from_engine(["pred", "label"],reduction='none')  # takes all the preds and labels and turns them into one list each
                         
                     )},
                 additional_metrics={ 
@@ -546,9 +546,11 @@ if __name__=="__main__":
         scores={}
         
         if args.plot>0:
-            for i in range(int(model_num//5)):
+            for i in range(int(model_num)): #//5)):
                 if args.plot==1:
-                    model_steps=model_names[:(5*(i+1))]
+                    if i%5!=0:
+                     continue
+                    model_steps=model_names[:(i+1)]
                     print(model_steps)  
                 elif args.plot==2:
                     model_steps=[model_names[i]]
@@ -581,7 +583,7 @@ if __name__=="__main__":
                     
                     model=torch.nn.DataParallel(model)
                     
-                    model.load_state_dict(torch.load("./"+name),strict=False)
+                    model.load_state_dict(torch.load("/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/Evaluation Folder/"+name),strict=False)
                     model.eval()
                     models.append(model)
                     
