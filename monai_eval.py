@@ -1,6 +1,6 @@
 from typing import List, Optional, Sequence, Tuple, Union
 
-import pandas
+import pandas as pd
 # print(pandas.__version__)
 import nibabel
 
@@ -443,7 +443,7 @@ if __name__=="__main__":
 
 
 
-    test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=8) # this should return 10 different instances
+    test_loader = DataLoader(test_ds, batch_size=4, shuffle=False, num_workers=8) # this should return 10 different instances
 
     # print("input type",type(next(iter(test_loader))))
 
@@ -512,7 +512,7 @@ if __name__=="__main__":
                 key_val_metric={
                     "test_mean_dice": MeanDice(
                         include_background=True,
-                        output_transform=from_engine(["pred", "label"],reduction='none')  # takes all the preds and labels and turns them into one list each
+                        output_transform=from_engine(["pred", "label"]) ,reduction='mean_channel' # takes all the preds and labels and turns them into one list each
                         
                     )},
                 additional_metrics={ 
@@ -529,7 +529,7 @@ if __name__=="__main__":
             tumor_core=evaluator.state.metrics["Channelwise"][0]
             whole_tumor=evaluator.state.metrics["Channelwise"][1]
             enhancing_tumor=evaluator.state.metrics["Channelwise"][2]
-            print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",float(evaluator.state.metrics["Channelwise"][0]),"whole tumor:",float(evaluator.state.metrics["Channelwise"][1]),"enhancing tumor:",float(evaluator.state.metrics["Channelwise"][2]))#jbc
+            # print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",float(evaluator.state.metrics["Channelwise"][0]),"whole tumor:",float(evaluator.state.metrics["Channelwise"][1]),"enhancing tumor:",float(evaluator.state.metrics["Channelwise"][2]))#jbc
             
             return mean_dice,tumor_core,whole_tumor,enhancing_tumor
         
@@ -634,12 +634,17 @@ if __name__=="__main__":
                 del models
                 gc.collect()
                 torch.cuda.empty_cache()
-            if args.val==1:
-                    sorted_scores=dict(sorted(scores.items(),key=lambda item: item[1])) # sorts the models by score
-                    print (sorted_scores)
+            # if args.val==1:
+                    # sorted_scores=dict(sorted(scores.items(),key=lambda item: item[1])) # sorts the models by score
+                    # print (sorted_scores)
+            mean_dice_best=np.array(mean_dice).max(axis=0)
+            mean_dice_model=np.array(mean_dice).max(axis=1)
+            print("the best average mean dice from best results is", mean_dice_best.mean())
+            scores_df=pd.DataFrame(scores)
+            scores_df.to_csv('./eval_score'+date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model)
             fig, ax = plt.subplots(figsize=(10,6))
             
-            ax.plot(mean_dice, label="Mean Dice")
+            ax.plot(mean_dice_model, label="Mean Dice")
             ax.set_ylim(0.6,0.95)
             ax.set_xlabel("Number of models used")
             ax.set_ylabel("Dice score")
