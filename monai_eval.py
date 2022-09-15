@@ -38,6 +38,7 @@ from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     AdjustContrastD,
     RandKSpaceSpikeNoiseD,
     RandGaussianSharpenD,
+    SaveImage,
 
     MeanEnsembled,
     VoteEnsembled,
@@ -174,6 +175,9 @@ if __name__=="__main__":
     max_epochs = 0
     val_interval = 1
     VAL_AMP = True
+    saver_ori = SaveImage(output_dir='./ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="ori",print_log=True)
+    saver_gt = SaveImage(output_dir=opt.'./ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="gt",print_log=True)
+    saver_seg = SaveImage(output_dir='./ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="seg",print_log=True)
 
     # standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
     device = torch.device("cuda:0")
@@ -400,7 +404,9 @@ if __name__=="__main__":
         # if i==int(args.fold_num):
             # train_indices=indexes[(i-1)*fold:i*fold]
             # x_val_indices=np.split(np.delete(indexes,train_indices),9)
-            
+    
+    print("list of input image files",make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData")[0])
+    
     class TestDataset(Dataset):
         def __init__(self,data_dir,transform=None):
             self.image_list=make_dataset(data_dir)[0]  
@@ -627,7 +633,7 @@ if __name__=="__main__":
                 md,tc,wt,et=ensemble_evaluate(mean_post_transforms, models)
                 if args.val==1:
                     scores[model_steps[0]]=md
-                mean_dice.append(md)
+                mean_dice.append(md.tolist())
                 tumor_core.append(tc)
                 whole_tumor.append(wt)
                 enhancing_tumor.append(et)
@@ -637,11 +643,12 @@ if __name__=="__main__":
             # if args.val==1:
                     # sorted_scores=dict(sorted(scores.items(),key=lambda item: item[1])) # sorts the models by score
                     # print (sorted_scores)
+            print(mean_dice,'mean_dice')
             mean_dice_best=np.array(mean_dice).max(axis=0)
             mean_dice_model=np.array(mean_dice).max(axis=1)
             print("the best average mean dice from best results is", mean_dice_best.mean())
             scores_df=pd.DataFrame(scores)
-            scores_df.to_csv('./eval_score'+date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model)
+            scores_df.to_csv('eval_score'+date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+'.csv')
             fig, ax = plt.subplots(figsize=(10,6))
             
             ax.plot(mean_dice_model, label="Mean Dice")
