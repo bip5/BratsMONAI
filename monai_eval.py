@@ -38,7 +38,7 @@ from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     AdjustContrastD,
     RandKSpaceSpikeNoiseD,
     RandGaussianSharpenD,
-    SaveImage,
+    SaveImage,SaveImaged,
 
     MeanEnsembled,
     VoteEnsembled,
@@ -143,9 +143,9 @@ if __name__=="__main__":
     class ConvertToMultiChannelBasedOnBratsClassesd(MapTransform):
         """
         Convert labels to multi channels based on brats classes:
-        label 1 is the peritumoral edema
-        label 2 is the GD-enhancing tumor
-        label 3 is the necrotic and non-enhancing tumor core
+        label 2 is the peritumoral edema
+        label 4 is the GD-enhancing tumor
+        label 1 is the necrotic and non-enhancing tumor core
         The possible classes are TC (Tumor core), WT (Whole tumor)
         and ET (Enhancing tumor).
 
@@ -156,15 +156,15 @@ if __name__=="__main__":
             for key in self.keys:
                 result = []
                 # merge label 2 and label 3 to construct TC
-                result.append(np.logical_or(d[key] == 2, d[key] == 3))
+                result.append(np.logical_or(d[key] == 1, d[key] == 4))
                 # merge labels 1, 2 and 3 to construct WT
                 result.append(
                     np.logical_or(
-                        np.logical_or(d[key] == 2, d[key] == 3), d[key] == 1
+                        np.logical_or(d[key] == 2, d[key] == 4), d[key] == 1
                     )
                 )
                 # label 2 is ET
-                result.append(d[key] == 2)
+                result.append(d[key] == 4)
                 d[key] = np.stack(result, axis=0).astype(np.float32)
             return d
                 
@@ -176,7 +176,7 @@ if __name__=="__main__":
     val_interval = 1
     VAL_AMP = True
     saver_ori = SaveImage(output_dir='./ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="ori",print_log=True)
-    saver_gt = SaveImage(output_dir=opt.'./ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="gt",print_log=True)
+    saver_gt = SaveImage(output_dir='./ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="gt",print_log=True)
     saver_seg = SaveImage(output_dir='./ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="seg",print_log=True)
 
     # standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
@@ -378,20 +378,7 @@ if __name__=="__main__":
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstD(keys=["image"]),
             ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-            # SpacingD(
-                # keys=["image", "label"],
-                # pixdim=(1.0, 1.0, 1.0),
-                # mode=("bilinear", "nearest"),
-            # ),
-            # OrientationD(keys=["image", "label"], axcodes="RAS"),
-            # RandSpatialCropd(keys=["image", "label"], roi_size=[192, 192, 144], random_size=False),
-           
-            # RandRotateD(keys=["image","label"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),
-           
-            # NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-            # RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
-            # RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),
-
+            
             NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
             EnsureTyped(keys=["image", "label"]),
         ]
@@ -399,13 +386,6 @@ if __name__=="__main__":
 
     indexes=np.arange(args.max_samples)
     fold=int(args.max_samples/10)
-
-    # for i in range(1,11):
-        # if i==int(args.fold_num):
-            # train_indices=indexes[(i-1)*fold:i*fold]
-            # x_val_indices=np.split(np.delete(indexes,train_indices),9)
-    
-    print("list of input image files",make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData")[0])
     
     class TestDataset(Dataset):
         def __init__(self,data_dir,transform=None):
@@ -437,7 +417,7 @@ if __name__=="__main__":
             
             return test_list
             
-    val_indices=np.arange(1000)
+    val_indices=[13,17]#np.arange(1000)
     
 
     
@@ -446,10 +426,11 @@ if __name__=="__main__":
         test_ds=Subset(test_ds,val_indices)
     else:
         test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData",transform=test_transforms0)
+        # print("list of input image files",make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData")[0])
 
 
 
-    test_loader = DataLoader(test_ds, batch_size=4, shuffle=False, num_workers=8) # this should return 10 different instances
+    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=8) # this should return 10 different instances
 
     # print("input type",type(next(iter(test_loader))))
 
@@ -458,20 +439,23 @@ if __name__=="__main__":
 
 
     post_transforms = Compose([
-        EnsureTyped(keys="pred"),
-        # Invertd(
-            # keys="pred",
-            # transform=test_transforms0,
-            # orig_keys="image",
-            # meta_keys="pred_meta_dict",
-            # orig_meta_keys="image_meta_dict",
-            # meta_key_postfix="meta_dict",
-            # nearest_interp=False,
-            # to_tensor=True, #this sends to GPU so removing will cause problems
-        # ), # inversal is only done on the prediction?
-        ToTensorD(keys=["pred","label"]),
+        EnsureTyped(keys=["pred","label"]), 
         Activationsd(keys="pred", sigmoid=True),
+        Invertd(
+            keys="pred",
+            transform=test_transforms0,
+            orig_keys="image",
+            meta_keys="pred_meta_dict",
+            orig_meta_keys="image_meta_dict",
+            # meta_key_postfix="meta_dict",
+            nearest_interp=False,
+            to_tensor=True, #this sends to GPU so removing will cause problems
+            device=device
+        ), # inversal is only done on the prediction? yes with the specified key
+        # ToTensorD(keys=["pred","label"]),
+        
         AsDiscreted(keys="pred", threshold=0.5),
+        SaveImaged(keys=["pred","label"],meta_keys="pred_meta_dict",output_dir="./ssensemblemodels0922/outputs/",resample=False)
     ])
     post_pred= Compose([EnsureType(),Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
     post_label = Compose([EnsureType()])
@@ -481,7 +465,8 @@ if __name__=="__main__":
     if args.ensemble==1:
     
         if args.model=="UNet":
-            model_names= ["UNetep100rs4C","UNetep99rs4C","UNetep98rs4C","UNetep97rs4C","UNetep96rs4C"]
+            model_names= os.listdir('/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/Evaluation Folder')
+            #["UNetep100rs4C","UNetep99rs4C","UNetep98rs4C","UNetep97rs4C","UNetep96rs4C"]
 
 
             print(model_names)
@@ -506,28 +491,53 @@ if __name__=="__main__":
 
         def ensemble_evaluate(post_transforms, models):
             # print(post_transforms.transforms)
-            evaluator = EnsembleEvaluator(
-                device=device,
-                val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
-                pred_keys=["pred"+str(i) for i in range(len(models))], 
-                networks=models, # models defined above
-                inferer=SlidingWindowInferer(
-                    roi_size=(192,192, 144), sw_batch_size=4, overlap=0),
-                postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
-                
-                key_val_metric={
-                    "test_mean_dice": MeanDice(
+            if args.val==1:
+                evaluator = EnsembleEvaluator(
+                    device=device,
+                    val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
+                    pred_keys=["pred"+str(i) for i in range(len(models))], 
+                    networks=models, # models defined above
+                    inferer=SlidingWindowInferer(
+                        roi_size=(192,192, 144), sw_batch_size=4, overlap=0),
+                    postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
+                    key_val_metric={
+                            "test_mean_dice": MeanDice(
+                                include_background=True,
+                                output_transform=from_engine(["pred", "label"]) ,reduction='mean_channel' # takes all the preds and labels and turns them into one list each
+                                
+                            )},
+                   
+                    additional_metrics={ 
+                        "Channelwise": MeanDice(
                         include_background=True,
-                        output_transform=from_engine(["pred", "label"]) ,reduction='mean_channel' # takes all the preds and labels and turns them into one list each
-                        
-                    )},
-                additional_metrics={ 
-                    "Channelwise": MeanDice(
-                    include_background=True,
-                    output_transform=from_engine(["pred", "label"]),
-                    reduction="mean_batch")
-                }
-            )
+                        output_transform=from_engine(["pred", "label"]),
+                        reduction="mean_batch")
+                    }
+                )
+            else:
+                evaluator = EnsembleEvaluator(
+                    device=device,
+                    val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
+                    pred_keys=["pred"+str(i) for i in range(len(models))], 
+                    networks=models, # models defined above
+                    inferer=SlidingWindowInferer(
+                        roi_size=(192,192, 144), sw_batch_size=4, overlap=0),
+                    postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
+                    key_val_metric={
+                            "test_mean_dice": MeanDice(
+                                include_background=True,
+                                output_transform=from_engine(["pred", "label"])  # takes all the preds and labels and turns them into one list each
+                                
+                            )},
+                   
+                    additional_metrics={ 
+                        "Channelwise": MeanDice(
+                        include_background=True,
+                        output_transform=from_engine(["pred", "label"]),
+                        reduction="mean_batch")
+                    }
+                )
+
             evaluator.run()
             
             # print("validation stats: ",evaluator.get_validation_stats())
@@ -535,7 +545,7 @@ if __name__=="__main__":
             tumor_core=evaluator.state.metrics["Channelwise"][0]
             whole_tumor=evaluator.state.metrics["Channelwise"][1]
             enhancing_tumor=evaluator.state.metrics["Channelwise"][2]
-            # print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",float(evaluator.state.metrics["Channelwise"][0]),"whole tumor:",float(evaluator.state.metrics["Channelwise"][1]),"enhancing tumor:",float(evaluator.state.metrics["Channelwise"][2]))#jbc
+            print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",float(evaluator.state.metrics["Channelwise"][0]),"whole tumor:",float(evaluator.state.metrics["Channelwise"][1]),"enhancing tumor:",float(evaluator.state.metrics["Channelwise"][2]))#jbc
             
             return mean_dice,tumor_core,whole_tumor,enhancing_tumor
         
@@ -556,7 +566,7 @@ if __name__=="__main__":
                 if args.plot==1:
                     if i%5!=0:
                      continue
-                    model_steps=model_names[:(i+1)]
+                    model_steps=model_names#[:i+1]#[:(i+1)]
                     print(model_steps)  
                 elif args.plot==2:
                     model_steps=[model_names[i]]
@@ -643,9 +653,11 @@ if __name__=="__main__":
             # if args.val==1:
                     # sorted_scores=dict(sorted(scores.items(),key=lambda item: item[1])) # sorts the models by score
                     # print (sorted_scores)
-            print(mean_dice,'mean_dice')
+            # print(mean_dice,'mean_dice')
             mean_dice_best=np.array(mean_dice).max(axis=0)
             mean_dice_model=np.array(mean_dice).max(axis=1)
+            actual_mean_dice=np.array(mean_dice).mean()
+            print('actual_mean_dice',actual_mean_dice)
             print("the best average mean dice from best results is", mean_dice_best.mean())
             scores_df=pd.DataFrame(scores)
             scores_df.to_csv('eval_score'+date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+'.csv')
@@ -664,7 +676,7 @@ if __name__=="__main__":
             
             plt.savefig("Dice"+ model_names[0]+str(args.plot))
             
-            print('mean_dice', mean_dice) 
+            # print('mean_dice', mean_dice) 
         else:          
             models=[]
             for i,name in enumerate(model_names):
@@ -736,14 +748,22 @@ if __name__=="__main__":
             enhancing_tumor.append(et)
     elif args.ensemble==0:
         
-        model.load_state_dict(torch.load("./saved models/"+args.load_name))
+        model.load_state_dict(torch.load("./ssensemblemodels0922/Evaluation Folder/"+args.load_name),strict=False)
+        # model.to(device)
         model.eval()
 
         with torch.no_grad():
 
             for test_data in test_loader: # each image
                 test_inputs = test_data["image"].to(device) # pass to gpu
-                test_data["pred"] = inference(test_inputs) #perform inference
+                test_labels=test_data["label"].to(device)
+                test_data["pred"] = sliding_window_inference(
+                    inputs=test_inputs,
+                    roi_size=(192,192, 144),
+                    sw_batch_size=args.batch_size,
+                    predictor=model,
+                    overlap=0,
+                )#inference(test_inputs) #perform inference
                 #print(test_data["pred"].shape)
                 test_data=[post_transforms(i) for i in decollate_batch(test_data)] #reverse the transform and get sigmoid then binarise
                 test_outputs, test_labels =  from_engine(["pred", "label"])(test_data) # create list of images and labels
@@ -774,6 +794,5 @@ if __name__=="__main__":
      
 
 
-    #####################~~~~~~~~3D Seg End ~~~~~~###################
 
 
