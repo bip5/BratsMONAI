@@ -5,6 +5,9 @@ import monai
 from monai.data import Dataset
 from monai.utils import set_determinism
 from monai.apps import CrossValidation
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data.distributed import DistributedSampler
 
 from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     ScaleIntensityD, SpacingD, OrientationD,\
@@ -39,14 +42,14 @@ from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
 
 
 
-from monai.losses import DiceLoss
+from monai.losses import DiceLoss,DiceFocalLoss
 from monai.utils import UpsampleMode
 from monai.data import decollate_batch, list_data_collate
 
-from monai.networks.nets import SegResNet, UNet
+from monai.networks.nets import SegResNetDS, UNet
 from monai.metrics import DiceMetric
 from monai.inferers import sliding_window_inference
-from monai.data import DataLoader
+from monai.data import DataLoader,partition_dataset
 import numpy as np
 from datetime import date, datetime
 import sys
@@ -59,10 +62,14 @@ from torchsummary import summary
 import torch.nn.functional as F
 from torch.utils.data import Subset
 from glob import glob
+import matplotlib.pyplot as plt
 
 import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
+torch.multiprocessing.set_sharing_strategy('file_system')
+os.environ["OMP_NUM_THREADS"] = "4"
+# local_rank = int(os.environ['LOCAL_RANK'])
      
         
 if __name__=="__main__":
@@ -89,6 +96,8 @@ if __name__=="__main__":
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
+    
+    
     
     os.environ['PYTHONHASHSEED']=str(args.seed)
     torch.backends.cudnn.deterministic = True
@@ -119,10 +128,13 @@ if __name__=="__main__":
         for root, fol, fnames in os.walk(data_dir+'/rawdata'):
             for f in fnames:                      
                 fpath = os.path.join(root, f)
-                if f.endswith('flair.nii.gz'):                
+                if f.endswith('flair.nii.gz'): 
                     pass
-                elif f.endswith('.nii.gz'):
-                    im_temp.append(fpath)         
+                    
+                elif f.endswith('dwi.nii.gz'):
+                    im_temp.append(fpath) 
+                elif f.endswith('adc.nii.gz'):
+                    im_temp.append(fpath) 
             if im_temp:
                 images.append(im_temp)                   
             im_temp = []
@@ -176,8 +188,8 @@ if __name__=="__main__":
                
     class BratsDataset(Dataset):
         def __init__(self,data_dir,transform=None):            
-            self.image_list=make_dataset(data_dir)[0]            
-            self.mask_list=make_dataset(data_dir)[1] 
+            self.image_list,self.mask_list=make_dataset(data_dir)            
+            
             self.transform=transform   
             
         def __len__(self):
@@ -205,7 +217,7 @@ if __name__=="__main__":
             EnsureChannelFirstD(keys="image"),
             AddChannelD(keys="mask"),
             CropForegroundd(["image", "mask"], source_key="image"),
-            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+            
            
             SpacingD(
                 keys=["image", "mask"],
@@ -213,13 +225,14 @@ if __name__=="__main__":
                 mode="bilinear",
             ),   
             OrientationD(keys=["image", "mask"],axcodes="RAS"),
+            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
             RandSpatialCropd(
-            ["image", "mask"], roi_size=(192,192,144), random_size=False
+            ["image", "mask"], roi_size=(192,192,128), random_size=False
             ),            
             RandAffined(
             ["image", "mask"],
             prob=0.15,
-            spatial_size=(192,192,144), #instead of 64,64,64
+            spatial_size=(192,192,128), #instead of 64,64,64
             rotate_range=[30 * np.pi / 180] * 3, 
             scale_range=[0.3] * 3,
             mode=("bilinear", "bilinear"),            
@@ -235,8 +248,7 @@ if __name__=="__main__":
             sigma_x=(0.5, 1.5),
             sigma_y=(0.5, 1.5),
             sigma_z=(0.5, 1.5),
-            ),
-            
+            ),       
             
             
             RandScaleIntensityd(keys="image", factors=0.3, prob=0.15),
@@ -250,33 +262,52 @@ if __name__=="__main__":
             LoadImaged(keys=["image", "mask"]),
             EnsureChannelFirstD(keys="image"),
             AddChannelD(keys="mask"),            
-            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),            
+            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
+            
             EnsureTyped(keys=["image", "mask"]),
         ]
     )
-
+    # dist.init_process_group(backend="nccl", init_method="env://")
     #dataset=DecathlonDataset(root_dir="/scratch/a.bip5/BraTS 2021/", task="Task05_Prostate",section="training", transform=xform, download=True)
     train_dataset=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=train_transform ) 
     val_dataset=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=val_transform )
-
+    # train_dataset=partition_dataset(data=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=train_transform ), shuffle=False,num_partitions=dist.get_world_size(),even_divisible=False)[dist.get_rank()]  
+    # val_dataset=partition_dataset(data=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=val_transform ),shuffle=False,num_partitions=dist.get_world_size(),even_divisible=False)[dist.get_rank()]  
     
     print('len(train_dataset)',len(train_dataset))
-
+    
+    all_indices = np.arange(250)
+    training_index = np.random.choice(all_indices, 200, replace=False)
+    test_index = np.setdiff1d(all_indices, training_index)
+    ratio=len(train_dataset)/250
+    
+    # Scale the indices according to the ratio
+    train_indices = [int(idx * ratio) for idx in training_index]
+    val_indices = [int(idx * ratio) for idx in test_index]
+    
+    
+    
     if args.CV_flag==1:
         print("loading cross val data")
-        val_dataset=Subset(train_dataset,train_indices)
+        val_dataset=Subset(train_dataset,val_indices)
         train_dataset1=Subset(train_dataset,train_indices)
         
     else:     
         print("loading data for single model training")
-        val_dataset1=Subset(val_dataset,np.arange(50))#np.arange(800,1000))
-        train_dataset1=Subset(train_dataset,np.arange(50,250))#np.arange(800))
+        val_dataset1=Subset(val_dataset,val_indices)#np.arange(800,1000))
+        train_dataset1=Subset(train_dataset,train_indices)#np.arange(800))
 
   
         
     # print("files  to be processed: ", train_dataset.files)
-    train_loader=DataLoader(train_dataset1, batch_size=args.batch_size, shuffle=True,num_workers=args.workers)
-    val_loader=DataLoader(val_dataset1, batch_size=1, shuffle=False,num_workers=args.workers)
+    # Training data
+    # train_sampler = DistributedSampler(train_dataset1)
+    train_loader = DataLoader(train_dataset1, batch_size=args.batch_size,  num_workers=args.workers)
+    # train_loader = DataLoader(train_dataset1, batch_size=args.batch_size, sampler=train_sampler, num_workers=args.workers)
+
+    # Validation data
+    # val_sampler = DistributedSampler(val_dataset1, shuffle=False)
+    val_loader = DataLoader(val_dataset1, batch_size=1, num_workers=args.workers)
     print("All Datasets assigned")
 
     root_dir="/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version/"
@@ -340,58 +371,72 @@ if __name__=="__main__":
         # ).to(device)
 
     # sys.exit(0)
+
     
+
+
     torch.manual_seed(args.seed)
     if args.model=="UNet":
-         model=UNet(
+        model=UNet(
             spatial_dims=3,
-            in_channels=4,
-            out_channels=3,
+            in_channels=1,
+            out_channels=1,
             channels=(64,128,256,512,1024),
-            strides=(2,2,2,2)
-            )
+            strides=(2,2,2,2),
+            act='SWISH'
+            ).to(device)
     elif args.model=="SegResNet":
-        model = SegResNet(
+        model = SegResNetDS(
             blocks_down=[2, 4, 4, 4,4],
             blocks_up=[1, 1, 1,1],
-            init_filters=32,
+            init_filters=24,
             norm="instance",
+            act="SWISH",
             in_channels=2,
             out_channels=1,
+            dsdepth=4,
             upsample_mode=UpsampleMode[args.upsample]    
-            )
+            ).to(device)
 
     else:
         model = locals() [args.model](4,3)
         
-        
-if torch.cuda.device_count() > 1:
-    print("Using", torch.cuda.device_count(), "GPUs!")
-    model = nn.DataParallel(model)
-
+   
     
+    print('model created')                                
 
 
     
     # Move model to device
-    device = torch.device("cuda")
-    model.to(device)
+    # device = torch.device("cuda")
+    # model.to(device)
+    
+    # device = torch.device(f"cuda:{local_rank}")
+    # torch.cuda.set_device(device)
+    # model=model.to(device)
+    
+    # model = DistributedDataParallel(module=model, device_ids=[device])
     
         # Check the number of GPUs used by the model
-    num_gpus_used = len(model.device_ids)
-    print("Number of GPUs used:", num_gpus_used)
+    
     
     with torch.cuda.amp.autocast():
-        summary(model,(2,64,64,64))
+        summary(model,(2,192,192,128))
 
-
+      
+    if torch.cuda.device_count() > 1:
+        print("Using", torch.cuda.device_count(), "GPUs!")
+        model = nn.DataParallel(model)
+    num_gpus_used = len(model.device_ids)
+    print("Number of GPUs used:", num_gpus_used)
     
     if args.load_save==1:
         model.load_state_dict(torch.load("/scratch/a.bip5/BraTS 2021/"+args.load_path),strict=False)
         print("loaded saved model ", args.load_path)
-
-    loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
-    optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=1e-5)
+    weights = torch.tensor([1.0, 0.5, 0.25,0], requires_grad=True).to(device) # example weights
+    ds_wt=weights.detach().requires_grad_()
+    loss_function = DiceFocalLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
+    optimizer = torch.optim.AdamW([{'params': model.parameters()}, {'params': ds_wt}], args.lr, weight_decay=1e-5)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.T_max)
 
     dice_metric = DiceMetric(include_background=True, reduction="mean")
@@ -405,7 +450,7 @@ if torch.cuda.device_count() > 1:
         def _compute(input):
             return sliding_window_inference(
                 inputs=input,
-                roi_size=(192,192, 144),
+                roi_size=(192,192, 128),
                 sw_batch_size=1,
                 predictor=model,
                 overlap=0.5,
@@ -435,6 +480,8 @@ if torch.cuda.device_count() > 1:
     total_start = time.time()
 
     print("starting epochs")
+    epoch_losses=[]
+    best_metric_values=[]
     for epoch in range(max_epochs):
         epoch_start = time.time()
         print("-" * 10)
@@ -451,13 +498,37 @@ if torch.cuda.device_count() > 1:
                 batch_data["mask"].to(device),
             )
             optimizer.zero_grad()
+            
             with torch.cuda.amp.autocast():
                 outputs = model(inputs)
-                loss = loss_function(outputs, masks)
+                losses = []
+                if args.model=="SegResNet":
+                    for i, output in enumerate(outputs):
+                        # torch.Size([4, 1, 192, 192, 128]) output.shape
+                        # torch.Size([4, 1, 96, 96, 64]) output.shape
+                        # torch.Size([4, 1, 48, 48, 32]) output.shape
+                        # torch.Size([4, 1, 24, 24, 16]) output.shape output shapes from DS
+                        #print(output.shape,'output.shape')# 4 resolutions for each batch
+                        #print(masks.shape)# masks.shape: ([4, 1, 192, 192, 128])
+                        masks_resized=[]
+                        mask=[]
+                        for bnum in range(output.shape[0]):
+                            mask = F.interpolate(masks[bnum,:,:,:,:].unsqueeze(0), size=output.shape[-3:], mode='nearest')
+                            masks_resized.append(mask)
+                        mask_resized=torch.cat(masks_resized,dim=0)
+                        loss = loss_function(output, mask_resized)
+                        losses.append(loss * weights[i])
+                    loss = sum(losses)
+                else:
+                    loss=loss_function(outputs,masks)
+                
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
             epoch_loss += loss.item()
+            
+            # epoch_loss /= (step * train_loader.batch_size)  # Calculate the average epoch loss
+              # Store the average epoch loss
             if step%10==0:
                 print(
                     f"{step}/{len(train_dataset1) // train_loader.batch_size}"
@@ -466,19 +537,27 @@ if torch.cuda.device_count() > 1:
                 )
                 
         print('lr_scheduler.get_last_lr() = ',lr_scheduler.get_last_lr())
-        if epoch>99:
-            lr_scheduler.step()
+        # if epoch>99:
+        lr_scheduler.step()
         
         epoch_loss /= step
-        epoch_loss_values.append(epoch_loss)
+        epoch_losses.append(epoch_loss)
         print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
         
+        
+        
+   
         # if epoch>50:
             # torch.save(
                             # model.state_dict(),
                             # os.path.join(root_dir, date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"ep"+str(epoch+1)))
 
         if (epoch + 1) % val_interval == 0:
+            # device = torch.device(f"cuda:{local_rank}")
+            # torch.cuda.set_device(device)
+            # model=model.to(device)
+            
+            # model = DistributedDataParallel(module=model, device_ids=[device])
             model.eval()
             with torch.no_grad():
 
@@ -531,10 +610,32 @@ if torch.cuda.device_count() > 1:
                     f" at epoch: {best_metric_epoch}"
                 )
                 
+        best_metric_values.append(best_metric)
+        plt.figure()
+        fig, ax1 = plt.subplots()
+        
 
+        # Plot the epoch losses on the primary y-axis
+        ax1.plot(range(1, epoch + 2), epoch_losses, label='Loss', color='blue')
+        ax1.set_xlabel('Epoch')
+        ax1.set_ylabel('Loss', color='blue')
+        ax1.tick_params(axis='y', labelcolor='blue')
+
+        # Create a second y-axis and plot the best_metric on it
+        ax2 = ax1.twinx()
+        ax2.plot(range(1, epoch + 2), best_metric_values, label='Best Metric', color='green')
+        ax2.set_ylabel('Best Metric', color='green')
+        ax2.tick_params(axis='y', labelcolor='green')
+
+        # Set the title and save the figure
+        plt.title('Training Loss Progress and Best Metric')
+        fig.savefig('loss_progress_np.png', dpi=300) 
                 
         print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
     total_time = time.time() - total_start
+    
+         # After the training loop, plot the loss curve and save it as a PNG file
+
 
     print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}, total time: {total_time}.")
     with open ('./time_consumption.csv', 'a') as sample:
