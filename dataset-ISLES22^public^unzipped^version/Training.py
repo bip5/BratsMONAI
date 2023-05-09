@@ -69,7 +69,7 @@ rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
 torch.multiprocessing.set_sharing_strategy('file_system')
 os.environ["OMP_NUM_THREADS"] = "4"
-# local_rank = int(os.environ['LOCAL_RANK'])
+
      
         
 if __name__=="__main__":
@@ -93,6 +93,7 @@ if __name__=="__main__":
     parser.add_argument("--method",default='A', type=str,help='A,B or C')
     parser.add_argument("--T_max",default=20,type=int,help="scheduling param")
     parser.add_argument("--workers",default=8,type=int,help="number of workers(cpu threads)")
+    parser.add_argument("--DDP",default=False,type=bool,help="number of workers(cpu threads)")
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
@@ -105,6 +106,7 @@ if __name__=="__main__":
     np.random.seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     set_determinism(seed=args.seed)
+    DDP=args.DDP
 
     IMG_EXTENSIONS = [
          '.gz'
@@ -267,12 +269,16 @@ if __name__=="__main__":
             EnsureTyped(keys=["image", "mask"]),
         ]
     )
-    # dist.init_process_group(backend="nccl", init_method="env://")
+    
     #dataset=DecathlonDataset(root_dir="/scratch/a.bip5/BraTS 2021/", task="Task05_Prostate",section="training", transform=xform, download=True)
-    train_dataset=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=train_transform ) 
-    val_dataset=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=val_transform )
-    # train_dataset=partition_dataset(data=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=train_transform ), shuffle=False,num_partitions=dist.get_world_size(),even_divisible=False)[dist.get_rank()]  
-    # val_dataset=partition_dataset(data=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=val_transform ),shuffle=False,num_partitions=dist.get_world_size(),even_divisible=False)[dist.get_rank()]  
+    if not DDP:
+        train_dataset=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=train_transform ) 
+        val_dataset=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=val_transform )
+    else:
+        local_rank = int(os.environ['LOCAL_RANK'])
+        dist.init_process_group(backend="nccl", init_method="env://")
+        train_dataset=partition_dataset(data=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=train_transform ), shuffle=False,num_partitions=dist.get_world_size(),even_divisible=False)[dist.get_rank()]  
+        val_dataset=partition_dataset(data=BratsDataset("/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version"  ,transform=val_transform ),shuffle=False,num_partitions=dist.get_world_size(),even_divisible=False)[dist.get_rank()]  
     
     print('len(train_dataset)',len(train_dataset))
     
@@ -301,14 +307,19 @@ if __name__=="__main__":
         
     # print("files  to be processed: ", train_dataset.files)
     # Training data
-    # train_sampler = DistributedSampler(train_dataset1)
-    train_loader = DataLoader(train_dataset1, batch_size=args.batch_size,  num_workers=args.workers)
-    # train_loader = DataLoader(train_dataset1, batch_size=args.batch_size, sampler=train_sampler, num_workers=args.workers)
+    if DDP:
+        train_sampler = DistributedSampler(train_dataset1)
+        train_loader = DataLoader(train_dataset1, batch_size=args.batch_size, sampler=train_sampler, num_workers=args.workers)
+        # Validation data
+        val_sampler = DistributedSampler(val_dataset1, sampler=val_sampler,shuffle=False)
+        val_loader = DataLoader(val_dataset1, batch_size=1,sampler=val_sampler, num_workers=args.workers)
+        print("All Datasets assigned")
+    else:
+        train_loader = DataLoader(train_dataset1, batch_size=args.batch_size,  num_workers=args.workers)
+        val_loader = DataLoader(val_dataset1, batch_size=1, num_workers=args.workers)
+        print("All Datasets assigned")
 
-    # Validation data
-    # val_sampler = DistributedSampler(val_dataset1, shuffle=False)
-    val_loader = DataLoader(val_dataset1, batch_size=1, num_workers=args.workers)
-    print("All Datasets assigned")
+    
 
     root_dir="/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version/"
 
@@ -317,6 +328,7 @@ if __name__=="__main__":
     VAL_AMP = True
 
     # standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
+    
     device = torch.device("cuda")
     
     # class CustomActivation(torch.nn.Module):
@@ -410,25 +422,25 @@ if __name__=="__main__":
     # Move model to device
     # device = torch.device("cuda")
     # model.to(device)
-    
-    # device = torch.device(f"cuda:{local_rank}")
-    # torch.cuda.set_device(device)
-    # model=model.to(device)
-    
-    # model = DistributedDataParallel(module=model, device_ids=[device])
-    
-        # Check the number of GPUs used by the model
-    
-    
-    with torch.cuda.amp.autocast():
-        summary(model,(2,192,192,128))
+    if DDP:
+        device = torch.device(f"cuda:{local_rank}")
+        torch.cuda.set_device(device)
+        model=model.to(device)
+        
+        model = DistributedDataParallel(module=model, device_ids=[device])
+        
+            
+    else:    
+        with torch.cuda.amp.autocast():
+            summary(model,(2,192,192,128))
 
       
-    if torch.cuda.device_count() > 1:
-        print("Using", torch.cuda.device_count(), "GPUs!")
-        model = nn.DataParallel(model)
-    num_gpus_used = len(model.device_ids)
-    print("Number of GPUs used:", num_gpus_used)
+        if torch.cuda.device_count() > 1:
+            print("Using", torch.cuda.device_count(), "GPUs!")
+            model = nn.DataParallel(model)
+        #Check the number of GPUs used by the model
+        num_gpus_used = len(model.device_ids)
+        print("Number of GPUs used:", num_gpus_used)
     
     if args.load_save==1:
         model.load_state_dict(torch.load("/scratch/a.bip5/BraTS 2021/"+args.load_path),strict=False)
