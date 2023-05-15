@@ -65,6 +65,8 @@ from glob import glob
 import matplotlib.pyplot as plt
 
 import resource
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -93,7 +95,9 @@ if __name__=="__main__":
     parser.add_argument("--method",default='A', type=str,help='A,B or C')
     parser.add_argument("--T_max",default=20,type=int,help="scheduling param")
     parser.add_argument("--workers",default=8,type=int,help="number of workers(cpu threads)")
+    parser.add_argument("--init_filters",default=32,type=int,help="number of workers(cpu threads)")
     parser.add_argument("--DDP",default=False,type=bool,help="number of workers(cpu threads)")
+    
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
@@ -311,7 +315,7 @@ if __name__=="__main__":
         train_sampler = DistributedSampler(train_dataset1)
         train_loader = DataLoader(train_dataset1, batch_size=args.batch_size, sampler=train_sampler, num_workers=args.workers)
         # Validation data
-        val_sampler = DistributedSampler(val_dataset1, sampler=val_sampler,shuffle=False)
+        val_sampler = DistributedSampler(val_dataset1)
         val_loader = DataLoader(val_dataset1, batch_size=1,sampler=val_sampler, num_workers=args.workers)
         print("All Datasets assigned")
     else:
@@ -401,7 +405,7 @@ if __name__=="__main__":
         model = SegResNetDS(
             blocks_down=[2, 4, 4, 4,4],
             blocks_up=[1, 1, 1,1],
-            init_filters=24,
+            init_filters=args.init_filters,
             norm="instance",
             act="SWISH",
             in_channels=2,
@@ -428,7 +432,8 @@ if __name__=="__main__":
         model=model.to(device)
         
         model = DistributedDataParallel(module=model, device_ids=[device])
-        
+        with torch.cuda.amp.autocast():
+            summary(model,(2,192,192,128))
             
     else:    
         with torch.cuda.amp.autocast():
@@ -641,8 +646,10 @@ if __name__=="__main__":
 
         # Set the title and save the figure
         plt.title('Training Loss Progress and Best Metric')
-        fig.savefig('loss_progress_np.png', dpi=300) 
-                
+        if DDP:
+            fig.savefig('loss_progress_DDP.png', dpi=300) 
+        else:
+            fig.savefig('loss_progress_single.png', dpi=300)
         print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
     total_time = time.time() - total_start
     
