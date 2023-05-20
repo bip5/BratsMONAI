@@ -307,7 +307,7 @@ if __name__=="__main__":
     print("Model defined and passed to GPU")
     
     if args.load_save==1:
-        model.load_state_dict(torch.load("/scratch/a.bip5/BraTS 2021/"+args.load_path),strict=False)
+        model.load_state_dict(torch.load("/scratch/a.bip5/BraTS 2021/saved models/"+args.load_path),strict=False)
         print("loaded saved model ", args.load_path)
 
     loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
@@ -364,6 +364,14 @@ if __name__=="__main__":
         model.train()
         epoch_loss = 0
         step = 0
+        if epoch==4:
+            optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-5)
+        if epoch==8:
+            optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=1e-5)
+        if epoch==12:
+            optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=1e-5)
+        if epoch==16:
+            optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr, weight_decay=1e-5)
         for batch_data in train_loader:
             step_start = time.time()
             step += 1
@@ -389,8 +397,8 @@ if __name__=="__main__":
         
         print("lr_scheduler.get_last_lr() = ",lr_scheduler.get_last_lr())
         lr_list.append(lr_scheduler.get_last_lr())
-        if epoch>99:
-            lr_scheduler.step()
+        # if epoch>99:
+        lr_scheduler.step()
         
             
             
