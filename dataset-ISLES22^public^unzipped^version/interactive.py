@@ -59,6 +59,7 @@ from torchsummary import summary
 import torch.nn.functional as F
 from torch.utils.data import Subset
 from glob import glob
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 
      
@@ -70,20 +71,20 @@ if __name__=="__main__":
     parser.add_argument("--lr",default=2e-4,type=float,help="learning rate")
     parser.add_argument("--model",default="SegResNet",type=str,help="name of model to use")
     parser.add_argument("--load_save",default =0, type=int,help="flag to use saved model weight")
-    parser.add_argument("--load_path",default="/scratch/a.bip5/BraTS 2021/2022-01-20T16best_metric_model.pth", type=str, help="file path to load previously saved model")
+    parser.add_argument("--load_path",default="dataset-ISLES22^public^unzipped^version/2023-05-30_123241SegResNet", type=str, help="file path to load previously saved model")
     parser.add_argument("--batch_size",default=1, type=int, help="to define batch size")
     parser.add_argument("--save_name", default="SISANET.pth",type=str, help="save name")
     parser.add_argument("--upsample", default="DECONV",type=str, help="flag to choose deconv options- NONTRAINABLE, DECONV, PIXELSHUFFLE")
     parser.add_argument("--barlow_final",default=1, type=int, help="flag to use checkpoint instead of final model for barlow")
     parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
-    parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
+    parser.add_argument("--max_samples",default=20,type=int,help="max number of samples to use for training")
     parser.add_argument("--fold_num",default=1,type=str,help="cross-validation fold number")
     parser.add_argument("--epochs",default=150,type=int,help="number of epochs to run")
     parser.add_argument("--CV_flag",default=0,type=int,help="is this a cross validation fold? 1=yes")
     parser.add_argument("--seed",default=0,type=int, help="random seed for the script")
     parser.add_argument("--method",default='A', type=str,help='A,B or C')
     parser.add_argument("--T_max",default=20,type=int,help="scheduling param")
-    parser.add_argument("--workers",default=8,type=int,help="number of workers(cpu threads)")
+    parser.add_argument("--workers",default=1,type=int,help="number of workers(cpu threads)")
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
@@ -183,7 +184,8 @@ if __name__=="__main__":
         def __getitem__(self,idx):              
             image=self.image_list[idx]   
             
-            mask=self.mask_list[idx]                 
+            mask=self.mask_list[idx]   
+            # print(f'Using image at path: {image}')
             item_dict={"image":image,"mask":mask}            
             if self.transform:
                 item_dict={"image":image,"mask": mask}
@@ -208,16 +210,21 @@ if __name__=="__main__":
            
             SpacingD(
                 keys=["image", "mask"],
-                pixdim=(2.0, 2.0, 2.0),
+                pixdim=(1.0, 1.0, 1.0),
                 mode="bilinear",
             ),   
             OrientationD(keys=["image", "mask"],axcodes="RAS"),
             RandSpatialCropd(
             ["image", "mask"], roi_size=(64,64,64), random_size=False
-            ),            
+            ),   
+            ResizeD(
+            keys=["image", "mask"],
+            spatial_size=(64,64,64),
+            mode="trilinear"
+            ),             
             RandAffined(
             ["image", "mask"],
-            prob=0.15,
+            prob=1,
             spatial_size=(64,64,64),
             rotate_range=[30 * np.pi / 180] * 3,
             scale_range=[0.3] * 3,
@@ -261,21 +268,22 @@ if __name__=="__main__":
     
     print('len(train_dataset)',len(train_dataset))
 
-    if args.CV_flag==1:
-        print("loading cross val data")
-        val_dataset=Subset(train_dataset,train_indices)
-        train_dataset1=Subset(train_dataset,train_indices)
+    # if args.CV_flag==1:
+        # print("loading cross val data")
+        # val_dataset=Subset(train_dataset,train_indices)
+        # train_dataset1=Subset(train_dataset,train_indices)
         
-    else:     
-        print("loading data for single model training")
-        val_dataset1=Subset(val_dataset,np.arange(50))#np.arange(800,1000))
-        train_dataset1=Subset(train_dataset,np.arange(50,250))#np.arange(800))
+    # else:     
+        # print("loading data for single model training")
+        # val_dataset1=Subset(val_dataset,np.arange(args.max_samples//2)+args.max_samples//2)#np.arange(800,1000))
+        # train_dataset1=Subset(train_dataset,np.arange(args.max_samples//2))#np.arange(800))
 
   
         
-    # print("files  to be processed: ", train_dataset.files)
-    train_loader=DataLoader(train_dataset1, batch_size=args.batch_size, shuffle=True,num_workers=args.workers)
-    val_loader=DataLoader(val_dataset1, batch_size=args.batch_size, shuffle=False,num_workers=args.workers)
+    
+    # print("files  to be processed: ", train_dataset1.image_list)
+    train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,num_workers=args.workers)
+    val_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False,num_workers=args.workers)
     print("All Datasets assigned")
 
     root_dir="/scratch/a.bip5/BraTS 2021/dataset-ISLES22^public^unzipped^version/"
@@ -342,12 +350,12 @@ if __name__=="__main__":
             return x
 
     torch.manual_seed(args.seed)
-    model = SegResNetWithCustomActivation(
+    model = SegResNet(#WithCustomActivation(
             in_channels=2,
             out_channels=1,
-            blocks_down=[2, 4, 4, 4,4],
-            blocks_up=[1, 1, 1,1],
-            init_filters=1,            
+            blocks_down=[1, 2, 2, 4],
+            blocks_up=[1, 1, 1],
+            init_filters=32,            
             norm='instance',
             upsample_mode=UpsampleMode[args.upsample],      
                         
@@ -381,7 +389,7 @@ if __name__=="__main__":
     with torch.cuda.amp.autocast():
         summary(model,(2,64,64,64))
 
-    model=torch.nn.DataParallel(model)
+    # model=torch.nn.DataParallel(model)
     print("Model defined and passed to GPU")
     
     if args.load_save==1:
@@ -389,7 +397,7 @@ if __name__=="__main__":
         print("loaded saved model ", args.load_path)
 
     loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
-    optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=1e-5)
+    optimizer = torch.optim.SGD(model.parameters(), args.lr, weight_decay=0)#1e-5)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.T_max)
 
     dice_metric = DiceMetric(include_background=True, reduction="mean")
@@ -403,7 +411,7 @@ if __name__=="__main__":
         def _compute(input):
             return sliding_window_inference(
                 inputs=input,
-                roi_size=(192,192, 144),
+                roi_size=(64,64, 64),
                 sw_batch_size=1,
                 predictor=model,
                 overlap=0.5,
@@ -431,7 +439,7 @@ if __name__=="__main__":
     metric_values_et = []
 
     total_start = time.time()
-
+    run_id = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     print("starting epochs")
     for epoch in range(max_epochs):
         epoch_start = time.time()
@@ -515,10 +523,10 @@ if __name__=="__main__":
                                 model.state_dict(),
                                 os.path.join(root_dir, args.model+"CV"+str(args.fold_num)+"ms"+str(args.max_samples)+"rs"+str(args.seed)+args.method)
                             )
-                    else:
+                    else:                        
                         torch.save(
                             model.state_dict(),
-                            os.path.join(root_dir, date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model),
+                            os.path.join(root_dir, run_id + args.model),
                         )
                     print("saved new best metric model")
                     
