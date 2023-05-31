@@ -85,25 +85,28 @@ import gc
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 
+
+
 if __name__=="__main__":
     parser=argparse.ArgumentParser(prog=sys.argv[0],description="Eval parser")
 
-    parser.add_argument("--model",default="SISANet",type=str,help="name of model to use")
+    parser.add_argument("--model",default="SegResNet",type=str,help="name of model to use")
     parser.add_argument("--load_barlow",default =0, type=int,help="flag to use barlow twins backbone to initialise weight")
-    parser.add_argument("--load_save",default =1, type=int,help="flag to use saved model weight")
+    parser.add_argument("--load_save",default =0, type=int,help="flag to use saved model weight")
     parser.add_argument("--load_name",default="./2022-01-20T16best_metric_model.pth", type=str, help="file path to load previously saved model")
-    parser.add_argument("--batch_size",default=8, type=int, help="to define batch size")
+    parser.add_argument("--batch_size",default=1, type=int, help="to define batch size")
     parser.add_argument("--save_name", default="Best_metric_model.pth",type=str, help="save name")
     parser.add_argument("--upsample", default="DECONV",type=str, help="flag to choose deconv options- NONTRAINABLE, DECONV, PIXELSHUFFLE")
     parser.add_argument("--barlow_final",default=1, type=int, help="flag to use checkpoint instead of final model for barlow")
     parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
-    parser.add_argument("--max_samples",default=10000,type=int,help="max number of samples to use for training")
+    parser.add_argument("--max_samples",default=4,type=int,help="max number of samples to use for training")
     parser.add_argument("--ensemble",default=0,type=int,help="flag to use ensemble with models provided")
     parser.add_argument("--avgmodel",default=0,type=int,help="flag to create an averaged model from existing models")
     parser.add_argument("--plot",default=0, type=int, help="plot=1,ensembleand plot, plot=2 evaluate all models in list")
     parser.add_argument("--val",default=0, type=int, help="val or not")
     parser.add_argument("--eval_path",default='/scratch/a.bip5/BraTS 2021/',type=str,help="path for evaluation models")
     parser.add_argument('--savename',default='_',type=str,help='option to add additional details to identify models evaluated in csv file')
+    parser.add_argument('--workers',default=8,type=int,help='option to add additional details to identify models evaluated in csv file')
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
@@ -221,7 +224,7 @@ if __name__=="__main__":
     dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
 
     post_trans = Compose(
-        [EnsureType(), Activations(sigmoid=True), AsDiscrete(threshold=0.2)]
+        [EnsureType(), Activations(sigmoid=True), AsDiscrete(threshold=0.5)]
     )
     if args.load_barlow==1:
         # Load model weight from Barlow Twins
@@ -789,7 +792,7 @@ if __name__=="__main__":
         
     
 
-    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=8) # this should return 10 different instances
+    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.workers) # this should return 10 different instances
 
     # print("input type",type(next(iter(test_loader))))
 
@@ -813,7 +816,7 @@ if __name__=="__main__":
         ), # inversal is only done on the prediction? yes with the specified key
         # ToTensorD(keys=["pred","label"]),
         
-        AsDiscreted(keys="pred", threshold=0.2),
+        AsDiscreted(keys="pred", threshold=0.5),
         SaveImaged(keys=["pred","label"],meta_keys="pred_meta_dict",output_dir="./ssensemblemodels0922/outputs/",resample=False)
     ])
     post_pred= Compose([EnsureType(),Activations(sigmoid=True), AsDiscrete(threshold=0.2)])
@@ -910,6 +913,8 @@ if __name__=="__main__":
                         )
                     }
                 )
+                
+               
 
             evaluator.run()
             
@@ -1204,7 +1209,7 @@ if __name__=="__main__":
                 
                 model=torch.nn.DataParallel(model)
                 
-                model.load_state_dict(torch.load("./"+name),strict=False)
+                model.load_state_dict(torch.load(args.eval_path+'/'+name),strict=False)
                 model.eval()
                 models.append(model)
                 
@@ -1241,7 +1246,7 @@ if __name__=="__main__":
                 ]
             ) 
                                
-            md,tc,wt,et=ensemble_evaluate(mean_post_transforms, models)
+            md,tc,wt,et,haus1,pred_size1,_,_,_,_,_,_,_,_,_,_,_=ensemble_evaluate(mean_post_transforms, models)
             mean_dice.append(md)
             tumor_core.append(tc)
             whole_tumor.append(wt)
