@@ -78,7 +78,7 @@ if __name__=="__main__":
     parser.add_argument("--seed",default=0,type=int, help="random seed for the script")
     parser.add_argument("--method",default='A', type=str,help='A,B or C')
     parser.add_argument("--Tmax",default=4, type=int,help='number epochs to cycle lr')
-
+    parser.add_argument("--extra",default=0, type=int,help='number epochs to cycle lr')
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
@@ -314,7 +314,7 @@ if __name__=="__main__":
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=1e-5)
     
     
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.Tmax)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=args.Tmax)
 
     dice_metric = DiceMetric(include_background=True, reduction="mean")
     dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
@@ -364,13 +364,14 @@ if __name__=="__main__":
         model.train()
         epoch_loss = 0
         step = 0
-        if epoch==4:
+        if epoch==104:
             optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-5)
-        if epoch==8:
+            print('varying optimizer')
+        if epoch==108:
             optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=1e-5)
-        if epoch==12:
-            optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=1e-5)
-        if epoch==16:
+        if epoch==112:
+            optimizer = torch.optim.Adagrad(model.parameters(), lr=args.lr, weight_decay=1e-5)
+        if epoch==116:
             optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr, weight_decay=1e-5)
         for batch_data in train_loader:
             step_start = time.time()
@@ -397,8 +398,8 @@ if __name__=="__main__":
         
         print("lr_scheduler.get_last_lr() = ",lr_scheduler.get_last_lr())
         lr_list.append(lr_scheduler.get_last_lr())
-        # if epoch>99:
-        lr_scheduler.step()
+        if epoch>99 or args.extra==1:
+            lr_scheduler.step()
         
             
             
@@ -413,12 +414,11 @@ if __name__=="__main__":
                                 model.state_dict(),
                                 os.path.join(root_dir, args.model+"ep"+str(epoch+1)+"rs"+str(args.seed)+args.method))
         
-        if epoch>99:
-            if (epoch+1)%20==0:
-                torch.save(
-                                model.state_dict(),
-                                os.path.join(root_dir, 'ssensemblemodels0922',args.model+"ep"+str(epoch+1)+"rs"+str(args.seed)+args.method))
-                print("model saved at epoch",epoch+1)
+        if epoch>99:            
+            torch.save(
+                            model.state_dict(),
+                            os.path.join(root_dir, 'ssensemblemodels0922',args.model+"ep"+str(epoch+1)+"rs"+str(args.seed)+args.method))
+            print("model saved at epoch",epoch+1)
 
         # if (epoch + 1) % val_interval == 0:
             # model.eval()
