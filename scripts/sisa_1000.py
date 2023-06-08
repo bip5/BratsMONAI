@@ -414,7 +414,7 @@ if __name__=="__main__":
                                 model.state_dict(),
                                 os.path.join(root_dir, args.model+"ep"+str(epoch+1)+"rs"+str(args.seed)+args.method))
         
-        if epoch>99:            
+        if epoch>94:            
             torch.save(
                             model.state_dict(),
                             os.path.join(root_dir, 'ssensemblemodels0922',args.model+"ep"+str(epoch+1)+"rs"+str(args.seed)+args.method))
