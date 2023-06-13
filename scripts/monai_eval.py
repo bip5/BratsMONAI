@@ -107,6 +107,7 @@ if __name__=="__main__":
     parser.add_argument("--eval_path",default='/scratch/a.bip5/BraTS 2021/',type=str,help="path for evaluation models")
     parser.add_argument('--savename',default='_',type=str,help='option to add additional details to identify models evaluated in csv file')
     parser.add_argument('--workers',default=8,type=int,help='option to add additional details to identify models evaluated in csv file')
+    parser.add_argument('--reduction',default='none',type=str,help='reduction for the key metric, mean, none etc')
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
@@ -895,7 +896,7 @@ if __name__=="__main__":
                     key_val_metric={
                             "test_mean_dice": MeanDice(
                                 include_background=True,
-                                output_transform=from_engine(["pred", "label"]),reduction='none'  # takes all the preds and labels and turns them into one list each
+                                output_transform=from_engine(["pred", "label"]),reduction='mean'  # takes all the preds and labels and turns them into one list each
                                 
                             )},
                    
@@ -919,7 +920,7 @@ if __name__=="__main__":
             evaluator.run()
             
             # print("validation stats: ",evaluator.get_validation_stats())
-            mean_dice=evaluator.state.metrics['test_mean_dice'][:,1]#wt score
+            mean_dice=evaluator.state.metrics['test_mean_dice']#[:,1]#wt score
             pred_size=evaluator.state.metrics['pred size'][:,0,1] #whole tumor 
             pred_tc=evaluator.state.metrics['pred size'][:,0,0]
             pred_et=evaluator.state.metrics['pred size'][:,0,2]
@@ -969,6 +970,7 @@ if __name__=="__main__":
                     model_steps=model_names#[:i+1]#[:(i+1)]
                     print(model_steps)  
                 elif args.plot==2:
+                    model_steps1=[model_names[i]]
                     model_steps=[model_names[i]]
                     print(model_steps)                   
                     
