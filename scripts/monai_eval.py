@@ -672,71 +672,47 @@ if __name__=="__main__":
             print("No SISA yet")
 
         def ensemble_evaluate(post_transforms, models):
-            # print(post_transforms.transforms)
-            if val==1:
-                evaluator = EnsembleEvaluator(
-                    device=device,
-                    val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
-                    pred_keys=["pred"+str(i) for i in range(len(models))], 
-                    networks=models, # models defined above
-                    inferer=SlidingWindowInferer(
-                        roi_size=(192,192, 144), sw_batch_size=4, overlap=0),
-                    postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
-                    key_val_metric={
-                            "test_mean_dice": MeanDice(
-                                include_background=True,
-                                output_transform=from_engine(["pred", "label"]) ,reduction='none' # takes all the preds and labels and turns them into one list each
-                                
-                            )},
-                   
-                    additional_metrics={ 
-                        "Channelwise": MeanDice(
+            
+            for i in range(len(models)):
+                key_val_metric={
+                    f"test_mean_dice": MeanDice(
                         include_background=True,
-                        output_transform=from_engine(["pred", "label"]),
-                        reduction="mean_batch"),"Hausdorff":HausdorffDistance(
-                        include_background=False,                      
-                        output_transform=from_engine(["pred", "label"]),
-                        reduction='mean_channel',
-                        percentile=95),"Pred size":PredSize(
-                        output_transform=from_engine(['pred','label']),
-                        reduction='none'
-                        )
-                    }
-                )
-            else:
-                evaluator = EnsembleEvaluator(
-                    device=device,
-                    val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
-                    pred_keys=["pred"+str(i) for i in range(len(models))], 
-                    networks=models, # models defined above
-                    inferer=SlidingWindowInferer(
-                        roi_size=(192,192, 144), sw_batch_size=4, overlap=0),
-                    postprocessing=post_transforms, # this is going to call post_transforms based on type of ensemble
-                    key_val_metric={
-                            "test_mean_dice": MeanDice(
-                                include_background=True,
-                                output_transform=from_engine(["pred", "label"]),reduction='mean'  # takes all the preds and labels and turns them into one list each
-                                
-                            )},
-                   
-                    additional_metrics={ 
-                        "Channelwise": MeanDice(
+                        output_transform=from_engine([f"pred{i}", "label"]),
+                        reduction='mean'
+                    )
+                }
+                additional_metrics={ 
+                    f"Channelwise": MeanDice(
                         include_background=True,
-                        output_transform=from_engine(["pred", "label"]),
-                        reduction="mean_batch"),"Hausdorff":HausdorffDistance(
+                        output_transform=from_engine([f"pred{i}", "label"]),
+                        reduction="mean_batch"
+                    ),
+                    f"Hausdorff": HausdorffDistance(
                         include_background=False,                      
-                        output_transform=from_engine(["pred", "label"]),
+                        output_transform=from_engine([f"pred{i}", "label"]),
                         reduction='mean_channel',
-                        percentile=95),"pred size":PredSize(
-                        output_transform=from_engine(['pred','label']),
+                        percentile=95
+                    ),
+                    f"pred size": PredSize(
+                        output_transform=from_engine([f"pred{i}", 'label']),
                         reduction='none'
-                        )
-                    }
-                )
-                
-               
+                    )
+                }
 
-            evaluator.run()
+                evaluator = EnsembleEvaluator(
+                    device=device,
+                    val_data_loader=test_loader,
+                    pred_keys=[f"pred{i}"],
+                    networks=[models[i]],
+                    inferer=SlidingWindowInferer(
+                        roi_size=(192,192, 144), sw_batch_size=4, overlap=0
+                    ),
+                    postprocessing=post_transforms,
+                    key_val_metric=key_val_metric,
+                    additional_metrics=additional_metrics
+                )
+                evaluator.run()
+
             
             # print("validation stats: ",evaluator.get_validation_stats())
             mean_dice=evaluator.state.metrics['test_mean_dice']#[:,1]#wt score
@@ -919,12 +895,18 @@ if __name__=="__main__":
                     #if val==1: # in case we want individualised score only for train data
                     scores["Ensemble"]=md
                     scores["HausEnsemble"]=haus
-                
-                mean_dice.append(md1.tolist())
-                hausdorff.append(haus1.tolist())
-                tumor_core.append(tc1)
-                whole_tumor.append(wt1)
-                enhancing_tumor.append(et1)
+                if plot=1:
+                    mean_dice.append(md1.tolist())
+                    hausdorff.append(haus1.tolist())
+                    tumor_core.append(tc1)
+                    whole_tumor.append(wt1)
+                    enhancing_tumor.append(et1)
+                else:
+                    mean_dice.append(md1)
+                    hausdorff.append(haus1)
+                    tumor_core.append(tc1)
+                    whole_tumor.append(wt1)
+                    enhancing_tumor.append(et1)
                 del models
                 gc.collect()
                 torch.cuda.empty_cache()
