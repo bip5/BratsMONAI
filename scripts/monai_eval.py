@@ -4,6 +4,7 @@ import pandas as pd
 # print(pandas.__version__)
 import nibabel as nb
 
+
 import os
 import monai
 from monai.data import Dataset
@@ -57,11 +58,11 @@ from monai.handlers.ignite_metric import IgniteMetric
 from monai.config.type_definitions import NdarrayOrTensor
 from monai.networks import one_hot
 from monai.networks.layers import GaussianFilter, apply_filter
-from monai.transforms.transform import Transform
+
 from monai.transforms.utils import fill_holes, get_largest_connected_component_mask
 from monai.metrics.utils import do_metric_reduction
 from monai.transforms.utils_pytorch_numpy_unification import unravel_index
-from monai.utils import TransformBackends, convert_data_type, deprecated_arg, ensure_tuple, look_up_option
+from monai.utils import convert_data_type, deprecated_arg, ensure_tuple, look_up_option
 from monai.utils.type_conversion import convert_to_dst_type
 from monai.losses import DiceLoss
 from monai.utils import UpsampleMode,MetricReduction
@@ -84,113 +85,42 @@ from torchsummary import summary
 import gc
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
+from eval_utils import *
+
+from config import *
+from brats_transforms import *
+import config
 
 
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser(prog=sys.argv[0],description="Eval parser")
 
-    parser.add_argument("--model",default="SegResNet",type=str,help="name of model to use")
     parser.add_argument("--load_barlow",default =0, type=int,help="flag to use barlow twins backbone to initialise weight")
-    parser.add_argument("--load_save",default =0, type=int,help="flag to use saved model weight")
-    parser.add_argument("--load_name",default="./2022-01-20T16best_metric_model.pth", type=str, help="file path to load previously saved model")
-    parser.add_argument("--batch_size",default=1, type=int, help="to define batch size")
-    parser.add_argument("--save_name", default="Best_metric_model.pth",type=str, help="save name")
-    parser.add_argument("--upsample", default="DECONV",type=str, help="flag to choose deconv options- NONTRAINABLE, DECONV, PIXELSHUFFLE")
     parser.add_argument("--barlow_final",default=1, type=int, help="flag to use checkpoint instead of final model for barlow")
     parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
-    parser.add_argument("--max_samples",default=4,type=int,help="max number of samples to use for training")
-    parser.add_argument("--ensemble",default=0,type=int,help="flag to use ensemble with models provided")
-    parser.add_argument("--avgmodel",default=0,type=int,help="flag to create an averaged model from existing models")
-    parser.add_argument("--plot",default=0, type=int, help="plot=1,ensembleand plot, plot=2 evaluate all models in list")
-    parser.add_argument("--val",default=0, type=int, help="val or not")
-    parser.add_argument("--eval_path",default='/scratch/a.bip5/BraTS 2021/',type=str,help="path for evaluation models")
-    parser.add_argument('--savename',default='_',type=str,help='option to add additional details to identify models evaluated in csv file')
-    parser.add_argument('--workers',default=8,type=int,help='option to add additional details to identify models evaluated in csv file')
-    parser.add_argument('--reduction',default='none',type=str,help='reduction for the key metric, mean, none etc')
+
     args=parser.parse_args()
 
     print(' '.join(sys.argv))
 
 
-    IMG_EXTENSIONS = [
-        '.jpg', '.JPG', '.jpeg', '.JPEG',
-        '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP', '.tiff', '.npy', '.gz'
-    ]
-
-
     set_determinism(seed=0)
 
-    # A source: Nvidia HDGAN
-    def is_image_file(filename):
-        return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
-    # makes a list of all image paths inside a directory
-    def make_dataset(data_dir):
-        all_files = []
-        images=[]
-        labels=[]
-        im_temp=[]
-        assert os.path.isdir(data_dir), '%s is not a valid directory' % data_dir
-        
-        for root, fol, _ in sorted(os.walk(data_dir)): # list folders and root
-            for folder in fol:                    # for each folder
-                 path=os.path.join(root, folder)  # combine root path with folder path
-                 for root1, _, fnames in os.walk(path):       #list all file names in the folder         
-                    for f in fnames:                          # go through each file name
-                        fpath=os.path.join(root1,f)
-                        if is_image_file(f):                  # check if expected extension
-                            if re.search("seg",f):            # look for the label files- have'seg' in the name 
-                                labels.append(fpath)
-                            else:
-                                im_temp.append(fpath)         # all without seg are image files, store them in a list for each folder
-                    images.append(im_temp)                    # add image files for each folder to a list
-                    im_temp=[]
-        return images, labels
+    # Get a dictionary of the current global namespace
+    namespace = globals().copy()
 
-    # A source: https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/brats_segmentation_3d.ipynb
-    class ConvertToMultiChannelBasedOnBratsClassesd(MapTransform):
-        """
-        Convert labels to multi channels based on brats classes:
-        label 2 is the peritumoral edema
-        label 4 is the GD-enhancing tumor
-        label 1 is the necrotic and non-enhancing tumor core
-        The possible classes are TC (Tumor core), WT (Whole tumor)
-        and ET (Enhancing tumor).
+    for name, value in namespace.items():
+        print(f"{name}: {value}")
 
-        """
-
-        def __call__(self, data):
-            d = dict(data)
-            for key in self.keys:
-                result = []
-                # merge label 1 and label 4 to construct TC
-                result.append(np.logical_or(d[key] == 1, d[key] == 4))
-                # merge labels 1, 2 and 3 to construct WT
-                result.append(
-                    np.logical_or(
-                        np.logical_or(d[key] == 2, d[key] == 4), d[key] == 1
-                    )
-                )
-                # label 2 is ET
-                result.append(d[key] == 4)
-                d[key] = np.stack(result, axis=0).astype(np.float32)
-            return d
-                
 
     ##################~~~~~~~~~~~~~~~~~~~~~~~~~Model Definition~~~~~~~~~~~~~~~~~~~~~~~#################
-    root_dir="./"
-
-    max_epochs = 0
-    val_interval = 1
-    VAL_AMP = True
-    saver_ori = SaveImage(output_dir='/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="ori",print_log=True)
-    saver_gt = SaveImage(output_dir='/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="gt",print_log=True)
-    saver_seg = SaveImage(output_dir='/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/outputs', output_ext=".nii.gz", output_postfix="seg",print_log=True)
+ 
 
     # standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
     device = torch.device("cuda:0")
-    if args.model=="UNet":
+    if model=="UNet":
          model=UNet(
             spatial_dims=3,
             in_channels=4,
@@ -198,7 +128,7 @@ if __name__=="__main__":
             channels=(64,128,256,512,1024),
             strides=(2,2,2,2)
             ).to(device)
-    elif args.model=="SegResNet":
+    elif model=="SegResNet":
         model = SegResNet(
             blocks_down=[1, 2, 2, 4],
             blocks_up=[1, 1, 1],
@@ -206,21 +136,24 @@ if __name__=="__main__":
             norm="instance",
             in_channels=4,
             out_channels=3,
-            upsample_mode=UpsampleMode[args.upsample]    
+            upsample_mode=UpsampleMode[upsample]    
             ).to(device)
 
     else:
-        model = locals() [args.model](4,3).to(device)
+        model = locals() [model](4,3).to(device)
 
     with torch.cuda.amp.autocast():
-        summary(model,(4,192,192,144))
+        summary(model,(4,96,96,72)) #just double all sizes
     model=torch.nn.DataParallel(model)
+   
     print("Model defined and passed to GPU")
 
-    loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
-    optimizer = torch.optim.Adam(model.parameters(), 1e-4, weight_decay=1e-5)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
-
+    loss_function = loss_function
+    optimizer=getattr(torch.optim,optimizer_name)
+    optimizer=optimizer(model.parameters(), lr, weight_decay=weight_decay) 
+    scheduler=getattr(torch.optim.lr_scheduler,lr_scheduler_name)
+    lr_scheduler = scheduler(optimizer, T_max=schedule_epochs)
+  
     dice_metric = DiceMetric(include_background=True, reduction="mean")
     dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
 
@@ -244,8 +177,8 @@ if __name__=="__main__":
 
         print("Model weights loaded from pretrained Barlow Twins Backbone")
 
-    if args.load_save==1:    
-        ckpt=torch.load(args.load_path)
+    if load_save==1:    
+        ckpt=torch.load(load_path)
         
         model.load_state_dict(ckpt, strict=False)
         print("Model weights loaded from best metric model")
@@ -277,124 +210,10 @@ if __name__=="__main__":
 
 
 
-    ########### ~~~~~~~~~~~~~~~~~~~~~~~ Evaluation ~~~~~~~~~~~~~~~~~~~~~FIX this
-    
-    
-    class Ensemble:
-        @staticmethod
-        def get_stacked_torch(img: Union[Sequence[NdarrayOrTensor], NdarrayOrTensor]) -> torch.Tensor:
-            """Get either a sequence or single instance of np.ndarray/torch.Tensor. Return single torch.Tensor."""
-            if isinstance(img, Sequence) and isinstance(img[0], np.ndarray):
-                print("converting pred list to tensor")
-                img = [torch.as_tensor(i) for i in img]
-            elif isinstance(img, np.ndarray):
-                print("converting pred list to tensor")  
-                img = torch.as_tensor(img)
-            # else:
-                # print("conversion wasn't necessary")
-            
-            out: torch.Tensor = torch.stack(img) if isinstance(img, Sequence) else torch.unsqueeze(img ,dim=0) # type: ignore
-            return out
-
-        @staticmethod
-        def post_convert(img: torch.Tensor, orig_img: Union[Sequence[NdarrayOrTensor], NdarrayOrTensor]) -> NdarrayOrTensor:
-            orig_img_ = orig_img[0] if isinstance(orig_img, Sequence) else orig_img
-            out, *_ = convert_to_dst_type(img, orig_img_)
-            return out
-            
-
-    class ConfEnsemble(Ensemble, Transform):
 
 
-        backend = [TransformBackends.TORCH]
-
-        def __init__(self, weights: Optional[Union[Sequence[float], NdarrayOrTensor]] = None) -> None:
-            self.weights = torch.as_tensor(weights, dtype=torch.float) if weights is not None else None
-
-        def __call__(self, img: Union[Sequence[NdarrayOrTensor], NdarrayOrTensor]) -> NdarrayOrTensor:
-            img_ = self.get_stacked_torch(img)
-            if self.weights is not None:
-                self.weights = self.weights.to(img_.device)
-                shape = tuple(self.weights.shape)
-                for _ in range(img_.ndimension() - self.weights.ndimension()):
-                    shape += (1,)
-                weights = self.weights.reshape(*shape)
-
-                img_ = img_ * weights / weights.mean(dim=0, keepdim=True)
-                
-            
-            img_=torch.sort(img_,dim=0,descending=True).values #img is a tensor        
-            
-            # print(img_[0,2,100,100,70],img_[1,2,100,100,70],img_[2,2,100,100,70],img_[3,2,100,100,70],img_[4,2,100,100,70])
-            out_pt = torch.mean(img_[0:10,:,:,:,:], dim=0)#[0:3,:,:,:,:]
-            # print(out_pt.shape)
-            x=self.post_convert(out_pt, img)
-            
-           
-            return x
-            
-    class Ensembled(MapTransform):
-       
-
-        backend = list(set(ConfEnsemble.backend) )
-
-        def __init__(
-            self, keys,ensemble,
-            output_key = None,
-            allow_missing_keys = False,
-        ) -> None:
-       
-            super().__init__(keys, allow_missing_keys)
-            if not callable(ensemble):
-                raise TypeError(f"ensemble must be callable but is {type(ensemble).__name__}.")
-            self.ensemble = ensemble
-            if len(self.keys) > 1 and output_key is None:
-                raise ValueError("Incompatible values: len(self.keys) > 1 and output_key=None.")
-            self.output_key = output_key if output_key is not None else self.keys[0]
-
-        def __call__(self, data):
-            d = dict(data)
-            
-            if len(self.keys) == 1 and self.keys[0] in d:
-                items = d[self.keys[0]]
-            else:
-                items = [d[key] for key in self.key_iterator(d)]
-
-            if len(items) > 0:
-                d[self.output_key] = self.ensemble(items)
-
-            return d
-            
-    class ConfEnsembled(Ensembled):
-        """
-        Dictionary-based wrapper of :py:class:`monai.transforms.MeanEnsemble`.
-        """
-
-        backend = ConfEnsemble.backend
-
-        def __init__(
-            self,
-            keys,
-            output_key = None,
-            weights = None,
-        ) -> None:
-    
-            ensemble = ConfEnsemble(weights=weights)
-            super().__init__(keys, ensemble, output_key)
-
-    test_transforms0 = Compose(
-        [
-            LoadImaged(keys=["image", "label"]),
-            EnsureChannelFirstD(keys=["image"]),
-            ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-            
-            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-            EnsureTyped(keys=["image", "label"]),
-        ]
-        )
-
-    indexes=np.arange(args.max_samples)
-    fold=int(args.max_samples/10)
+    indexes=np.arange(max_samples)
+    fold=int(max_samples/10)
     
     class TestDataset(Dataset):
         def __init__(self,data_dir,transform=None):
@@ -404,10 +223,10 @@ if __name__=="__main__":
             
         def __len__(self):
     #         return len(os.listdir(self.label_dir))
-            if args.val==1:
+            if val==1:
                 return len(self.label_list)
             else:
-                return min(args.max_samples,len(self.label_list))
+                return min(max_samples,len(self.label_list))
         
         def __getitem__(self,idx):
             image=self.image_list[idx]
@@ -554,8 +373,8 @@ if __name__=="__main__":
             
    
         
-    if args.val==1:
-        val_indices=np.random.choice(np.arange(1000),args.max_samples,replace=False)
+    if val==1:
+        val_indices=np.random.choice(np.arange(1000),max_samples,replace=False)
         test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData",transform=test_transforms0)
         test_ds=Subset(test_ds,val_indices)
         gt_all=make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData")[1]
@@ -563,7 +382,7 @@ if __name__=="__main__":
         
         #print("list of input gt files",make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData")[1])
     else:
-        val_indices=np.random.choice(np.arange(200),args.max_samples,replace=False)
+        val_indices=np.random.choice(np.arange(200),max_samples,replace=False)
         test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData",transform=test_transforms0)
         test_ds=Subset(test_ds,val_indices)
         gt_all=make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData")[1]
@@ -793,7 +612,7 @@ if __name__=="__main__":
         
     
 
-    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.workers) # this should return 10 different instances
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=workers) # this should return 10 different instances
 
     # print("input type",type(next(iter(test_loader))))
 
@@ -823,20 +642,20 @@ if __name__=="__main__":
     post_pred= Compose([EnsureType(),Activations(sigmoid=True), AsDiscrete(threshold=0.2)])
     post_label = Compose([EnsureType()])
     
-    
+    print(type(model))
 
-    if args.ensemble==1:
+    if ensemble==1:
     
-        if args.model=="UNet":
-            model_names= os.listdir(args.eval_path)
+        if config.model=="UNet":
+            model_names= os.listdir(eval_path)
             #["UNetep100rs4C","UNetep99rs4C","UNetep98rs4C","UNetep97rs4C","UNetep96rs4C"]
 
 
             print(model_names)
             # wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
-        elif args.model=="SegResNet":
-            model_names=os.listdir(args.eval_path)#'/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/Evaluation Folder1')#["SegResNetep100rs2C","SegResNetep99rs2C","SegResNetep98rs2C","SegResNetep97rs2C","SegResNetep96rs2C"]
+        elif config.model=="SegResNet":
+            model_names=os.listdir(eval_path)#'/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/Evaluation Folder1')#["SegResNetep100rs2C","SegResNetep99rs2C","SegResNetep98rs2C","SegResNetep97rs2C","SegResNetep96rs2C"]
             
            
 
@@ -854,7 +673,7 @@ if __name__=="__main__":
 
         def ensemble_evaluate(post_transforms, models):
             # print(post_transforms.transforms)
-            if args.val==1:
+            if val==1:
                 evaluator = EnsembleEvaluator(
                     device=device,
                     val_data_loader=test_loader, #test dataloader - this is loading all 5 sets of data
@@ -961,15 +780,15 @@ if __name__=="__main__":
         
         
         
-        if args.plot>0:
+        if plot>0:
             for i in range(int(model_num)): #//5)): #cycle through to each of the model name 
-                if args.plot==1:
+                if plot==1:
                     model_steps1=[model_names[i]]
                     # if i%5!=0:
                      # continue
                     model_steps=model_names#[:i+1]#[:(i+1)]
                     print(model_steps)  
-                elif args.plot==2:
+                elif plot==2:
                     model_steps1=[model_names[i]]
                     model_steps=[model_names[i]]
                     print(model_steps)                   
@@ -978,7 +797,7 @@ if __name__=="__main__":
                 models1=[]
                 for name in model_steps:
                    
-                    if args.model=="UNet":
+                    if config.model=="UNet":
                          model=UNet(
                             spatial_dims=3,
                             in_channels=4,
@@ -986,7 +805,7 @@ if __name__=="__main__":
                             channels=(64,128,256,512,1024),
                             strides=(2,2,2,2)
                             ).to(device)
-                    elif args.model=="SegResNet":
+                    elif config.model=="SegResNet":
                         model = SegResNet(
                             blocks_down=[1, 2, 2, 4],
                             blocks_up=[1, 1, 1],
@@ -994,21 +813,21 @@ if __name__=="__main__":
                             norm="instance",
                             in_channels=4,
                             out_channels=3,
-                            upsample_mode=UpsampleMode[args.upsample]    
+                            upsample_mode=UpsampleMode[upsample]    
                             ).to(device)
 
                     else:
-                        model = locals() [args.model](4,3).to(device)
+                        model = locals() [model](4,3).to(device)
                     
                     model=torch.nn.DataParallel(model)
                     
-                    model.load_state_dict(torch.load(args.eval_path+'/'+name),strict=False)
+                    model.load_state_dict(torch.load(eval_path+'/'+name),strict=False)
                     model.eval()
                     models.append(model)
                     
                 for name in model_steps1:
                
-                    if args.model=="UNet":
+                    if config.model=="UNet":
                          model1=UNet(
                             spatial_dims=3,
                             in_channels=4,
@@ -1016,7 +835,7 @@ if __name__=="__main__":
                             channels=(64,128,256,512,1024),
                             strides=(2,2,2,2)
                             ).to(device)
-                    elif args.model=="SegResNet":
+                    elif config.model=="SegResNet":
                         model1 = SegResNet(
                             blocks_down=[1, 2, 2, 4],
                             blocks_up=[1, 1, 1],
@@ -1024,32 +843,32 @@ if __name__=="__main__":
                             norm="instance",
                             in_channels=4,
                             out_channels=3,
-                            upsample_mode=UpsampleMode[args.upsample]    
+                            upsample_mode=UpsampleMode[upsample]    
                             ).to(device)
 
                     else:
-                        model1 = locals() [args.model](4,3).to(device)
+                        model1 = locals() [model1](4,3).to(device)
                     
                     model1=torch.nn.DataParallel(model1)
                     
-                    model1.load_state_dict(torch.load(args.eval_path+'/'+name),strict=False)
+                    model1.load_state_dict(torch.load(eval_path+'/'+name),strict=False)
                     model1.eval()
                     models1.append(model1)
                         
                 num_models=len(models)  
-                if args.avgmodel:
+                if avgmodel:
                     for key in model.state_dict().keys():
                         for i in models[:-1]:
                             model.state_dict()[key]=(i.state_dict()[key]+model.state_dict()[key] )
                         model.state_dict()[key]=model.state_dict()[key]/num_models
                     torch.save(
                         model.state_dict(),
-                        os.path.join("./saved models", date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg5160"))
+                        os.path.join("./saved models", date.today().isoformat()+'T'+str(datetime.today().hour)+ model+"zoo_avg5160"))
                         
                     print("saved zoo model")
                     
-                    args.ensemble = 0
-                    args.load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"
+                    ensemble = 0
+                    load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ model+"zoo_avg"
                     
                     break
                         
@@ -1070,7 +889,7 @@ if __name__=="__main__":
                         ),
                         Activationsd(keys="pred", sigmoid=True),
                         AsDiscreted(keys="pred", threshold=0.2),
-                        SaveImaged(keys="pred",output_dir='/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/outputs', output_ext=".nii.gz",meta_key_postfix=None, output_postfix= str(args.val),print_log=False)
+                        SaveImaged(keys="pred",output_dir='/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/outputs', output_ext=".nii.gz",meta_key_postfix=None, output_postfix= str(val),print_log=False)
                     ]
                 ) 
                 
@@ -1097,7 +916,7 @@ if __name__=="__main__":
                 scores['haus_'+ model_steps1[0]]=haus1
                 if i==4:
                     md,tc,wt,et,haus,pred_size,pred_tc,pred_et,pred_dp_sag_tc,pred_dp_sag_wt,pred_dp_sag_et,pred_dp_fr_tc,pred_dp_fr_wt,pred_dp_fr_et,pred_dp_ax_tc,pred_dp_ax_wt,pred_dp_ax_et=ensemble_evaluate(mean_post_transforms, models)
-                    #if args.val==1: # in case we want individualised score only for train data
+                    #if val==1: # in case we want individualised score only for train data
                     scores["Ensemble"]=md
                     scores["HausEnsemble"]=haus
                 
@@ -1109,7 +928,7 @@ if __name__=="__main__":
                 del models
                 gc.collect()
                 torch.cuda.empty_cache()
-            # if args.val==1:
+            # if val==1:
                     # sorted_scores=dict(sorted(scores.items(),key=lambda item: item[1])) # sorts the models by score
                     # print (sorted_scores)
             # print(mean_dice,'mean_dice')
@@ -1167,7 +986,7 @@ if __name__=="__main__":
             
             
             
-            scores_df.to_csv('eval_score_val'+str(args.val)+'_'+date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+args.savename+'.csv')
+            scores_df.to_csv('eval_score_val'+str(val)+'_'+date.today().isoformat()+'T'+str(datetime.today().hour)+ model+csv_name+'.csv')
             fig, ax = plt.subplots(figsize=(10,6))
             
             ax.plot(mean_dice_model, label="Mean Dice")
@@ -1181,13 +1000,13 @@ if __name__=="__main__":
             ax.set_title("Dice score change with number of models")
             fig.tight_layout()
             
-            plt.savefig("Dice"+ model_names[0]+str(args.plot))
+            plt.savefig("Dice"+ model_names[0]+str(plot))
             
             # print('mean_dice', mean_dice) 
         else:          
             models=[]
             for i,name in enumerate(model_names):
-                if args.model=="UNet":
+                if model=="UNet":
                      model=UNet(
                         spatial_dims=3,
                         in_channels=4,
@@ -1195,7 +1014,7 @@ if __name__=="__main__":
                         channels=(64,128,256,512,1024),
                         strides=(2,2,2,2)
                         ).to(device)
-                elif args.model=="SegResNet":
+                elif model=="SegResNet":
                     model = SegResNet(
                         blocks_down=[1, 2, 2, 4],
                         blocks_up=[1, 1, 1],
@@ -1203,32 +1022,32 @@ if __name__=="__main__":
                         norm="instance",
                         in_channels=4,
                         out_channels=3,
-                        upsample_mode=UpsampleMode[args.upsample]    
+                        upsample_mode=UpsampleMode[upsample]    
                         ).to(device)
 
                 else:
-                    model = locals() [args.model](4,3).to(device)
+                    model = locals() [model](4,3).to(device)
                 
                 model=torch.nn.DataParallel(model)
                 
-                model.load_state_dict(torch.load(args.eval_path+'/'+name),strict=False)
+                model.load_state_dict(torch.load(eval_path+'/'+name),strict=False)
                 model.eval()
                 models.append(model)
                 
             num_models=len(models)  
-            if args.avgmodel:
+            if avgmodel:
                 for key in model.state_dict().keys():
                     for i in models[:-1]:
                         model.state_dict()[key]=(i.state_dict()[key]+model.state_dict()[key] )
                     model.state_dict()[key]=model.state_dict()[key]/num_models
                 torch.save(
                     model.state_dict(),
-                    os.path.join("./saved models", date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"))
+                    os.path.join("./saved models", date.today().isoformat()+'T'+str(datetime.today().hour)+ model+"zoo_avg"))
                     
                 print("saved zoo model")
                 
-                args.ensemble = 0
-                args.load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ args.model+"zoo_avg"
+                ensemble = 0
+                load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ model+"zoo_avg"
      
                                 
 
@@ -1253,9 +1072,9 @@ if __name__=="__main__":
             tumor_core.append(tc)
             whole_tumor.append(wt)
             enhancing_tumor.append(et)
-    elif args.ensemble==0:
+    elif ensemble==0:
         
-        model.load_state_dict(torch.load("./ssensemblemodels0922/Evaluation Folder1/"+args.load_name),strict=False)
+        model.load_state_dict(torch.load("./ssensemblemodels0922/Evaluation Folder 1/"+load_name),strict=False)
         # model.to(device)
         model.eval()
 
@@ -1267,7 +1086,7 @@ if __name__=="__main__":
                 test_data["pred"] = sliding_window_inference(
                     inputs=test_inputs,
                     roi_size=(192,192, 144),
-                    sw_batch_size=args.batch_size,
+                    sw_batch_size=batch_size,
                     predictor=model,
                     overlap=0,
                 )#inference(test_inputs) #perform inference
