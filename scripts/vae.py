@@ -59,8 +59,11 @@ from monai.networks.layers.factories import Dropout
 from monai.networks.layers.utils import get_act_layer, get_norm_layer
 from monai.utils import UpsampleMode
 import matplotlib.pyplot as plt
-
-
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
+torch.multiprocessing.set_sharing_strategy('file_system')
+os.environ["OMP_NUM_THREADS"] = "4"
+from torch.utils.data.distributed import DistributedSampler
 
         
 if __name__=="__main__":
@@ -78,8 +81,8 @@ if __name__=="__main__":
     parser.add_argument("--bar_model_name",default="checkpoint.pth", type=str,help="model name to load")
     parser.add_argument("--max_samples",default=10,type=int,help="max number of samples to use for training")
     parser.add_argument("--fold_num",default=1,type=str,help="cross-validation fold number")
-    parser.add_argument("--epochs",default=150,type=int,help="number of epochs to run")
-    parser.add_argument("--CV_flag",default=0,type=int,help="is this a cross validation fold? 1=yes")
+    parser.add_argument("--epochs",default=1200,type=int,help="number of epochs to run")
+    parser.add_argument("--CV_flag",default=1,type=int,help="is this a cross validation fold? 1=yes")
     parser.add_argument("--seed",default=0,type=int, help="random seed for the script")
     parser.add_argument("--method",default='A', type=str,help='A,B or C')
     parser.add_argument("--Tmax",default=4, type=int,help='number epochs to cycle lr')
@@ -402,7 +405,7 @@ if __name__=="__main__":
 
             x_vae = self.vae_conv_final(x_vae)
         
-            vae_mse_loss = F.mse_loss(net_input*mask, x_vae)
+            vae_mse_loss = F.mse_loss(net_input*(1-mask), x_vae)
             vae_loss = vae_reg_loss + vae_mse_loss
             return vae_loss
 
