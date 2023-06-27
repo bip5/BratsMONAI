@@ -4,9 +4,11 @@ import nibabel
 from typing import List, Optional, Sequence, Tuple, Union
 import os
 import monai
-from monai.data import Dataset
+from monai.data import Dataset,partition_dataset
 from monai.utils import set_determinism
 from monai.apps import CrossValidation
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel
 
 from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     ScaleIntensityD, SpacingD, OrientationD,\
@@ -59,11 +61,13 @@ from monai.networks.layers.factories import Dropout
 from monai.networks.layers.utils import get_act_layer, get_norm_layer
 from monai.utils import UpsampleMode
 import matplotlib.pyplot as plt
+import resource
+from torch.utils.data.distributed import DistributedSampler
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
 torch.multiprocessing.set_sharing_strategy('file_system')
 os.environ["OMP_NUM_THREADS"] = "4"
-from torch.utils.data.distributed import DistributedSampler
+
 
         
 if __name__=="__main__":
@@ -541,26 +545,31 @@ if __name__=="__main__":
     )
 
     #dataset=DecathlonDataset(root_dir="./", task="Task05_Prostate",section="training", transform=xform, download=True)
-    train_dataset=BratsDataset( "/scratch/a.bip5/BraTS 2021/RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
+    local_rank = int(os.environ['LOCAL_RANK'])
+    dist.init_process_group(backend="nccl", init_method="env://")
+    train_dataset=partition_dataset(data=BratsDataset( "/scratch/a.bip5/BraTS 2021/RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ), shuffle=False,num_partitions=dist.get_world_size(),even_divisible=False)[dist.get_rank()] 
+    val_dataset=partition_dataset(data=BratsDataset( "/scratch/a.bip5/BraTS 2021/RSNA_ASNR_MICCAI_BraTS2021_TestData"  ,transform=val_transform ), shuffle=False,num_partitions=dist.get_world_size(),even_divisible=False)[dist.get_rank()]
 
     
 
 
-    if args.CV_flag==1:
-        print("loading cross val data")
-        val_dataset=Subset(train_dataset,val_indices)
-        train_dataset=Subset(train_dataset,train_indices)
+    # if args.CV_flag==1:
+        # print("loading cross val data")
+        # val_dataset=Subset(train_dataset,val_indices)
+        # train_dataset=Subset(train_dataset,train_indices)
         
-    else:     
-        print("loading data for single model training")
-        start=int(args.max_samples//10*8)
-        val_dataset=Subset(train_dataset,np.arange(start,args.max_samples))
-        train_dataset=Subset(train_dataset,np.arange(start))
+    # else:     
+        # print("loading data for single model training")
+        # start=int(args.max_samples//10*8)
+        # val_dataset=Subset(train_dataset,np.arange(start,args.max_samples))
+        # train_dataset=Subset(train_dataset,np.arange(start))
         
         
     print("number of files processed: ", train_dataset.__len__())
-    train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,num_workers=args.workers)
-    val_loader=DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=args.workers)
+    train_sampler = DistributedSampler(train_dataset)
+    train_loader=DataLoader(train_dataset, batch_size=args.batch_size, sampler=train_sampler,num_workers=args.workers)
+    val_sampler = DistributedSampler(val_dataset)
+    val_loader=DataLoader(val_dataset, batch_size=args.batch_size, sampler=val_sampler,num_workers=args.workers)
     print("All Datasets assigned")
 
     root_dir="/scratch/a.bip5/BraTS 2021/"
@@ -619,8 +628,12 @@ if __name__=="__main__":
 
     # with torch.cuda.amp.autocast():
         # summary(model,(4,128,128,128),(128,128,128))
-
-    model=torch.nn.DataParallel(model)
+    device = torch.device(f"cuda:{local_rank}")
+    torch.cuda.set_device(device)
+    model=model.to(device)
+    
+    model = DistributedDataParallel(module=model, device_ids=[device],find_unused_parameters=True)
+    #model=torch.nn.DataParallel(model)
     print("Model defined and passed to GPU")
     
     if args.load_save==1:
@@ -740,7 +753,7 @@ if __name__=="__main__":
                         val_data["image"].to(device),
                         val_data["mask"].to(device),
                     )
-                    print(torch.unique(val_outputs))
+                    
                     val_outputs = inference(val_inputs)
                     val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
                     
