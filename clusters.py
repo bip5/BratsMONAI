@@ -1,10 +1,12 @@
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_score
 import pandas as pd
 import numpy as np
 import argparse
 import sys
+import matplotlib.pyplot as plt
 
 parser=argparse.ArgumentParser(prog=sys.argv[0],description="Eval parser")
 parser.add_argument("--seed",default =0, type=int,help="flag to use barlow twins backbone to initialise weight")
@@ -25,55 +27,105 @@ features = StandardScaler().fit_transform(df_features)
 print(np.isinf(features).sum())
 features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
+# Define the range of variations
+variation_range = np.arange(50, 100, 5)  # 50%, 55%, ..., 95%
 
-# Apply PCA, while preserving 95% of the variance
-pca = PCA(n_components=0.99)
-features_pca = pca.fit_transform(features)
+# Initialize a dictionary to store silhouette scores
+silhouette_scores_dict = {}
 
-# Set 'k' to the number of principal components
-k = features_pca.shape[1]
-print('k=',k)
+for variation in variation_range:
+    x = variation / 100  # Convert to a fraction
+    print(f"Running PCA for {x*100}% variance")
 
-range_n_clusters=np.arange(2,k)
+    # Apply PCA, while preserving x% of the variance
+    pca = PCA(n_components=x)
+    features_pca = pca.fit_transform(features)
+
+    # Set 'k' to the number of principal components
+    k = features_pca.shape[1]
+    print(f'Number of principal components (k) = {k}')
+
+    range_n_clusters = np.arange(2, k + 1)
+
+    # Initialize a list to store silhouette scores for this variation level
+    silhouette_scores_list = []
+
+    for n_clusters in range_n_clusters:
+        # Initialize KMeans with n_clusters
+        kmeans = KMeans(n_clusters=n_clusters)
+        
+        # Fit the model and get the cluster labels
+        cluster_labels = kmeans.fit_predict(features_pca)
+
+        # Calculate the Silhouette Score
+        silhouette_avg = silhouette_score(features_pca, cluster_labels)
+        print(f"For n_clusters = {n_clusters}, the average silhouette_score is : {silhouette_avg}")
+
+        # Append the silhouette score to the list
+        silhouette_scores_list.append(silhouette_avg)
+
+    # Store the list of silhouette scores in the dictionary
+    silhouette_scores_dict[variation] = silhouette_scores_list
+    
+
+# Initialize an empty DataFrame to store silhouette scores
+silhouette_scores_df = pd.DataFrame()
+
+# Populate the DataFrame
+for variation, scores in silhouette_scores_dict.items():
+    # Create a temporary Series with the silhouette scores
+    temp_series = pd.Series(scores, name=variation)
+    
+    # Append the Series as a new column in the DataFrame
+    silhouette_scores_df = pd.concat([silhouette_scores_df, temp_series], axis=1)
+
+# Rename the columns to indicate the levels of variation
+silhouette_scores_df.columns = [f"{col}% Variation" for col in silhouette_scores_df.columns]
+
+# Fill NaN values for missing scores
+silhouette_scores_df.fillna(value=np.nan, inplace=True)
+# Now, silhouette_scores_df contains the silhouette scores with NaNs for missing values
+silhouette_scores_df.index = silhouette_scores_df.index + 2
+silhouette_scores_df.index.name = 'Number of Clusters'
+# print(silhouette_scores_df)
+silhouette_scores_df.to_csv('silhouette_scores.csv')
+        # if silhouette_avg > best_score:
+            # best_score = silhouette_avg
+            # best_n_clusters = n_clusters
+            # best_labels = cluster_labels
+        
+
+# Create the line plot
+plt.figure(figsize=(12, 8))
+
+# Loop through each column (variation level) in the DataFrame
+for col in silhouette_scores_df.columns:
+    plt.plot(silhouette_scores_df.index, silhouette_scores_df[col], label=col)
+
+# Add title and labels
+plt.title('Silhouette Score vs. Number of Clusters')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Silhouette Score')
+
+# Add a legend
+plt.legend(title='Variation Level')
+plt.grid(True)
+
+# Add custom ticks at each cluster center
+plt.xticks(silhouette_scores_df.index)
+
+# Add faint dashed lines at each cluster center
+for x in silhouette_scores_df.index:
+    plt.axvline(x=x, linestyle='--', linewidth=0.5, color='grey')
+# Show the plot
+plt.savefig('silhouette_scores.jpg')
+
+sys.exit()  
+    
 
 
-# Initialize variables to store the best score and labels
-best_score = -1  # Start with -1 as Silhouette Score ranges from -1 to 1
-best_n_clusters = 0
-best_labels = None
-
-for n_clusters in range_n_clusters:
-    # Initialize KMeans with n_clusters
-    kmeans = KMeans(n_clusters=n_clusters)
-
-# Perform K-means clustering
-kmeans = KMeans(n_clusters=k)
-kmeans.fit(features_pca)
-
-# The labels_ attribute gives the list of clusters each sample belongs to
-clusters = kmeans.labels_
-
-# Create a new DataFrame with indices, original labels and assigned clusters
-df_clusters = df[['mask_path']].copy()  # create a copy of the labels column
-df_clusters['cluster'] = clusters  # add the cluster assignments
-
-cluster_1_files= df_clusters[df_clusters['cluster'] == 1]
 
 from scipy.spatial import distance
-
-# closest_points = []
-# for i in range(kmeans.n_clusters):
-    # cluster_points_indices = np.where(kmeans.labels_ == i)[0]  # get global indices of all points in cluster i
-    # cluster_points = features_pca[cluster_points_indices]  # get all points in cluster i
-    # cluster_center = kmeans.cluster_centers_[i]  # get the center of cluster i
-    # distances = [distance.euclidean(p, cluster_center) for p in cluster_points]  # calculate distances
-    # closest_point_idx_local = np.argmin(distances)  # get the local index of the closest point
-    # closest_point_idx_global = cluster_points_indices[closest_point_idx_local]  # convert to global index
-    # closest_points.append(closest_point_idx_global)
-# closest_points=np.unique(np.array(closest_points))
-# print(len(closest_points),closest_points)
-# ensemble_files=df['mask_path'].iloc[closest_points].str.slice(0,-26)
-# ensemble_files.to_csv(f'selected_files_seed{seed}.csv')
 
 
 import pandas as pd
@@ -81,8 +133,8 @@ import pandas as pd
 # Create a Pandas Excel writer using XlsxWriter as the engine
 writer = pd.ExcelWriter('selected_files_seed.xlsx', engine='xlsxwriter')
 
-for i in range(kmeans.n_clusters):
-    cluster_points_indices = np.where(kmeans.labels_ == i)[0]  # get global indices of all points in cluster i
+for i in range(best_n_clusters):
+    cluster_points_indices = np.where(best_labels == i)[0]  # get global indices of all points in cluster i
     cluster_points = features_pca[cluster_points_indices]  # get all points in cluster i
     cluster_center = kmeans.cluster_centers_[i]  # get the center of cluster i
     distances = [distance.euclidean(p, cluster_center) for p in cluster_points]  # calculate distances
