@@ -17,11 +17,27 @@ np.random.seed(args.seed)
 # Assuming you have a DataFrame `df` with your data, and 'labels' column is not used in PCA
 df= pd.read_csv('Dataset_features.csv')
 df_features=df.drop(columns=['mask_path'])
-df_features.fillna(0)
+df_features.fillna(0,inplace=True)
 df_features.replace([np.inf, -np.inf], 0, inplace=True)
 
 # Standardize the features to have mean=0 and variance=1
-features = StandardScaler().fit_transform(df_features)
+features = StandardScaler().fit_transform(df_features) 
+
+from sklearn.preprocessing import Normalizer
+scaler = Normalizer()
+features = scaler.fit_transform(features)
+
+
+
+# from sklearn.preprocessing import MinMaxScaler
+# scaler = MinMaxScaler()
+# features = scaler.fit_transform(df_features)
+
+# from sklearn.preprocessing import RobustScaler
+# scaler = RobustScaler()
+# features = scaler.fit_transform(df_features)
+
+
 
 #check for and replace nan
 print(np.isinf(features).sum())
@@ -55,10 +71,10 @@ for variation in variation_range:
         kmeans = KMeans(n_clusters=n_clusters)
         
         # Fit the model and get the cluster labels
-        cluster_labels = kmeans.fit_predict(features_pca)
+        cluster_labels = kmeans.fit_predict(features)
 
         # Calculate the Silhouette Score
-        silhouette_avg = silhouette_score(features_pca, cluster_labels)
+        silhouette_avg = silhouette_score(features, cluster_labels)
         print(f"For n_clusters = {n_clusters}, the average silhouette_score is : {silhouette_avg}")
 
         # Append the silhouette score to the list
