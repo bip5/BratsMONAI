@@ -194,7 +194,7 @@ def save_cluster_files(df_features, n_clusters=4):
         cc_dist = pd.Series([0],name='Cluster center')
         # cc=cc_dist.append(cc,ignore_index=True)
         cc=pd.concat([cc_dist,cc]).reset_index(drop=True) #pd.concat appends row wise as axis=0 by default
-        cc['modified_mask_path']='Cluster center'
+        cc.append('Cluster center')
         
        
         
@@ -216,8 +216,9 @@ def save_cluster_files(df_features, n_clusters=4):
         features_df = pd.DataFrame(features, columns=df_features.columns[:])
         
         features_df['modified_mask_path'] = df['mask_path'].str[:-26]
-        features_df=pd.concat([pd.DataFrame(cc).T,features_df]).reset_index(drop=True) # to add the cluster center
-        
+        features_df=pd.concat([cc,features_df]).reset_index(drop=True) # to add the cluster center
+        # print(features_df.columns)
+        # sys.exit()
         # Merge the dataframes on the matching columns
         result_df = pd.merge(df_sep, features_df, left_on='Index', right_on='modified_mask_path', how='inner')
         
@@ -235,6 +236,8 @@ def save_cluster_files(df_features, n_clusters=4):
     # Write mean and std dev dataframes to separate sheets
     mean_df.to_excel(writer, sheet_name='Mean_Features', index=True)
     std_df.to_excel(writer, sheet_name='Std_Dev_Features', index=True)
+    CV_df=std_df/mean_df
+    CV_df.to_excel(writer,sheet_name='Coefficient of variation',index=True)
     
     # Save the excel
     writer.save()
