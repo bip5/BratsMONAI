@@ -831,6 +831,7 @@ if __name__=="__main__":
 
                 
             item_dict={"image":image,"mask":mask}
+            # print(item_dict)
             
             if self.transform:
                 item_dict={"image":image,"mask": mask}
@@ -885,7 +886,7 @@ if __name__=="__main__":
     )
 
     #dataset=DecathlonDataset(root_dir="/scratch/a.bip5/BraTS 2021/", task="Task05_Prostate",section="training", transform=xform, download=True)
-    train_dataset=BratsDataset("/scratch/a.bip5/BraTS 2021/RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
+    train_dataset=BratsDataset("/scratch/a.bip5/BraTS 2021/BraTS21_data/RSNA_ASNR_MICCAI_BraTS2021_TrainingData"  ,transform=train_transform ) 
 
     
 
@@ -902,7 +903,7 @@ if __name__=="__main__":
         
         
     print("number of files processed: ", train_dataset.__len__())
-    train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,num_workers=1)
+    train_loader=DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,num_workers=4)
     val_loader=DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=4)
     print("All Datasets assigned")
 
@@ -951,7 +952,7 @@ if __name__=="__main__":
 
     loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=True, to_onehot_y=False, sigmoid=True)
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=1e-5)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestart(optimizer, T_0=args.T_max)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=args.T_max)
 
     dice_metric = DiceMetric(include_background=True, reduction="mean")
     dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
@@ -1011,7 +1012,10 @@ if __name__=="__main__":
             optimizer.zero_grad()
             with torch.cuda.amp.autocast():
                 outputs = model(inputs)
-                loss = loss_function(outputs, masks)
+                loss1 = loss_function(outputs, masks)
+                loss2=loss_function(1-outputs,1-masks)
+                scaling_factor = torch.sum(masks) / torch.numel(masks)
+                loss=loss1+scaling_factor*loss2
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()

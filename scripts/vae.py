@@ -702,7 +702,10 @@ if __name__=="__main__":
                 batch_data["mask"].to(device),
             )
             optimizer.zero_grad()
-            if args.model=='SegResNetVAEx':         
+            if args.model=='SegResNetVAEx':
+                print('should be at the right place')            
+                assert masks is not None
+                
                 with torch.cuda.amp.autocast():
                     outputs,vae_loss = model(inputs,masks)
                     loss = loss_function(outputs, masks)
@@ -716,6 +719,7 @@ if __name__=="__main__":
                 scaler.scale(total_loss).backward()
                 
             else:
+                print('should be at the wrong place') 
                 with torch.cuda.amp.autocast():
                     outputs= model(inputs)
                     loss = loss_function(outputs,masks)                    
@@ -813,7 +817,7 @@ if __name__=="__main__":
     # Create a second y-axis and plot the best_metric on it
     ax2 = ax1.twinx()
     ax2.plot(range(1, epoch + 2), lr_list, label='Lr', color='green')
-    ax2.set_ylabel('Leraning Rate', color='green')
+    ax2.set_ylabel('Learning Rate', color='green')
     ax2.tick_params(axis='y', labelcolor='green')
 
     # Set the title and save the figure

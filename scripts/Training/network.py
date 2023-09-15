@@ -40,6 +40,6 @@ else:
     model = locals() [model_name](4,3).to(device)
 
 
-if load_save==1:
-    model.load_state_dict(torch.load("/scratch/a.bip5/BraTS 2021/"+load_path),strict=False)
-    print("loaded saved model ", load_path)
+# if load_save==1:
+    # model.load_state_dict(torch.load(load_path),strict=False)
+    # print("loaded saved model ", load_path)

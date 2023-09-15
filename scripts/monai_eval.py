@@ -49,6 +49,8 @@ from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     SplitChanneld,
 )
 
+
+
 from monai.engines import (
     EnsembleEvaluator,
     SupervisedEvaluator,
@@ -86,12 +88,22 @@ import gc
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 from eval_utils import *
-
-from config import *
+from Input.dataset import test_indices,ExpDatasetEval
+from eval_config import *
 from brats_transforms import *
-import config
+from Evaluation.evaluation import (
+inference,
 
+)
+from Input.localtransforms import (
+train_transform,
+val_transform,
+post_trans,
+)
+import eval_config
+import warnings
 
+test_indices=np.arange(150,200)
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser(prog=sys.argv[0],description="Eval parser")
@@ -114,7 +126,7 @@ if __name__=="__main__":
     for name, value in namespace.items():
         print(f"{name}: {value}")
 
-
+    warnings.filterwarnings("ignore")
     ##################~~~~~~~~~~~~~~~~~~~~~~~~~Model Definition~~~~~~~~~~~~~~~~~~~~~~~#################
  
 
@@ -164,13 +176,10 @@ if __name__=="__main__":
         # Load model weight from Barlow Twins
         ckpt=torch.load("./barlowtwins/checkpoint/"+args.bar_model_name)
         if args.barlow_final==0:
-
             # print(ckpt.keys())
-
             for k in model.state_dict().keys():
                 # print(ckpt["model"].keys())
-                ckpt["model"][k]=ckpt["model"].pop("module.backbone."+k[7:])
-            
+                ckpt["model"][k]=ckpt["model"].pop("module.backbone."+k[7:])           
             model.load_state_dict(ckpt["model"], strict=False)
         else:
             model.load_state_dict(ckpt,strict=False)
@@ -178,202 +187,24 @@ if __name__=="__main__":
         print("Model weights loaded from pretrained Barlow Twins Backbone")
 
     if load_save==1:    
-        ckpt=torch.load(load_path)
-        
+        ckpt=torch.load(load_path)        
         model.load_state_dict(ckpt, strict=False)
         print("Model weights loaded from best metric model")
         
-
-    # define inference method
-    def inference(input):
-
-        def _compute(input):
-            return sliding_window_inference(
-                inputs=input,
-                roi_size=(192,192, 144),
-                sw_batch_size=1,
-                predictor=model,
-                overlap=0,
-            )
-
-        if VAL_AMP:
-            with torch.cuda.amp.autocast():
-                return _compute(input)
-        else:
-            return _compute(input)
-
-
     # use amp to accelerate training
     scaler = torch.cuda.amp.GradScaler()
     # enable cuDNN benchmark
     torch.backends.cudnn.benchmark = True
 
-
-
-
-
-    indexes=np.arange(max_samples)
-    fold=int(max_samples/10)
-    
-    class TestDataset(Dataset):
-        def __init__(self,data_dir,transform=None):
-            self.image_list=make_dataset(data_dir)[0]  
-            self.label_list=make_dataset(data_dir)[1] 
-            self.transform=transform
-            
-        def __len__(self):
-    #         return len(os.listdir(self.label_dir))
-            if val==1:
-                return len(self.label_list)
-            else:
-                return min(max_samples,len(self.label_list))
+           
+    if val==10: 
+        all1=make_dataset("./BraTS21_data")
         
-        def __getitem__(self,idx):
-            image=self.image_list[idx]
+        gt_used=all1[1][:10]
+        imageall=all1[0][:10]
+        # imagef=[i[0] for i in imageall]
         
-            label=self.label_list[idx] 
-
-                
-            item_dict={"image":image,"label":label}
-            
-            test_list=dict()
-            if self.transform:
-                item_dict={"image":image,"label": label}
-                
-                test_list=self.transform(item_dict)
-                
-            
-            return test_list
-            
-    # val_indices=np.random.choice(np.arange(100),30,replace=False)
-    
-    def countsize(y_pred,y):
-        
-        n_len = len(y_pred.shape)
-        reduce_axis = list(range(2, n_len)) # each channel gives out one value
-        
-        y_pred = y_pred.float()
-        
-        all_things=[]
-        predsize=torch.count_nonzero(y_pred,dim=reduce_axis).float()     #shape=[1,3,...]
-        
-        diceP_indSagittal_tc=[]
-        diceP_indFrontal_tc=[]
-        diceP_indAxial_tc=[]
-        
-        diceP_indSagittal_wt=[]
-        diceP_indFrontal_wt=[]
-        diceP_indAxial_wt=[]
-        
-        diceP_indSagittal_et=[]
-        diceP_indFrontal_et=[]
-        diceP_indAxial_et=[]
-        
-        for x in range(1,y_pred.shape[2]):
-            dice_sag_tc=(2*(y_pred[0,0,x-1,:,:]*y_pred[0,0,x,:,:]).sum())\
-                        /(y_pred[0,0,x-1,:,:].sum()+y_pred[0,0,x,:,:].sum()+0.001)                    
-            dice_sag_wt=(2*(y_pred[0,1,x-1,:,:]*y_pred[0,1,x,:,:]).sum())\
-                        /(y_pred[0,1,x-1,:,:].sum()+y_pred[0,1,x,:,:].sum()+0.001)                       
-            dice_sag_et=(2*(y_pred[0,2,x-1,:,:]*y_pred[0,2,x,:,:]).sum())\
-                        /(y_pred[0,2,x-1,:,:].sum()+y_pred[0,2,x,:,:].sum()+0.001)
-            if dice_sag_wt>0:
-                diceP_indSagittal_wt.append(dice_sag_wt)
-            if dice_sag_et>0:
-                diceP_indSagittal_et.append(dice_sag_et)
-            if dice_sag_tc>0:
-                diceP_indSagittal_tc.append(dice_sag_tc)
-            
-        for yi in range(1,y_pred.shape[3]):
-            dice_fr_tc=(2*(y_pred[0,0,:,yi-1,:]*y_pred[0,0,:,yi,:]).sum())\
-                        /(y_pred[0,0,:,yi-1,:].sum()+y_pred[0,0,:,yi,:].sum()+0.001)
-                        
-            dice_fr_wt=(2*(y_pred[0,1,:,yi-1,:]*y_pred[0,1,:,yi,:]).sum())\
-                        /(y_pred[0,1,:,yi-1,:].sum()+y_pred[0,1,:,yi,:].sum()+0.001)
-                        
-            dice_fr_et=(2*(y_pred[0,2,:,yi-1,:]*y_pred[0,2,:,yi,:]).sum())\
-                        /(y_pred[0,2,:,yi-1,:].sum()+y_pred[0,2,:,yi,:].sum()+0.001)
-            if dice_fr_tc>0:            
-                diceP_indFrontal_tc.append(dice_fr_tc)
-            if dice_fr_wt>0:
-                diceP_indFrontal_wt.append(dice_fr_wt)
-            if dice_fr_et>0:
-                diceP_indFrontal_et.append(dice_fr_et)
-            
-        for z in range(1,y_pred.shape[4]):
-            dice_ax_tc=(2*(y_pred[0,0,:,:,z-1]*y_pred[0,0,:,:,z]).sum())\
-                        /(y_pred[0,0,:,:,z-1].sum()+y_pred[0,0,:,:,z].sum()+0.001)
-                        
-            dice_ax_wt=(2*(y_pred[0,1,:,:,z-1]*y_pred[0,1,:,:,z]).sum())\
-                        /(y_pred[0,1,:,:,z-1].sum()+y_pred[0,1,:,:,z-1].sum()+0.001)
-                        
-            dice_ax_et=(2*(y_pred[0,2,:,:,z-1]*y_pred[0,2,:,:,z]).sum())\
-                        /(y_pred[0,2,:,:,z-1].sum()+y_pred[0,2,:,:,z].sum()+0.001)
-                        
-            if dice_ax_tc>0:
-                diceP_indAxial_tc.append(dice_ax_tc)
-            if dice_ax_wt>0:
-                diceP_indAxial_wt.append(dice_ax_wt)
-            if dice_ax_et>0:
-                diceP_indAxial_et.append(dice_ax_et)
-        
-        diceP_indSagittal_tc_=torch.tensor(diceP_indSagittal_tc).mean()
-        diceP_indSagittal_wt_=torch.tensor(diceP_indSagittal_wt).mean()
-        diceP_indSagittal_et_=torch.tensor(diceP_indSagittal_et).mean()        
-        
-        diceP_indFrontal_tc_=torch.tensor(diceP_indFrontal_tc).mean()
-        diceP_indFrontal_wt_=torch.tensor(diceP_indFrontal_wt).mean()
-        diceP_indFrontal_et_=torch.tensor(diceP_indFrontal_et).mean()
-        
-        diceP_indAxial_tc_=torch.tensor(diceP_indAxial_tc).mean()
-        diceP_indAxial_wt_=torch.tensor(diceP_indAxial_wt).mean()
-        diceP_indAxial_et_=torch.tensor(diceP_indAxial_et).mean()
-        
-        sag=torch.tensor([diceP_indSagittal_tc_,diceP_indSagittal_wt_,diceP_indSagittal_et_]).float().view(1,3).to(device)
-        
-        front=torch.tensor([diceP_indFrontal_tc_,diceP_indFrontal_wt_,diceP_indFrontal_et_]).float().view(1,3).to(device)
-        axial=torch.tensor([diceP_indAxial_tc_,diceP_indAxial_wt_,diceP_indAxial_et_]).float().view(1,3).to(device)
-        
-        predsize=torch.cat((predsize,sag),0)
-        predsize=torch.cat((predsize,front),0)       
-        predsize=torch.cat((predsize,axial),0).view(1,4,3)
-        
-        return predsize
-        
-    class CountSize(CumulativeIterationMetric):
-        def __init__(self,
-        reduction=MetricReduction.MEAN_CHANNEL,
-        output_transform=lambda x:x,
-        get_not_nans = False,
-        ignore_empty = True,
-        ):        
-            super().__init__()
-            self.reduction=reduction
-            self.get_not_nans = get_not_nans
-            self.ignore_empty = ignore_empty
-        def _compute_tensor(self,y_pred,y):
-            return countsize(y_pred,y)
-            
-        def aggregate(self):
-            data=self.get_buffer()
-            
-            if not isinstance(data, torch.Tensor):
-                raise ValueError("the data to aggregate must be PyTorch Tensor.")
-            
-            f, not_nans = do_metric_reduction(data, self.reduction)
-            return (f, not_nans) if self.get_not_nans else f
-    class PredSize(IgniteMetric):
-        def __init__(self,
-            reduction=MetricReduction.MEAN_CHANNEL,
-            output_transform=lambda x:x,
-            save_details=True
-            ):        
-            metric_fn=CountSize(
-            reduction=reduction)
-            super().__init__(metric_fn=metric_fn,output_transform=output_transform,save_details=save_details)
-            
-   
-        
-    if val==1:
+    elif val==1:
         val_indices=np.random.choice(np.arange(1000),max_samples,replace=False)
         test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData",transform=test_transforms0)
         test_ds=Subset(test_ds,val_indices)
@@ -382,236 +213,74 @@ if __name__=="__main__":
         
         #print("list of input gt files",make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData")[1])
     else:
-        val_indices=np.random.choice(np.arange(200),max_samples,replace=False)
-        test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData",transform=test_transforms0)
-        test_ds=Subset(test_ds,val_indices)
-        gt_all=make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData")[1]
-        gt_used=[gt_all[i] for i in val_indices]
+        print('Testing on test set data')
+        # val_indices=np.random.choice(np.arange(200),max_samples,replace=False)
+        # test_ds=TestDataset(data_dir,transform=test_transforms0)
+        test_indices=np.arange(150,200)
+        # test_ds=Subset(test_ds,test_indices)
+        files='/scratch/a.bip5/BraTS 2021/selected_files_seed1693762864.xlsx'
     
-    size=[]
-    ent=[]
-    tumour_core=[]
-    ed=[]
+        xls = pd.ExcelFile(files)
+        # Get all sheet names
+        sheet_names = xls.sheet_names
+        evaluating_sheet=sheet_names[3]
+        print(f'Evaluating {len(test_indices)} samples from {evaluating_sheet} with the path{eval_path}')
+        
+        test_ds=ExpDatasetEval(files,evaluating_sheet,transform=test_transforms0)
+        test_ds=Subset(test_ds,test_indices)
+        # gt_all=make_dataset('/scratch/a.bip5/BraTS 2021/BraTS21_data')[1]
+        # gt_used=[gt_all[i] for i in test_indices]
+        
     
-    
-    
-    
-    all_sizes=dict()
-    all_areasSagittal=dict()
-    all_areasFrontal=dict()
-    all_areasAxial=dict()
-    size_factors=dict()
-    
-    dice_profSagittal_et=[]
-    dice_profFrontal_et=[]
-    dice_profAxial_et=[]
-    
-    dice_profSagittal_tc=[]
-    dice_profFrontal_tc=[]
-    dice_profAxial_tc=[]
-    
-    dice_profSagittal_wt=[]
-    dice_profFrontal_wt=[]
-    dice_profAxial_wt=[]
-    
-    reg_score_sagittal=[]
-    reg_score_frontal=[]
-    reg_score_axial=[]
-    da_profSagittal=[]
-    da_profFrontal=[]
-    da_profAxial=[]
-    prev_area=0
-    kernel=np.ones((3,3),np.uint8)
-    for gt in gt_used:
-        mask=nb.load(gt).get_fdata()
-        lot_size=len(np.nonzero(mask)[0])
         
-        et_mask=np.where(mask==4,1,0)
+      
         
-        core_mask=np.where(mask==1,1,0)
-        edema_mask=np.where(mask==2,1,0)
+    if val==10:
+        features=mask_feat(imageall,gt_used) 
         
-        tc_mask=et_mask+core_mask
-        wt_mask=et_mask+edema_mask+core_mask
-        
-        
-        etumour=np.where(mask==4,1,0).sum()
-        
-        core=np.where(mask==1,1,0).sum()
-        edema=np.where(mask==2,1,0).sum()
-        
-        tumour_core_ins=etumour+core
-        
-        
-        ent.append(etumour)
-        tumour_core.append(tumour_core_ins)
-        ed.append(edema)         
-        
-        
-        size.append(lot_size)
-        
-        
-        
-        area_storeSagittal=[]
-        area_storeFrontal=[]
-        area_storeAxial=[]
-        areas=[]        
-        diceP_indSagittal_tc=[]
-        diceP_indFrontal_tc=[]
-        diceP_indAxial_tc=[]
-        
-        diceP_indSagittal_wt=[]
-        diceP_indFrontal_wt=[]
-        diceP_indAxial_wt=[]
-        
-        diceP_indSagittal_et=[]
-        diceP_indFrontal_et=[]
-        diceP_indAxial_et=[]
-        
-        reg_indSagittal=[]
-        reg_indFrontal=[]
-        reg_indAxial=[]
-        daP_indSagittal=[]
-        daP_indFrontal=[]
-        daP_indAxial=[]
-        
-        
-        
-        mask_bi=np.where(mask,1,mask)
-        for x in range(mask.shape[0]):
-            area_slice=len(np.nonzero(mask[x,:,:])[0])
-            area_storeSagittal.append(area_slice)
-            perimeter=len(np.nonzero(cv2.erode(mask[x,:,:],kernel))[0])
-            rep_rad=np.sqrt(area_slice/np.pi)
-            reg_score=perimeter/(2*np.pi*rep_rad + 0.001)
-            reg_indSagittal.append(reg_score)
-            
-            if x >0:
-                dice_sag_tc=(2*(tc_mask[x-1,:,:]*tc_mask[x,:,:]).sum())\
-                            /(tc_mask[x-1,:,:].sum()+tc_mask[x,:,:].sum()+0.001)
-                diceP_indSagittal_tc.append(dice_sag_tc)
-                
-                dice_sag_wt=(2*(wt_mask[x-1,:,:]*wt_mask[x,:,:]).sum())\
-                            /(wt_mask[x-1,:,:].sum()+wt_mask[x,:,:].sum()+0.001)
-                diceP_indSagittal_wt.append(dice_sag_wt)
-                
-                dice_sag_et=(2*(et_mask[x-1,:,:]*et_mask[x,:,:]).sum())\
-                            /(et_mask[x-1,:,:].sum()+et_mask[x,:,:].sum()+0.001)
-                diceP_indSagittal_et.append(dice_sag_et)
-                
-                prev_area=len(np.nonzero(mask[x-1,:,:])[0])
-                darea=2*abs(area_slice-prev_area)/(area_slice+prev_area+0.001)
-                daP_indSagittal.append(darea)
-                    
-        for y in range(mask.shape[1]):
-            area_slice=len(np.nonzero(mask[:,y,:])[0])
-            area_storeFrontal.append(area_slice)
-            perimeter=len(np.nonzero(cv2.erode(mask[:,y,:],kernel))[0])
-            rep_rad=np.sqrt(area_slice/np.pi)
-            reg_score=perimeter/(2*np.pi*rep_rad + 0.001)
-            reg_indFrontal.append(reg_score)
-            if y>0:
-                dice_fr_tc=(2*(tc_mask[:,y-1,:]*tc_mask[:,y,:]).sum())\
-                    /(tc_mask[:,y-1,:].sum()+tc_mask[:,y,:].sum()+0.001)
-                diceP_indFrontal_tc.append(dice_fr_tc)
-                
-                dice_fr_wt=(2*(wt_mask[:,y-1,:]*wt_mask[:,y,:]).sum())\
-                    /(wt_mask[:,y-1,:].sum()+wt_mask[:,y,:].sum()+0.001)
-                diceP_indFrontal_wt.append(dice_fr_wt)
-                
-                dice_fr_et=(2*(et_mask[:,y-1,:]*et_mask[:,y,:]).sum())\
-                    /(et_mask[:,y-1,:].sum()+et_mask[:,y,:].sum()+0.001)
-                diceP_indFrontal_et.append(dice_fr_et)
-                
-                
-                prev_area=len(np.nonzero(mask[:,y-1,:])[0])
-                darea=2*abs(area_slice-prev_area)/(area_slice+prev_area+0.001)
-                daP_indFrontal.append(darea)
-                    
-        for z in range(mask.shape[2]):
-            area_slice=len(np.nonzero(mask[:,:,z])[0])
-            # print(area_slice,'area_slice')
-            area_storeAxial.append(area_slice) 
-            perimeter=len(np.nonzero(cv2.erode(mask[:,:,z],kernel))[0])
-            rep_rad=np.sqrt(area_slice/np.pi)
-            reg_score=perimeter/(2*np.pi*rep_rad + 0.001)
-            reg_indAxial.append(reg_score)
-            if z>0:
-                dice_ax_tc=(2*(tc_mask[:,:,z-1]*tc_mask[:,:,z]).sum())\
-                    /(tc_mask[:,:,z-1].sum()+tc_mask[:,:,z].sum()+0.001)
-                diceP_indAxial_tc.append(dice_ax_tc)
-                
-                dice_ax_wt=(2*(wt_mask[:,:,z-1]*wt_mask[:,:,z]).sum())\
-                    /(wt_mask[:,:,z-1].sum()+wt_mask[:,:,z].sum()+0.001)
-                diceP_indAxial_wt.append(dice_ax_wt)
-                
-                dice_ax_et=(2*(et_mask[:,:,z-1]*et_mask[:,:,z]).sum())\
-                    /(et_mask[:,:,z-1].sum()+et_mask[:,:,z].sum()+0.001)
-                diceP_indAxial_et.append(dice_ax_et)
-                
-                prev_area=len(np.nonzero(mask[:,:,z-1])[0])
-                darea=2*abs(area_slice-prev_area)/(area_slice+prev_area+0.001)
-                daP_indAxial.append(darea)
-                
-        all_areasSagittal[gt[-5:]]=area_storeSagittal # areas in all axes
-        all_areasFrontal[gt[-5:]]=area_storeFrontal
-        all_areasAxial[gt[-5:]]=area_storeAxial
-        all_sizes[gt[-5:]]=lot_size
-        
-        dice_profSagittal_tc.append(diceP_indSagittal_tc)
-        dice_profFrontal_tc.append(diceP_indFrontal_tc)
-        dice_profAxial_tc.append(diceP_indAxial_tc)
-        
-        dice_profSagittal_wt.append(diceP_indSagittal_wt)
-        dice_profFrontal_wt.append(diceP_indFrontal_wt)
-        dice_profAxial_wt.append(diceP_indAxial_wt)
-        
-        dice_profSagittal_et.append(diceP_indSagittal_et)
-        dice_profFrontal_et.append(diceP_indFrontal_et)
-        dice_profAxial_et.append(diceP_indAxial_et)
-        
-        reg_score_axial.append(reg_indAxial)
-        reg_score_frontal.append(reg_indFrontal)
-        reg_score_sagittal.append(reg_indSagittal)
-        da_profSagittal.append(daP_indSagittal)
-        da_profAxial.append(daP_indAxial)
-        da_profFrontal.append(daP_indFrontal)
-        
-    #Consecutive dice score
-    sagittal_profile_tc=np.ma.masked_equal(np.array(dice_profSagittal_tc),0).mean(axis=1)#to take only non zero values for average
-    frontal_profile_tc=np.ma.masked_equal(np.array(dice_profFrontal_tc),0).mean(axis=1)
-    axial_profile_tc=np.ma.masked_equal(np.array(dice_profAxial_tc),0).mean(axis=1)
-    
-    sagittal_profile_wt=np.ma.masked_equal(np.array(dice_profSagittal_wt),0).mean(axis=1)#to take only non zero values for average
-    frontal_profile_wt=np.ma.masked_equal(np.array(dice_profFrontal_wt),0).mean(axis=1)
-    axial_profile_wt=np.ma.masked_equal(np.array(dice_profAxial_wt),0).mean(axis=1)
-    
-    sagittal_profile_et=np.ma.masked_equal(np.array(dice_profSagittal_et),0).mean(axis=1)#to take only non zero values for average
-    frontal_profile_et=np.ma.masked_equal(np.array(dice_profFrontal_et),0).mean(axis=1)
-    axial_profile_et=np.ma.masked_equal(np.array(dice_profAxial_et),0).mean(axis=1)
-    
-   
-    
-    # avg_dice_profile=(sagittal_profile+frontal_profile+axial_profile)/3
+        # features=features.assign(**{
+            # 'path':gt_used,
+            # 'tumour_core': tumour_core,
+            # 'enhancing tumor': ent,
+            # 'edema': ed,
+            # 'size': size,
+            # 'sagittal_profile_tc': sagittal_profile_tc,
+            # 'frontal_profile_tc': frontal_profile_tc,
+            # 'axial_profile_tc': axial_profile_tc,
+            # 'sagittal_profile_wt': sagittal_profile_wt,
+            # 'frontal_profile_wt': frontal_profile_wt,
+            # 'axial_profile_wt': axial_profile_wt,
+            # 'sagittal_profile_et': sagittal_profile_et,
+            # 'frontal_profile_et': frontal_profile_et,
+            # 'axial_profile_et': axial_profile_et,
+            # 'sagittal_reg': sagittal_reg,
+            # 'frontal_reg': frontal_reg,
+            # 'axial_reg': axial_reg,
+            # 'sagittal_da_profile': sagittal_da_profile,
+            # 'frontal_da_profile': frontal_da_profile,
+            # 'axial_da_profile': axial_da_profile,
+            # 'reg_score_avg': reg_score_avg,
+            # 'da_prof_avg': da_prof_avg,
+            # 'contrast_a': contrast_a, 
+            # 'dissimilarity_a': dissimilarity_a, 
+            # 'homogeneity_a': homogeneity_a, 
+            # 'energy_a': energy_a, 
+            # 'correlation_a': correlation_a,
+            # 's_contrast': s_contrast, 
+            # 's_dissimilarity': s_dissimilarity, 
+            # 's_homogeneity': s_homogeneity, 
+            # 's_energy': s_energy, 
+            # 's_correlation': s_correlation,
+            # 'c_contrast': c_contrast, 
+            # 'c_dissimilarity': c_dissimilarity, 
+            # 'c_homogeneity': c_homogeneity, 
+            # 'c_energy': c_energy, 
+            # 'c_correlation': c_correlation,
 
-    #consecutive reg score
-    sagittal_reg=np.ma.masked_equal(np.array(reg_score_sagittal),0).mean(axis=1)
-    frontal_reg=np.ma.masked_equal(np.array(reg_score_frontal),0).mean(axis=1)
-    axial_reg=np.ma.masked_equal(np.array(reg_score_axial),0).mean(axis=1)
+            # })
+        features.to_csv(f'Dataset_features{round(time.time())}.csv')
+        sys.exit()
     
-    reg_score_avg=(sagittal_reg+frontal_reg+axial_reg)/3
-
-    #delta area between slices 
-    sagittal_da_profile=np.ma.masked_equal(np.array(da_profSagittal),0).mean(axis=1)
-    frontal_da_profile=np.ma.masked_equal(np.array(da_profFrontal),0).mean(axis=1)
-    axial_da_profile=np.ma.masked_equal(np.array(da_profAxial),0).mean(axis=1)
-    
-    da_prof_avg=(sagittal_da_profile+frontal_da_profile+axial_da_profile)/3
-        
-        
-        
-    
-
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=workers) # this should return 10 different instances
 
     # print("input type",type(next(iter(test_loader))))
@@ -622,22 +291,9 @@ if __name__=="__main__":
 
     post_transforms = Compose([
         EnsureTyped(keys=["pred","label"]), 
-        Activationsd(keys="pred", sigmoid=True),
-        Invertd(
-            keys="pred",
-            transform=test_transforms0,
-            orig_keys="image",
-            meta_keys="pred_meta_dict",
-            orig_meta_keys="image_meta_dict",
-            # meta_key_postfix="meta_dict",
-            nearest_interp=False,
-            to_tensor=True, #this sends to GPU so removing will cause problems
-            device=device
-        ), # inversal is only done on the prediction? yes with the specified key
-        # ToTensorD(keys=["pred","label"]),
-        
+        Activationsd(keys="pred", sigmoid=True),    
         AsDiscreted(keys="pred", threshold=0.5),
-        SaveImaged(keys=["pred","label"],meta_keys="pred_meta_dict",output_dir="./ssensemblemodels0922/outputs/",resample=False)
+        # SaveImaged(keys=["pred","label"],meta_keys="pred_meta_dict",output_dir="./ssensemblemodels0922/outputs/",resample=False)
     ])
     post_pred= Compose([EnsureType(),Activations(sigmoid=True), AsDiscrete(threshold=0.2)])
     post_label = Compose([EnsureType()])
@@ -646,7 +302,7 @@ if __name__=="__main__":
 
     if ensemble==1:
     
-        if config.model=="UNet":
+        if eval_config.model=="UNet":
             model_names= os.listdir(eval_path)
             #["UNetep100rs4C","UNetep99rs4C","UNetep98rs4C","UNetep97rs4C","UNetep96rs4C"]
 
@@ -654,89 +310,14 @@ if __name__=="__main__":
             print(model_names)
             # wts=[0.69,0.69,0.78,0.72,0.62,0.7,0.7,0.7,0.75,0.67]
        
-        elif config.model=="SegResNet":
-            model_names=os.listdir(eval_path)#'/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/Evaluation Folder1')#["SegResNetep100rs2C","SegResNetep99rs2C","SegResNetep98rs2C","SegResNetep97rs2C","SegResNetep96rs2C"]
-            
-           
-
-
-
-
-
-            
+        elif eval_config.model=="SegResNet":
+            model_names=os.listdir(eval_path)#'/scratch/a.bip5/BraTS 2021/ssensemblemodels0922/Evaluation Folder1')#["SegResNetep100rs2C","SegResNetep99rs2C","SegResNetep98rs2C","SegResNetep97rs2C","SegResNetep96rs2C"]          
             print(model_names)
             # wts=[0.7401,0.7506,0.6364,0.7484, 0.6725,0.7707,0.7219,0.7439,0.8003,0.7458]#[0.5651,0.5252,0.5537,0.5137,0.5744,0.4862,0.5255,0.5559,0.5755,0.5060]
         
 
         else:
             print("No SISA yet")
-
-        def ensemble_evaluate(post_transforms, models):
-            
-            for i in range(len(models)):
-                key_val_metric={
-                    f"test_mean_dice": MeanDice(
-                        include_background=True,
-                        output_transform=from_engine([f"pred{i}", "label"]),
-                        reduction='mean'
-                    )
-                }
-                additional_metrics={ 
-                    f"Channelwise": MeanDice(
-                        include_background=True,
-                        output_transform=from_engine([f"pred{i}", "label"]),
-                        reduction="mean_batch"
-                    ),
-                    f"Hausdorff": HausdorffDistance(
-                        include_background=False,                      
-                        output_transform=from_engine([f"pred{i}", "label"]),
-                        reduction='mean_channel',
-                        percentile=95
-                    ),
-                    f"pred size": PredSize(
-                        output_transform=from_engine([f"pred{i}", 'label']),
-                        reduction='none'
-                    )
-                }
-
-                evaluator = EnsembleEvaluator(
-                    device=device,
-                    val_data_loader=test_loader,
-                    pred_keys=[f"pred{i}"],
-                    networks=[models[i]],
-                    inferer=SlidingWindowInferer(
-                        roi_size=(192,192, 144), sw_batch_size=4, overlap=0
-                    ),
-                    postprocessing=post_transforms,
-                    key_val_metric=key_val_metric,
-                    additional_metrics=additional_metrics
-                )
-                evaluator.run()
-
-            
-            # print("validation stats: ",evaluator.get_validation_stats())
-            mean_dice=evaluator.state.metrics['test_mean_dice']#[:,1]#wt score
-            pred_size=evaluator.state.metrics['pred size'][:,0,1] #whole tumor 
-            pred_tc=evaluator.state.metrics['pred size'][:,0,0]
-            pred_et=evaluator.state.metrics['pred size'][:,0,2]
-            pred_dp_sag_tc=evaluator.state.metrics['pred size'][:,1,0]
-            pred_dp_sag_wt=evaluator.state.metrics['pred size'][:,1,1]
-            pred_dp_sag_et=evaluator.state.metrics['pred size'][:,1,2]
-            pred_dp_fr_tc=evaluator.state.metrics['pred size'][:,2,0]
-            pred_dp_fr_wt=evaluator.state.metrics['pred size'][:,2,1]
-            pred_dp_fr_et=evaluator.state.metrics['pred size'][:,2,2]
-            pred_dp_ax_tc=evaluator.state.metrics['pred size'][:,3,0]
-            pred_dp_ax_wt=evaluator.state.metrics['pred size'][:,3,1]
-            pred_dp_ax_et=evaluator.state.metrics['pred size'][:,3,2]
-            hausdorff=evaluator.state.metrics['Hausdorff']
-            tumor_core=evaluator.state.metrics["Channelwise"][0]
-            whole_tumor=evaluator.state.metrics["Channelwise"][1]
-            enhancing_tumor=evaluator.state.metrics["Channelwise"][2]
-            print("Mean Dice:",evaluator.state.metrics['test_mean_dice'],"metric_tc:",float(evaluator.state.metrics["Channelwise"][0]),"whole tumor:",float(evaluator.state.metrics["Channelwise"][1]),"enhancing tumor:",float(evaluator.state.metrics["Channelwise"][2]))#jbc
-            
-            return mean_dice,tumor_core,whole_tumor,enhancing_tumor,hausdorff,pred_size,pred_tc,pred_et,pred_dp_sag_tc,pred_dp_sag_wt,pred_dp_sag_et,pred_dp_fr_tc,pred_dp_fr_wt,pred_dp_fr_et,pred_dp_ax_tc,pred_dp_ax_wt,pred_dp_ax_et
-        
-        
         
 
         
@@ -749,12 +330,7 @@ if __name__=="__main__":
         enhancing_tumor=[]
         scores={}
         scores["GT path"]=gt_used
-        
-        
-            
-        
-        
-        
+    
         
         if plot>0:
             for i in range(int(model_num)): #//5)): #cycle through to each of the model name 
@@ -773,7 +349,7 @@ if __name__=="__main__":
                 models1=[]
                 for name in model_steps:
                    
-                    if config.model=="UNet":
+                    if eval_config.model=="UNet":
                          model=UNet(
                             spatial_dims=3,
                             in_channels=4,
@@ -781,7 +357,7 @@ if __name__=="__main__":
                             channels=(64,128,256,512,1024),
                             strides=(2,2,2,2)
                             ).to(device)
-                    elif config.model=="SegResNet":
+                    elif eval_config.model=="SegResNet":
                         model = SegResNet(
                             blocks_down=[1, 2, 2, 4],
                             blocks_up=[1, 1, 1],
@@ -803,7 +379,7 @@ if __name__=="__main__":
                     
                 for name in model_steps1:
                
-                    if config.model=="UNet":
+                    if eval_config.model=="UNet":
                          model1=UNet(
                             spatial_dims=3,
                             in_channels=4,
@@ -811,7 +387,7 @@ if __name__=="__main__":
                             channels=(64,128,256,512,1024),
                             strides=(2,2,2,2)
                             ).to(device)
-                    elif config.model=="SegResNet":
+                    elif eval_config.model=="SegResNet":
                         model1 = SegResNet(
                             blocks_down=[1, 2, 2, 4],
                             blocks_up=[1, 1, 1],
@@ -873,21 +449,22 @@ if __name__=="__main__":
                     [
                         EnsureTyped(keys=["pred"+str(i) for i in range(len(models1))]), #gives pred0..pred1...
                         ## SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
-                        
+                       
+                                        
                         MeanEnsembled(
                             keys=["pred"+str(i) for i in range(len(models1))], 
                             output_key="pred",
                           ##  # in this particular example, we use validation metrics as weights
                           ### weights=wts,
                         ),
-                        Activationsd(keys="pred", sigmoid=True),
-                        AsDiscreted(keys="pred", threshold=0.2),
+                        Activationsd(keys=["pred"+str(i) for i in range(len(models1))], sigmoid=True),
+                        AsDiscreted(keys=["pred"+str(i) for i in range(len(models1))], threshold=0.5),
                     ]
                 )
                                    
                 
                 
-                md1,tc1,wt1,et1,haus1,pred_size1,_,_,_,_,_,_,_,_,_,_,_=ensemble_evaluate(mean_post_transforms1, models1)
+                md1,tc1,wt1,et1,haus1,pred_size1,_,_,_,_,_,_,_,_,_,_,_=ensemble_evaluate(mean_post_transforms1, models1,test_loader)
                 scores[model_steps1[0]]=md1
                 scores['haus_'+ model_steps1[0]]=haus1
                 if i==4:
@@ -895,7 +472,7 @@ if __name__=="__main__":
                     #if val==1: # in case we want individualised score only for train data
                     scores["Ensemble"]=md
                     scores["HausEnsemble"]=haus
-                if plot=1:
+                if plot==1:
                     mean_dice.append(md1.tolist())
                     hausdorff.append(haus1.tolist())
                     tumor_core.append(tc1)
@@ -962,10 +539,8 @@ if __name__=="__main__":
             scores_df["axial_reg"]=axial_reg
             scores_df["sagittal_da_profile"]=sagittal_da_profile
             scores_df["frontal_da_profile"]=frontal_da_profile
-            scores_df["axial_da_profile"]=axial_da_profile
-           
-            
-            
+            scores_df["axial_da_profile"]=axial_da_profile      
+                      
             
             
             scores_df.to_csv('eval_score_val'+str(val)+'_'+date.today().isoformat()+'T'+str(datetime.today().hour)+ model+csv_name+'.csv')
@@ -1029,15 +604,14 @@ if __name__=="__main__":
                 print("saved zoo model")
                 
                 ensemble = 0
-                load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ model+"zoo_avg"
-     
+                load_name=date.today().isoformat()+'T'+str(datetime.today().hour)+ model+"zoo_avg"    
                                 
 
             mean_post_transforms = Compose(
                 [
                     EnsureTyped(keys=["pred"+str(i) for i in range(len(models))]), #gives pred0..pred1...
                     ## SplitChanneld(keys=["pred"+str(i) for i in range(10)]),
-                    
+                    Activationsd(keys=["pred"+str(i) for i in range(len(models))], sigmoid=True),
                     MeanEnsembled(
                         keys=["pred"+str(i) for i in range(len(models))], 
                         output_key="pred",
@@ -1056,7 +630,8 @@ if __name__=="__main__":
             enhancing_tumor.append(et)
     elif ensemble==0:
         
-        model.load_state_dict(torch.load("./ssensemblemodels0922/Evaluation Folder 1/"+load_name),strict=False)
+        # model.load_state_dict(torch.load(eval_path),strict=False)
+        model.load_state_dict(torch.load(eval_path, map_location=lambda storage, loc: storage.cuda(0)), strict=True)
         # model.to(device)
         model.eval()
 
@@ -1065,29 +640,29 @@ if __name__=="__main__":
             for test_data in test_loader: # each image
                 test_inputs = test_data["image"].to(device) # pass to gpu
                 test_labels=test_data["label"].to(device)
-                test_data["pred"] = sliding_window_inference(
-                    inputs=test_inputs,
-                    roi_size=(192,192, 144),
-                    sw_batch_size=batch_size,
-                    predictor=model,
-                    overlap=0,
-                )#inference(test_inputs) #perform inference
+                
+                test_outputs=inference(test_inputs,model)
+                test_outputs=[post_trans(i) for i in decollate_batch(test_outputs)] 
+                # test_data["pred"] = sliding_window_inference(
+                    # inputs=test_inputs,
+                    # roi_size=(192,192, 144),
+                    # sw_batch_size=batch_size,
+                    # predictor=model,
+                    # overlap=0,
+                # )#inference(test_inputs) #perform inference
                 #print(test_data["pred"].shape)
-                test_data=[post_transforms(i) for i in decollate_batch(test_data)] #reverse the transform and get sigmoid then binarise
-                test_outputs, test_labels =  from_engine(["pred", "label"])(test_data) # create list of images and labels
+                # test_data=[post_transforms(i) for i in decollate_batch(test_data)] #reverse the transform and get sigmoid then binarise
+                # test_outputs, test_labels =  from_engine(["pred", "label"])(test_data) # create list of images and labels
               
                 
                 #print("test outputs",test_outputs[0].shape)
-                test_outputs=[i.to(device) for i in test_outputs]
-                test_labels=[i.to(device) for i in test_labels]
+                # test_outputs=[i.to(device) for i in test_outputs]
+                # test_labels=[i.to(device) for i in test_labels]
                 # dice_score=(2*torch.sum( test_outputs[0].flatten()*test_labels[0].flatten()))/( test_outputs[0].sum()+test_labels[0].sum())
                 # print("dice",dice_score)
                 
                 dice_metric(y_pred=test_outputs, y=test_labels)
-                dice_metric_batch(y_pred=test_outputs, y=test_labels)
-
-
-            
+                dice_metric_batch(y_pred=test_outputs, y=test_labels)            
             metric_org = dice_metric.aggregate().item()
             
             metric_batch_org = dice_metric_batch.aggregate()

@@ -50,3 +50,15 @@ test_transforms0 = Compose(
         EnsureTyped(keys=["image", "label"]),
     ]
     )
+    
+    
+test_transforms1 = Compose(
+    [
+        LoadImaged(keys=["image", "mask"]),
+        EnsureChannelFirstD(keys=["image"]),
+        ConvertToMultiChannelBasedOnBratsClassesd(keys="mask"),
+        
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        EnsureTyped(keys=["image", "mask"]),
+    ]
+    )
