@@ -36,7 +36,12 @@ unfreeze,
 freeze_train,
 cluster_files,
 lr_cycling,
-isolate_layer
+isolate_layer,
+super_val,
+exp_train_count,
+exp_val_count,
+fix_samp_num_exp,
+freeze_patience
 )
 from Evaluation.evaluation import (
 inference,
@@ -44,6 +49,7 @@ inference,
 )
 from Training.loss_function import loss_function
 from Training.network import model
+from Training.running_log import log_run_details
 
 
 from Evaluation.evaluation import (
@@ -95,9 +101,11 @@ import gc
 namespace = locals().copy()
 # print('train_indices,val_indices,test_indices',train_indices,val_indices,test_indices)
 # sys.exit()
+config_dict=dict()
 for name, value in namespace.items():
     if type(value) in [str,int,float,bool]:
         print(f"{name}: {value}")
+        config_dict[f"{name}"]=value
 os.environ['PYTHONHASHSEED']=str(seed)
 torch.backends.cudnn.deterministic = True
 torch.manual_seed(seed)
@@ -108,10 +116,11 @@ set_determinism(seed=seed)
 training_layers=["module.convInit.conv.weight", "module.down_layers.0.1.conv1.conv.weight", "module.down_layers.0.1.conv2.conv.weight", "module.down_layers.1.0.conv.weight", "module.down_layers.1.1.conv1.conv.weight", "module.down_layers.1.1.conv2.conv.weight", "module.down_layers.1.2.conv1.conv.weight", "module.down_layers.1.2.conv2.conv.weight", "module.down_layers.2.0.conv.weight", "module.down_layers.2.1.conv1.conv.weight", "module.down_layers.2.1.conv2.conv.weight", "module.down_layers.2.2.conv1.conv.weight", "module.down_layers.2.2.conv2.conv.weight", "module.down_layers.3.0.conv.weight", "module.down_layers.3.1.conv1.conv.weight", "module.down_layers.3.1.conv2.conv.weight", "module.down_layers.3.2.conv1.conv.weight", "module.down_layers.3.2.conv2.conv.weight", "module.down_layers.3.3.conv1.conv.weight", "module.down_layers.3.3.conv2.conv.weight", "module.down_layers.3.4.conv1.conv.weight", "module.down_layers.3.4.conv2.conv.weight", "module.up_layers.0.0.conv1.conv.weight", "module.up_layers.0.0.conv2.conv.weight", "module.up_layers.1.0.conv1.conv.weight", "module.up_layers.1.0.conv2.conv.weight", "module.up_layers.2.0.conv1.conv.weight", "module.up_layers.2.0.conv2.conv.weight", "module.up_samples.0.0.conv.weight", "module.up_samples.0.1.deconv.weight", "module.up_samples.0.1.deconv.bias", "module.up_samples.1.0.conv.weight", "module.up_samples.1.1.deconv.weight", "module.up_samples.1.1.deconv.bias", "module.up_samples.2.0.conv.weight", "module.up_samples.2.1.deconv.weight", "module.up_samples.2.1.deconv.bias", "module.conv_final.2.conv.weight", "module.conv_final.2.conv.bias"]
 
 unfreeze_layers=training_layers[-unfreeze:]
-
+model_names=set() #to store unique model_names saved by the script
+best_metrics=set()
 def check_gainless_epochs(epoch, best_metric_epoch):
     gainless_epochs = (epoch + 1) - best_metric_epoch
-    if gainless_epochs >= 20:
+    if gainless_epochs >= freeze_patience:
         return True
     else:
         return False
@@ -242,6 +251,8 @@ def trainingfunc_simple(train_dataset, val_dataset,model=model,sheet_name=None):
                         val_data["image"].to(device),
                         val_data["mask"].to(device),
                     )
+                    for idx, y in enumerate(val_masks):
+                        val_masks[idx] = (y > 0.5).int()
                     val_outputs = inference(val_inputs,model)
                     val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
                     dice_metric(y_pred=val_outputs, y=val_masks)
@@ -287,9 +298,10 @@ def trainingfunc_simple(train_dataset, val_dataset,model=model,sheet_name=None):
                             
                     else:
                         print('NO CV or expert training sheet name might be none',sheet_name)
+                        save_name=os.path.join(root_dir, date.today().isoformat()+'T'+str(total_start)+model_name)
                         torch.save(
                             model.state_dict(),
-                            os.path.join(root_dir, date.today().isoformat()+'T'+str(total_start)+model_name),
+                            save_name,
                         )
                     
                     
@@ -302,9 +314,10 @@ def trainingfunc_simple(train_dataset, val_dataset,model=model,sheet_name=None):
                     f"\nbest mean dice: {best_metric:.4f}"
                     f" at epoch: {best_metric_epoch}"
                 )
+        if save_name not in model_names:
+            model_names.add(save_name)
+            best_metrics.add(best_metric)
         
-        gc.collect()
-        torch.cuda.empty_cache()
         # if sheet_name:
             # if check_gainless_epochs(epoch, best_metric_epoch):
                 # gainless_counter+=1
@@ -312,21 +325,23 @@ def trainingfunc_simple(train_dataset, val_dataset,model=model,sheet_name=None):
         if freeze_train:            
             if check_gainless_epochs(epoch, best_metric_epoch):
                 gainless_counter+=1
+                freeze_index=len(training_layers)%gainless_counter -1
                 model.load_state_dict(torch.load(saved_model),strict=False)
                 print(f'loaded {saved_model} to commence training')
                 
                 if isolate_layer:
-                    freeze_layers=training_layers[gainless_counter-1]
+                    freeze_layers=training_layers[freeze_index]
                     best_metric_epoch=epoch
                     
                     if len(freeze_layers)==len(training_layers):
                         print('Nothing left to freeze, this is probably as good as it gets, play with other hyps maybe?')
                         break
-                    
+                    for param in model.parameters():
+                        param.requires_grad = False
                     for name, param in model.named_parameters():
                         if name in freeze_layers:
-                            param.requires_grad = False
-                    print(f' froze layer {gainless_counter-1}, commencing training')
+                            param.requires_grad = True
+                    print(f' only training layer {gainless_counter-1}, commencing training')
                 else:
                     freeze_layers=training_layers[:gainless_counter]
                     best_metric_epoch=epoch
@@ -334,6 +349,8 @@ def trainingfunc_simple(train_dataset, val_dataset,model=model,sheet_name=None):
                     if len(freeze_layers)==len(training_layers):
                         print('Nothing left to freeze, this is probably as good as it gets, play with other hyps maybe?')
                         break
+                    # for param in model.parameters():
+                        # param.requires_grad = False
                     
                     for name, param in model.named_parameters():
                         if name in freeze_layers:
@@ -343,6 +360,9 @@ def trainingfunc_simple(train_dataset, val_dataset,model=model,sheet_name=None):
 
                 
         print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
+    del model
+    gc.collect()
+    torch.cuda.empty_cache()
     total_time = time.time() - total_start
 
     print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}, total time: {total_time}.")
@@ -515,9 +535,10 @@ def trainingfunc(train_dataset, val_dataset,model=model,sheet_name=None):
                             
                     else:
                         print('NO CV or expert training sheet name might be none',sheet_name)
+                        save_name=os.path.join(root_dir, date.today().isoformat()+'T'+str(total_start)+model_name)
                         torch.save(
                             model.state_dict(),
-                            os.path.join(root_dir, date.today().isoformat()+'T'+str(total_start)+model_name),
+                            save_name,
                         )
                     
                     
@@ -547,15 +568,17 @@ def trainingfunc(train_dataset, val_dataset,model=model,sheet_name=None):
    
     return None  
 
+
 if fs_ensemble == 1:
     train_dataset = partition_dataset(data=EnsembleDataset('/scratch/a.bip5/BraTS 2021/selected_files_seed3.csv', transform=train_transform), shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     val_dataset = partition_dataset(data=EnsembleDataset('/scratch/a.bip5/BraTS 2021/selected_files_seed4.csv', transform=train_transform), num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     trainingfunc(train_dataset, val_dataset)
 elif CV_flag == 1:
-    full_dataset = BratsDataset(root_dir, transform=train_transform)
+    full_dataset_train = BratsDataset(root_dir, transform=train_transform)
+    full_dataset_val = BratsDataset(root_dir, transform=val_transform)
     print(" cross val data set, CV_flag=1") # this is printed   
-    train_dataset =Subset(full_dataset, train_indices)
-    val_dataset = Subset(full_dataset, val_indices)
+    train_dataset =Subset(full_dataset_train, train_indices)
+    val_dataset = Subset(full_dataset_val, val_indices)
     trainingfunc_simple(train_dataset, val_dataset)
     # train_dataset = partition_dataset(data=train_dataset, transform=train_transform), shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     # val_dataset = partition_dataset(data=val_dataset, transform=train_transform), num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
@@ -564,8 +587,7 @@ elif exp_ensemble==1:
     print('Expert Ensemble going ahead now')
     val_count=20
     train_count=100
-    val_sheet_i=[]
-    train_sheet_i=[]
+    
     
     
     xls = pd.ExcelFile(cluster_files)
@@ -573,7 +595,9 @@ elif exp_ensemble==1:
     # Get all sheet names
     sheet_names = xls.sheet_names
     sheet_names=[x for x in sheet_names if 'Cluster' in x]
-    for sheet in sheet_names:   
+    for sheet in sheet_names: 
+        val_sheet_i=[]
+        train_sheet_i=[]
         cluster_indices=pd.read_excel(cluster_files,sheet)['original index']
         for i,orig_i in enumerate(cluster_indices):
             if orig_i in test_indices:
@@ -586,10 +610,38 @@ elif exp_ensemble==1:
         
         if len(val_sheet_i) < val_count:
             raise(f'Please reduce the number of val file count! Cluster {sheet} only had {len(val_sheet_i)} files')
-        full_dataset = ExpDataset(cluster_files,sheet, transform=train_transform)
-        train_dataset =Subset(full_dataset, train_sheet_i[:train_count])
-        val_dataset = Subset(full_dataset, val_sheet_i[:val_count])       
+        full_dataset_train = ExpDataset(cluster_files,sheet, transform=train_transform)
+        full_dataset_val=ExpDataset(cluster_files,sheet, transform=val_transform)
+        if fix_samp_num_exp:
+            train_dataset =Subset(full_dataset_train, train_sheet_i[:exp_train_count])
+            if super_val:
+                super_i=train_sheet_i[:exp_train_count]+val_sheet_i
+                val_dataset = Subset(full_dataset_val, super_i) 
+            else:
+                val_dataset = Subset(full_dataset_val, val_sheet_i) 
+            # val_dataset = Subset(full_dataset, val_sheet_i)
+            # val_dataset = Subset(full_dataset, val_sheet_i[:val_count])  
+        else:
+            train_dataset =Subset(full_dataset_train, train_sheet_i)
+            if super_val:
+                super_i=train_sheet_i+val_sheet_i
+                val_dataset = Subset(full_dataset_val, super_i) 
+            else:
+                val_dataset = Subset(full_dataset_val, val_sheet_i) 
         trainingfunc_simple(train_dataset, val_dataset,sheet_name=sheet)
+        gc.collect()
 else:
     print(' Choose a training method first in the config file!')
+
+#storing everything to a csv row
+log_run_details(config_dict,model_names,best_metrics)
+
+#print the script at the end of every run
+script_path = os.path.abspath(__file__) # Gets the absolute path of the current script
+with open(script_path, 'r') as script_file:
+           script_content = script_file.read()
+print("\n\n------ Script Content ------\n")
+print(script_content)
+print("\n---------------------------\n")
+
         
