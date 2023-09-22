@@ -22,11 +22,12 @@ args=parser.parse_args()
 seed=args.seed
 np.random.seed(args.seed)
 # Assuming you have a DataFrame `df` with your data, and 'labels' column is not used in PCA
-df= pd.read_csv('Dataset_features.csv')
+df= pd.read_csv('Encoded_features.csv')
 df.drop_duplicates(inplace=True)
 
 # df.drop(['a_centroid', 's_centroid','c_centroid'], axis=1, inplace=True)
-df_features=df.drop(columns=['Unnamed: 0','mask_path'])
+# df_features=df.drop(columns=['Unnamed: 0','mask_path'])
+df_features=df.drop(columns=['Unnamed: 0'])
 df_features.drop_duplicates(inplace=True)
 df_features.fillna(0,inplace=True)
 df_features.replace([np.inf, -np.inf], 0, inplace=True)
