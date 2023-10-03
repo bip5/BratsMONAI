@@ -71,16 +71,19 @@ def plot_prediction(image_slice,gt_mask,pred_mask,o_path,title):
         # print("No contour can be drawn for this slice.")
         
     # sys.exit()
+    #True Positive
     ax[1].imshow(image_slice, cmap='gray', origin= 'lower')
-    print(np.unique((pred_mask & gt_mask).astype(int)))
-    # True positive (pred and groud truth overlap)
-    ax[1].contour((pred_mask & gt_mask).astype(int), colors= 'g', levels=[1])
-    print(np.unique((pred_mask & ~gt_mask).astype(int)))
-    # False positives (predicted but not in ground truth)
-    ax[1].contour((pred_mask & ~gt_mask).astype(int), colors='r' , levels=[1])
-    print(np.unique((~pred_mask & gt_mask).astype(int)))
-    # False negatives (present in ground truth but not predicted)
-    ax[1].contour((~pred_mask & gt_mask).astype(int), colors='b', levels=[1])
+    if np.any(pred_mask & gt_mask):
+        ax[1].imshow((pred_mask & gt_mask).astype(int), alpha=1, cmap='Greens', origin='lower')
+    #False positive
+    if np.any(pred_mask & ~gt_mask):
+        ax[1].imshow((pred_mask & ~gt_mask).astype(int), alpha=1, cmap='Reds', origin='lower')
+    #False Negative
+    if np.any(~pred_mask & gt_mask):
+        ax[1].imshow((~pred_mask & gt_mask).astype(int), alpha=1, cmap='Blues', origin='lower')
+    
+    
+    
     
     ax[1].set_title(title)  
     plt.savefig(os.path.join(o_path, title + '.png'))
@@ -217,7 +220,7 @@ if __name__ =='__main__':
                 now = datetime.datetime.now()
 
                 # Convert it to a string in a specific format (e.g., YYYY-MM-DD_HH-MM-SS)
-                formatted_time = sheet+now.strftime('%Y-%m-%d_%H-%M-%S')     
+                formatted_time = sheet+ '_' +now.strftime('%Y-%m-%d_%H-%M-%S')     
 
                 # Create the new directory path using the formatted time
                 new_dir = os.path.join(output_path, formatted_time)
