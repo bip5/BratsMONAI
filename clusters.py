@@ -22,7 +22,7 @@ args=parser.parse_args()
 seed=args.seed
 np.random.seed(args.seed)
 # Assuming you have a DataFrame `df` with your data, and 'labels' column is not used in PCA
-df= pd.read_csv('Encoded_features.csv')
+df= pd.read_csv('Encoded_maxfeatures.csv')
 df.drop_duplicates(inplace=True)
 
 # df.drop(['a_centroid', 's_centroid','c_centroid'], axis=1, inplace=True)
@@ -63,7 +63,7 @@ def normalise(df_features,normaliser=args.normaliser):
 
     
 
-def sil_plots(df_features,normaliser):
+def sil_plots(df_features):
     
 
     features=normalise(df_features)
@@ -168,21 +168,40 @@ def sil_plots(df_features,normaliser):
     return None
 
 
-
+def mahalanobis_distance(points, center):
+    # Calculate the covariance matrix
+    cov_matrix = np.cov(points, rowvar=False)
+    
+    # Calculate the inverse of the covariance matrix
+    inv_cov_matrix = np.linalg.inv(cov_matrix)
+    
+    distances = []
+    for p in points:
+        diff = p - center
+        value=diff.T @ inv_cov_matrix @ diff
+        print(value)
+        if value>0:
+            dist = np.sqrt(value)
+        else:
+            dist=2
+        distances.append(dist)
+    
+    return distances
 
 
 def save_cluster_files(df_features, n_clusters=4):
     print(df_features.duplicated().sum())
     features = normalise(df_features)
+    print('features.shape', features.shape)
     
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans.fit(features)
     
     cluster_labels = kmeans.labels_
-
+    
     # Create a Pandas Excel writer using XlsxWriter as the engine
     writer = pd.ExcelWriter(f'selected_files_seed{round(time.time())}.xlsx', engine='xlsxwriter')
-
+    
     # Create dataframes to store mean and std dev of features for each cluster
     mean_df = pd.DataFrame()
     std_df = pd.DataFrame()
@@ -190,18 +209,21 @@ def save_cluster_files(df_features, n_clusters=4):
     for i in range(n_clusters):
         cluster_points_indices = np.where(cluster_labels == i)[0]  # get global indices of all points in cluster i
         cluster_points = features[cluster_points_indices]  # get all points in cluster i
+        print('cluster_points.shape',cluster_points.shape)
         cluster_center = kmeans.cluster_centers_[i]  # get the center of cluster i
-        cc=pd.Series(cluster_center,name='Cluster center')
-        cc_dist = pd.Series([0],name='Cluster center')
+        # cc=pd.Series(cluster_center,name='Cluster center')
+        # cc_dist = pd.Series([0],name='Cluster center')
         # cc=cc_dist.append(cc,ignore_index=True)
-        cc=pd.concat([cc_dist,cc]).reset_index(drop=True) #pd.concat appends row wise as axis=0 by default
-        cc.append('Cluster center')
+        # cc=pd.concat([cc_dist,cc]).reset_index(drop=True) #pd.concat appends row wise as axis=0 by default
+        # cc.append('Cluster center')
         
        
         
-        distances = [distance.euclidean(p, cluster_center) for p in cluster_points]  # calculate distances
-        filepath = df['mask_path'].iloc[cluster_points_indices].str.slice(0, -26)
+        distances = mahalanobis_distance(cluster_points, cluster_center)#[distance.euclidean(p, cluster_center) for p in cluster_points] 
+        # calculate distances
         
+        filepath = df['Unnamed: 0'].iloc[cluster_points_indices]#.str.slice(0, -16)
+        # filepath = df['mask_path'].iloc[cluster_points_indices].str.slice(0, -26)
         # Create a DataFrame
         df_sep = pd.DataFrame({
             'Distance': distances,
@@ -216,13 +238,15 @@ def save_cluster_files(df_features, n_clusters=4):
         # Assuming df_features is the original DataFrame and features is a numpy array derived from df_features
         features_df = pd.DataFrame(features, columns=df_features.columns[:])
         
-        features_df['modified_mask_path'] = df['mask_path'].str[:-26]
-        features_df=pd.concat([cc,features_df]).reset_index(drop=True) # to add the cluster center
+        features_df['modified_mask_path'] = df['Unnamed: 0']#.str[:-26]
+        # features_df=pd.concat([cc,features_df]).reset_index(drop=True) # to add the cluster center
         # print(features_df.columns)
+        # sys.exit()
+        # print(df_sep['Index'].iloc[0], features_df['modified_mask_path'].iloc[0])
         # sys.exit()
         # Merge the dataframes on the matching columns
         result_df = pd.merge(df_sep, features_df, left_on='Index', right_on='modified_mask_path', how='inner')
-        
+       
         # Calculate mean and std dev for each feature in this cluster
         mean_series = result_df.mean(numeric_only=True)
         std_series = result_df.std(numeric_only=True)
@@ -233,6 +257,7 @@ def save_cluster_files(df_features, n_clusters=4):
         
         # Write each DataFrame to a specific sheet
         result_df.to_excel(writer, sheet_name=f'Cluster_{i}', index=False)
+        
 
     # Write mean and std dev dataframes to separate sheets
     mean_df.to_excel(writer, sheet_name='Mean_Features', index=True)
@@ -245,6 +270,7 @@ def save_cluster_files(df_features, n_clusters=4):
     
     return 'Files saved successfully'
 
+# sil_plots(df_features)
     
 save_cluster_files(df_features)
 
