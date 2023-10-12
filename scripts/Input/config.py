@@ -7,15 +7,15 @@ freeze_patience=5
 fold_num = 1
 #set depending on how many items to unfreeze from layer list
 load_save = 1
-load_path = '/scratch/a.bip5/BraTS/weights/m2023-10-10_19-21-14/SegResNetCV1ms1250rs0Aep184'
+load_path = '/scratch/a.bip5/BraTS/weights/m2023-10-10_19-21-14/SegResNetCV1ms1250rs0Aep273'
 lr = 0.0002
 root_dir = "/scratch/a.bip5/BraTS/BraTS_23_training"
 weights_dir="/scratch/a.bip5/BraTS/weights"
-max_samples = 1250
+max_samples = 1251
 method = 'A'#type of ensemble method
 model_name = 'SegResNet' # pick from UNet SegResNet
 seed = 0
-T_max = 5 #how often to reset cycling
+T_max = 300 #how often to reset cycling
 total_epochs = 300
 unfreeze = 22 
 upsample = 'DECONV' # upsample method in SegResNet
@@ -25,15 +25,15 @@ workers = 8
 
 
 
-backward_unfreeze=False
+backward_unfreeze=True
 CV_flag = True
 DDP = False
-exp_ensemble = True #'expert' ensemble
+exp_ensemble = False #'expert' ensemble
 fix_samp_num_exp=False
 freeze_specific=False #set false unless you want to train only one layer
 freeze_train=True # start freezing layers in training if freeze criteria met
 fs_ensemble = False# fewshot ensemble
-isolate_layer=True #whether to isolate one layer at a time while freeze training
+isolate_layer=False #whether to isolate one layer at a time while freeze training
 lr_cycling=True
 super_val=False
 train_partial = False

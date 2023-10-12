@@ -18,6 +18,7 @@ from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     RandFlipd, RandFlip,
     RandScaleIntensityd,
     RandShiftIntensityd,
+    CenterSpatialCropd,
     RandSpatialCropd,   
     EnsureTyped,
     EnsureType,
@@ -52,7 +53,33 @@ class ConvertToMultiChannelBasedOnBratsClassesd(MapTransform):
             result.append(d[key] == 4)
             d[key] = np.stack(result, axis=0).astype(np.float32)
         return d
-        
+class ConvertToMultiChannelBasedOnBratsClassesd_val(MapTransform):
+    """
+    Convert masks to multi channels based on brats classes:
+    mask 2 is the peritumoral edema
+    mask 4 is the GD-enhancing tumor
+    mask 1 is the necrotic and non-enhancing tumor core
+    The possible classes are TC (Tumor core), WT (Whole tumor)
+    and ET (Enhancing tumor).
+
+    """
+
+    def __call__(self, data):
+        d = dict(data)
+        for key in self.keys:
+            result = []
+            # merge mask 1 and mask 4 to construct TC
+            result.append(np.logical_or(d[key] == 3, d[key] == 1))
+            # merge masks 1, 2 and 4 to construct WT
+            result.append(
+                np.logical_or(
+                    np.logical_or(d[key] == 2, d[key] == 3), d[key] == 1
+                )
+            )
+            # mask 4 is ET
+            result.append(d[key] == 3)
+            d[key] = np.stack(result, axis=0).astype(np.float32)
+        return d
             
 KEYS=("image","mask")
 print("Transforms not defined yet")
@@ -61,7 +88,7 @@ train_transform = Compose(
         # load 4 Nifti images and stack them together
         LoadImaged(keys=["image", "mask"]),
         EnsureChannelFirstD(keys="image"),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="mask"),
+        ConvertToMultiChannelBasedOnBratsClassesd_val(keys="mask"),
         SpacingD(
             keys=["image", "mask"],
             pixdim=(1.0, 1.0, 1.0),
@@ -83,7 +110,7 @@ val_transform = Compose(
     [
         LoadImaged(keys=["image", "mask"]),
         EnsureChannelFirstD(keys="image"),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="mask"),
+        ConvertToMultiChannelBasedOnBratsClassesd_val(keys="mask"),
         SpacingD(
             keys=["image", "mask"],
             pixdim=(1.0, 1.0, 1.0),
@@ -91,7 +118,7 @@ val_transform = Compose(
         ),
         OrientationD(keys=["image", "mask"], axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        RandSpatialCropd(keys=["image", "mask"], roi_size=[192, 192, 144], random_size=False),
+        CenterSpatialCropd(keys=["image", "mask"], roi_size=[192, 192, 144]),
         EnsureTyped(keys=["image", "mask"]),
     ]
 )
@@ -137,12 +164,20 @@ post_trans = Compose(
 
 test_transforms0 = Compose(
     [
-        LoadImaged(keys=["image", "label"]),
+        LoadImaged(keys=["image", "mask"]),
         EnsureChannelFirstD(keys=["image"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+        ConvertToMultiChannelBasedOnBratsClassesd_val(keys="mask"),
         
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        EnsureTyped(keys=["image", "label"]),
+        EnsureTyped(keys=["image", "mask"]),
     ]
     )
-
+test_transforms1 = Compose(
+    [
+        LoadImaged(keys=["image"]),
+        EnsureChannelFirstD(keys=["image"]),        
+        
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        EnsureTyped(keys=["image"]),
+    ]
+    )

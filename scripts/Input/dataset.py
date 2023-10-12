@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/scratch/a.bip5/BraTS 2021/scripts/')
+sys.path.append('/scratch/a.bip5/BraTS/scripts/')
 
 import os
 import re
@@ -99,7 +99,7 @@ indexes=np.random.choice(np.arange(max_samples),max_samples,replace=False)
 fold=int(max_samples/5)
 
 
-
+####ONLY WORKS WHEN MAX SAMPLES==1250####
 for i in range(1,6):
     if i==int(fold_num):
         val_start=(i-1)*fold
