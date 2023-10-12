@@ -123,7 +123,7 @@ model_names=set() #to store unique model_names saved by the script
 best_metrics=set()
 once=0
 def check_gainless_epochs(epoch, best_metric_epoch):
-    gainless_epochs = (epoch + 1) - best_metric_epoch
+    gainless_epochs = epoch  - best_metric_epoch
     if gainless_epochs >= freeze_patience:
         return True
     else:
@@ -139,6 +139,7 @@ os.makedirs(save_dir,exist_ok=True)
 print('SAVING MODELS IN ', save_dir)
 
 def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model,sheet_name=None,once=once):
+    last_model=None
     print("number of files processed: ", train_dataset.__len__()) #this is not
     
    
@@ -220,63 +221,64 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         
         if freeze_train:             
             if freeze_specific:
-                freeze_layers=training_layers[-4:]
+                unfreeze_layers=training_layers[-4:]
                 for param in model.parameters():
                     param.requires_grad = False
                 for name, param in model.named_parameters():
-                    if name in freeze_layers:
+                    if name in unfreeze_layers:
                         param.requires_grad = True
-                print(f' only training layer {freeze_layers}, commencing training')
+                print(f' only training layer {unfreeze_layers}, commencing training')
             elif backward_unfreeze:
-                freeze_layers=training_layers[:-(gainless_counter+1)]
+                unfreeze_layers=training_layers[-(gainless_counter+1):]
+                print(f'training {unfreeze_layers}')
                 if epoch==0:
                     for param in model.parameters():
                         param.requires_grad = False
                     
                     for name, param in model.named_parameters():
-                        if name in freeze_layers:
+                        if name in unfreeze_layers:
                             param.requires_grad = True
                 if check_gainless_epochs(epoch, best_metric_epoch):
                     gainless_counter+=1 #to decide which layer to isolate
-                    freeze_index=len(training_layers)%gainless_counter -1
+                    # unfreeze_index=len(training_layers)%gainless_counter -1
                     model.load_state_dict(torch.load(saved_model),strict=False)
                     print(f'loaded {saved_model} to commence training')
                     if (gainless_counter)==len(training_layers):
                         gainless_counter=0 # reset gainless counter
-                    if len(freeze_layers)==len(training_layers):
+                    if len(unfreeze_layers)==len(training_layers):
                         print('Nothing left to freeze, this is probably as good as it gets, play with other hyps maybe?')
                         break
                     for param in model.parameters():
                         param.requires_grad = False
                     
                     for name, param in model.named_parameters():
-                        if name in freeze_layers:
+                        if name in unfreeze_layers:
                             param.requires_grad = True
                     print(f' Unfroze {gainless_counter} items, commencing training')  
               
             # check gainless epoch only activates each patience cycle
             else: 
                 if epoch==0:
-                    freeze_layers=training_layers[-1]
+                    unfreeze_layers=training_layers[-1]
                     for param in model.parameters():
                         param.requires_grad = False
                     
                     for name, param in model.named_parameters():
-                        if name in freeze_layers:
+                        if name in unfreeze_layers:
                             param.requires_grad = True
                 if check_gainless_epochs(epoch, best_metric_epoch):
                     gainless_counter+=1 #to decide which layer to isolate
                     best_metric_epoch=epoch #to reset gainless epoch check
-                    freeze_index=len(training_layers)-gainless_counter 
+                    unfreeze_index=len(training_layers)-gainless_counter 
                     model.load_state_dict(torch.load(saved_model),strict=False)
                     print(f'loaded {saved_model} to commence training')
                     
                     
                     if isolate_layer:
-                        freeze_layers=training_layers[freeze_index]
+                        unfreeze_layers=training_layers[unfreeze_index]
                         
                         
-                        if (freeze_index)==len(training_layers):
+                        if gainless_counter==len(training_layers):
                             gainless_counter=0 # reset gainless counter
                             
                             print('Nothing left to freeze, restarting gainless counter and training whole model for now')
@@ -285,7 +287,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                             for param in model.parameters():
                                 param.requires_grad = False
                             for name, param in model.named_parameters():
-                                if name in freeze_layers:
+                                if name in unfreeze_layers:
                                     param.requires_grad = True
                         print(f' only training layer {gainless_counter-1}, commencing training')
         
@@ -372,8 +374,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     best_metrics_epochs_and_time[2].append(time.time() - total_start)
                     
                     if CV_flag==1:      
-                        
-                        saved_model=os.path.join(save_dir,model_name+"CV"+str(fold_num)+"ms"+str(max_samples)+"rs"+str(seed)+method+'ep'+str(epoch))
+                        save_name=model_name+"CV"+str(fold_num)+"ms"+str(max_samples)+"rs"+str(seed)+method+'ep'+str(epoch)
+                        saved_model=os.path.join(save_dir,save_name)
                         print(saved_model)
                         torch.save(
                             model.state_dict(),
