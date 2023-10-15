@@ -44,7 +44,8 @@ exp_val_count,
 fix_samp_num_exp,
 freeze_patience,
 freeze_specific,
-backward_unfreeze
+backward_unfreeze,
+binsemble
 )
 from Evaluation.evaluation import (
 inference,
@@ -138,6 +139,8 @@ save_dir=os.path.join(weights_dir,'m'+formatted_time)
 os.makedirs(save_dir,exist_ok=True)
 print('SAVING MODELS IN ', save_dir)
 
+job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
+
 def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model,sheet_name=None,once=once):
     last_model=None
     print("number of files processed: ", train_dataset.__len__()) #this is not
@@ -153,7 +156,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     # torch.cuda.set_device(device)
     model=model.to(device)  
     model=torch.nn.DataParallel(model)
-
+    
     
     if sheet_name is None:
         with torch.cuda.amp.autocast():
@@ -209,7 +212,12 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
 
    
     print("starting epochs")
-    gainless_counter=0 #to check how many times gainless function has tripped
+    gainless_counter=0 #to check how many times gainless function has tripped, resets after all layers thawed at least once
+    patience_counter=0 #separate counter which resets at checkpoint
+    saved_models_count = 0
+    last_saved_models_count=0
+    model_performance_dict = {}  # to store {model_path: dice_score}
+    
     for epoch in range(total_epochs):
         # train_sampler.set_epoch(epoch)
         epoch_start = time.time()
@@ -270,13 +278,14 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     gainless_counter+=1 #to decide which layer to isolate
                     best_metric_epoch=epoch #to reset gainless epoch check
                     unfreeze_index=len(training_layers)-gainless_counter 
+                    print(unfreeze_index,'unfreeze_index')
                     model.load_state_dict(torch.load(saved_model),strict=False)
                     print(f'loaded {saved_model} to commence training')
                     
                     
                     if isolate_layer:
                         unfreeze_layers=training_layers[unfreeze_index]
-                        
+                        print(f'training {unfreeze_layers}')
                         
                         if gainless_counter==len(training_layers):
                             gainless_counter=0 # reset gainless counter
@@ -289,7 +298,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                             for name, param in model.named_parameters():
                                 if name in unfreeze_layers:
                                     param.requires_grad = True
-                        print(f' only training layer {gainless_counter-1}, commencing training')
+                        
         
         
         
@@ -304,17 +313,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             with torch.cuda.amp.autocast():
                 outputs = model(inputs)
                 loss = loss_function(outputs, masks) 
-            # def closure():
-                # optimiser.zero_grad()
-                # with torch.cuda.amp.autocast():
-                    # outputs = model(inputs)
-                    # loss = loss_function(outputs, masks)
-                # scaler.scale(loss).backward()
-                # return loss                
-            # optimiser.step(closure)
-            # scaler.step(optimiser)
-            # scaler.update()
-                
+                          
             scaler.scale(loss).backward()
             scaler.step(optimiser)
             scaler.update()
@@ -366,6 +365,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 dice_metric_batch.reset()
 
                 if metric > best_metric:
+                    saved_models_count+=1
                 
                     best_metric = metric
                     best_metric_epoch = epoch + 1
@@ -374,7 +374,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     best_metrics_epochs_and_time[2].append(time.time() - total_start)
                     
                     if CV_flag==1:      
-                        save_name=model_name+"CV"+str(fold_num)+"ms"+str(max_samples)+"rs"+str(seed)+method+'ep'+str(epoch)
+                        save_name=model_name+"CV"+str(fold_num)+'_j'+str(job_id)+'ep'+str(epoch)
                         saved_model=os.path.join(save_dir,save_name)
                         print(saved_model)
                         torch.save(
@@ -384,7 +384,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     
                     elif sheet_name is not None:  
                        
-                        save_name=sheet_name+'_'+str(load_save)
+                        save_name=sheet_name+'_'+str(load_save)+'_j'+str(job_id)
                         saved_model=os.path.join(save_dir, save_name)
                         torch.save(
                             model.state_dict(),
@@ -395,7 +395,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                             
                     else:
                         print('NO CV or expert training sheet name might be none',sheet_name)
-                        save_name=os.path.join(save_dir, date.today().isoformat()+model_name)
+                        save_name=date.today().isoformat()+model_name+'_j'+str(job_id)
+                        saved_model=os.path.join(save_dir, save_name)
                         torch.save(
                             model.state_dict(),
                             save_name,
@@ -403,7 +404,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     
                     
                     print("saved new best metric model")
-                    
+                    last_model,previous_best_model=saved_model,last_model
+                    patience_counter=0
                     
                 print(
                     f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
@@ -411,8 +413,32 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     f"\nbest mean dice: {best_metric:.4f}"
                     f" at epoch: {best_metric_epoch}"
                 )
-        
-        
+            
+            if binsemble:
+                
+                print('TRAINING BINSEMBLE \n \n \n \n \n')
+                if patience_counter>freeze_patience:
+                    if saved_models_count>last_saved_models_count:
+                        if previous_best_model and last_model:
+                            # Load weights from the two models
+                            last_model_weights = torch.load(last_model)
+                            previous_best_model_weights = torch.load(previous_best_model)
+                            
+                            # Average the weights
+                            averaged_weights = {name: (last_model_weights[name] + previous_best_model_weights[name]) / 2 
+                                                for name in last_model_weights}
+                            
+                            # Update the current model's weights
+                            model.load_state_dict(averaged_weights)
+                            print(f"Averaged weights of models {previous_best_model} and {last_model}.")
+                            last_saved_models_count=saved_models_count
+                    else:
+                        print("Insufficient models to average. Consider saving initial models for averaging.")
+                else:
+                    patience_counter+=1
+                
+                
+                
         # if sheet_name:
             # if check_gainless_epochs(epoch, best_metric_epoch):
                 # gainless_counter+=1
