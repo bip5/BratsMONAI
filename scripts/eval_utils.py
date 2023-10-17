@@ -98,6 +98,7 @@ from monai.handlers import MeanDice, StatsHandler, ValidationHandler, from_engin
 from monai.inferers import SimpleInferer, SlidingWindowInferer
 import numpy as np
 import skimage
+from Training.network import model
 
 import scipy.ndimage as ndi
 
@@ -111,6 +112,10 @@ from monai.transforms import (
 MapTransform
 )
 from eval_config import *
+from Evaluation.evaluation import inference
+from Input.dataset import BratsDataset
+from Input.config import root_dir,batch_size,workers
+from Input.localtransforms import test_transforms0,post_trans,train_transform,val_transform
 
 
 IMG_EXTENSIONS = [
@@ -512,6 +517,9 @@ def calculate_glcm_features(image, distances, angles, levels):
         value = skimage.feature.greycoprops(glcm, prop)[0, 0]
         feature_dict[prop] = value
     return feature_dict
+    
+ # Convert list to a numpy array and return
+
 
 def mask_feat(imagef,gt_used,levels=256):
 
@@ -589,7 +597,7 @@ def mask_feat(imagef,gt_used,levels=256):
                         
         lot_size=len(np.nonzero(mask)[0])
         
-        et_mask=np.where(mask==4,1,0)
+        et_mask=np.where(mask==3,1,0)
         
         core_mask=np.where(mask==1,1,0)
         edema_mask=np.where(mask==2,1,0)
@@ -598,7 +606,7 @@ def mask_feat(imagef,gt_used,levels=256):
         wt_mask=et_mask+edema_mask+core_mask
         
         
-        etumour=np.where(mask==4,1,0).sum()
+        etumour=np.where(mask==3,1,0).sum()
         
         core=np.where(mask==1,1,0).sum()
         edema=np.where(mask==2,1,0).sum()
