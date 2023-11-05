@@ -129,7 +129,7 @@ def plot_prediction(image_slice, gt_mask, pred_mask, o_path, title,plot_slice=pl
     if plot_slice:
         if den > 0:
             dice_value = 2 * tp / den
-            if dice_value<0.1:
+            if dice_value<0.8:
                 dice = f" - Dice Score: {dice_value:.4f}"  # For 4 decimal places
                 fig, ax = plt.subplots(2, 2, figsize=(20, 20))
 
@@ -146,17 +146,21 @@ def plot_prediction(image_slice, gt_mask, pred_mask, o_path, title,plot_slice=pl
                 if not np.any(gt_mask): #not ideal but better than nothing
                     colors = [(0, 0, 0, 0), (0, 1, 0, 0.3),(1, 0, 0, 0.3), (1, 0, 0, 0.3) ]
                 cm = ListedColormap(colors)
-
+                gt_colors=[(0,0,0,0),(0,1,0,0.3)]
+                gm=ListedColormap(gt_colors)
+                pred_colors=[(0,0,0,0),(1,0,0,0.3)]
+                pm=ListedColormap(pred_colors)
+                
                 ax[0][1].imshow(image_slice[1], cmap='gray', origin='lower')
                 ax[0][1].imshow(combined_mask, cmap=cm, origin='lower')
                 ax[0][1].set_title(title+dice)
 
                 ax[1][0].imshow(image_slice[2], cmap='gray', origin='lower')
-                ax[1][0].imshow(gt_mask, cmap='Greens', origin='lower')
+                ax[1][0].imshow(gt_mask, cmap=gm, origin='lower')
                 ax[1][0].set_title("Ground Truth" + dice)
 
                 ax[1][1].imshow(image_slice[3], cmap='gray', origin='lower')
-                ax[1][1].imshow(pred_mask, cmap='Reds', origin='lower')
+                ax[1][1].imshow(pred_mask, cmap=pm, origin='lower')
                 ax[1][1].set_title("Prediction" + dice)
 
                 for a in ax.ravel():
@@ -290,7 +294,7 @@ def evaluate(eval_path,test_loader,output_path,model=model):
                                             plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title) 
                                     else:
                                         slice_idx=slice_
-                                        slice_data = test_data["image"][0][1, :, :, slice_idx].cpu().numpy()  # C=4, hence using channel 2
+                                        slice_data = test_data["image"][0][:, :, :, slice_idx].cpu().numpy()  # C=4, hence using channel 2
                                         gt_slice = gt_channel[:, :, slice_idx] > 0.5
                                         pred_slice = pred_channel[:, :, slice_idx] > 0.5
                                         title = f"{label_names[mask_channel]}_{axis}_s{slice_idx}_{sheet}"
