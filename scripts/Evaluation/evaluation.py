@@ -18,7 +18,9 @@ weights_dir,
 output_path,
 slice_dice,
 plot_output,
-load_path
+load_path,
+plot_single,
+eval_from_folder
 
 )
 from Input.dataset import (ExpDataset,ExpDatasetEval,
@@ -50,17 +52,22 @@ for name, value in namespace.items():
 
 dice_metric = DiceMetric(include_background=True, reduction="mean")
 dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
-
+seed = 0
+torch.manual_seed(seed)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(seed)
+    
 def inference(input,model):
 
     def _compute(input,model):
+        
         return sliding_window_inference(
             inputs=input,
             roi_size=(192,192, 144),
             sw_batch_size=1,
             predictor=model,
             overlap=0.5,
-        )
+            )
 
     if VAL_AMP:
         with torch.cuda.amp.autocast():
@@ -70,6 +77,11 @@ def inference(input,model):
         
 
 def plot_scatter(dice, gt, pred, save_path, use_slice_number=True, min_size=10, max_size=100):
+
+    ''' expected shape for dice: [number_of_slices, samples]
+    .values extracts just the values and not the slice numbers
+    ie 76 arrays of 144 dice values representing each slice
+    '''
     # Flatten the dataframes to get values for all slices across all samples
     dice_scores = dice.values.flatten()
     gt_area = gt.values.flatten()
@@ -114,43 +126,49 @@ def plot_prediction(image_slice, gt_mask, pred_mask, o_path, title,plot_slice=pl
     fp = len(np.nonzero(pred_mask & ~gt_mask)[0])
     fn = len(np.nonzero(~pred_mask & gt_mask)[0])
     den = 2*tp + fp + fn
-    if den > 0:
-        dice_value = 2 * tp / den
-        dice = f" - Dice Score: {dice_value:.4f}"  # For 4 decimal places
+    if plot_slice:
+        if den > 0:
+            dice_value = 2 * tp / den
+            if dice_value<0.1:
+                dice = f" - Dice Score: {dice_value:.4f}"  # For 4 decimal places
+                fig, ax = plt.subplots(2, 2, figsize=(20, 20))
+
+                ax[0][0].imshow(image_slice[0], cmap='gray', origin='lower')
+                ax[0][0].set_title('Original Slice')
+                combined_mask = np.zeros_like(pred_mask, dtype=int)
+                combined_mask[pred_mask & gt_mask] = 1  # True positives - green in cm 
+                combined_mask[pred_mask & ~gt_mask] = 2  # False positives - red in cm
+                combined_mask[~pred_mask & gt_mask] = 3  # False negatives - blue in cm
+                print(title, np.unique(combined_mask))
+                
+                colors = [(0, 0, 0, 0), (0, 1, 0, 0.3),(1, 0, 0, 0.3), (0, 0, 1, 0.3) ]
+                cm = ListedColormap(colors)
+                if not np.any(gt_mask): #not ideal but better than nothing
+                    colors = [(0, 0, 0, 0), (0, 1, 0, 0.3),(1, 0, 0, 0.3), (1, 0, 0, 0.3) ]
+                cm = ListedColormap(colors)
+
+                ax[0][1].imshow(image_slice[1], cmap='gray', origin='lower')
+                ax[0][1].imshow(combined_mask, cmap=cm, origin='lower')
+                ax[0][1].set_title(title+dice)
+
+                ax[1][0].imshow(image_slice[2], cmap='gray', origin='lower')
+                ax[1][0].imshow(gt_mask, cmap='Greens', origin='lower')
+                ax[1][0].set_title("Ground Truth" + dice)
+
+                ax[1][1].imshow(image_slice[3], cmap='gray', origin='lower')
+                ax[1][1].imshow(pred_mask, cmap='Reds', origin='lower')
+                ax[1][1].set_title("Prediction" + dice)
+
+                for a in ax.ravel():
+                    a.axis('off')  # Turn off axis labels and ticks
+
+                plt.tight_layout()
+                plt.savefig(os.path.join(o_path, title + dice + '.png'))
+                plt.close()
     else:
         dice = " - Dice Score: Nan"
-    if plot_slice:
-        fig, ax = plt.subplots(2, 2, figsize=(20, 20))
-
-        ax[0][0].imshow(image_slice, cmap='gray', origin='lower')
-        ax[0][0].set_title('Original Slice')
-        combined_mask = np.zeros_like(pred_mask, dtype=np.int)
-        combined_mask[pred_mask & gt_mask] = 1  # True positives
-        combined_mask[pred_mask & ~gt_mask] = 2  # False positives
-        combined_mask[~pred_mask & gt_mask] = 3  # False negatives
-
-        colors = [(0, 0, 0, 0), (0, 1, 0, 0.3), (1, 0, 0, 0.3), (0, 0, 1, 0.3)]
-        cm = ListedColormap(colors)
-
-        ax[0][1].imshow(image_slice, cmap='gray', origin='lower')
-        ax[0][1].imshow(combined_mask, cmap=cm, origin='lower')
-        ax[0][1].set_title(title+dice)
-
-        ax[1][0].imshow(image_slice, cmap='gray', origin='lower')
-        ax[1][0].imshow(gt_mask, cmap='Greens', origin='lower')
-        ax[1][0].set_title("Ground Truth" + dice)
-
-        ax[1][1].imshow(image_slice, cmap='gray', origin='lower')
-        ax[1][1].imshow(pred_mask, cmap='Reds', origin='lower')
-        ax[1][1].set_title("Prediction" + dice)
-
-        for a in ax.ravel():
-            a.axis('off')  # Turn off axis labels and ticks
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(o_path, title + dice + '.png'))
-        plt.close()
-    return dice
+    
+    
 
     
 def find_centroid(mask_channel):
@@ -232,15 +250,16 @@ def evaluate(eval_path,test_loader,output_path,model=model):
                 slice_dice_scores[sub_id]=slice_wise_dice_values
                 slice_gt_area[sub_id]=area_gt
                 slice_pred_area[sub_id]=area_pred
-                cluster_fname=cluster_files.split('/')[-1]
+                
                 
             if plot_output:
                 var_1=0
                 if var_1==0:
                     os.makedirs(output_path,exist_ok=True)
-                    spec_path=os.path.join(output_path,cluster_fname[:24])
-                     # Create a unique folder for each test case
-                    case_save_path = os.path.join(spec_path, f"id_{sub_id}_dice_{current_dice:.4f}")  # 4 decimal places for Dice score
+                    cluster_fname=cluster_files.split('/')[-1]
+                    
+                    # Create a unique folder for each test case
+                    case_save_path = os.path.join(output_path, f"id_{sub_id}_dice_{current_dice:.4f}")  # 4 decimal places for Dice score
                     print('MAKING FOLDER!')
                     os.makedirs(case_save_path, exist_ok=True)
                     #plot the slice with largest whole tumour for all tumour categories 
@@ -254,31 +273,48 @@ def evaluate(eval_path,test_loader,output_path,model=model):
                         
                         for view, axis in enumerate(["Axial", "Sagittal", "Coronal"]):
                             # slice_idx = centroid[view]
+                            axial_slices=test_data['image'][0].shape[3]
+                            
+                            # Axial view
+                            if view == 0:
+                                for slice_ in range(axial_slices):
+                                    areas = wt_channel.sum(axis=(0, 1))  # Sum along the x and y axes
+                                    slice_idx = areas.argmax()  # Get index of slice with max area
+                                    
+                                    if plot_single:
+                                        if slice_==slice_idx:
+                                            slice_data = test_data["image"][0][:, :, :, slice_idx].cpu().numpy()  # C=4, hence using channel 2
+                                            gt_slice = gt_channel[:, :, slice_idx] > 0.5
+                                            pred_slice = pred_channel[:, :, slice_idx] > 0.5
+                                            title = f"{label_names[mask_channel]}_{axis}_s{slice_idx}_{sheet}"
+                                            plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title) 
+                                    else:
+                                        slice_idx=slice_
+                                        slice_data = test_data["image"][0][1, :, :, slice_idx].cpu().numpy()  # C=4, hence using channel 2
+                                        gt_slice = gt_channel[:, :, slice_idx] > 0.5
+                                        pred_slice = pred_channel[:, :, slice_idx] > 0.5
+                                        title = f"{label_names[mask_channel]}_{axis}_s{slice_idx}_{sheet}"
+                                        plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title) 
+                                # elif view == 1:  # Sagittal view
+                                    # pass
+                                    # areas = wt_channel.sum(axis=(1, 2))  # Sum along the x and y axes
+                                    # slice_idx = areas.argmax()  # Get index of slice with max area
+                                    # slice_data = test_data["image"][0][1, slice_idx, :, :].cpu().numpy()
+                                    # gt_slice = gt_channel[slice_idx, :, :] > 0.5
+                                    # pred_slice = pred_channel[slice_idx, :, :] > 0.5
+                                # else:  # Coronal view
+                                    # pass
+                                    # areas = wt_channel.sum(axis=(0, 2))  # Sum along the x and y axes
+                                    # slice_idx = areas.argmax()  # Get index of slice with max area
+                                    # slice_data = test_data["image"][0][1, :, slice_idx, :].cpu().numpy()
+                                    # gt_slice = gt_channel[:, slice_idx, :] > 0.5
+                                    # pred_slice = pred_channel[:, slice_idx, :] > 0.5
 
-                            if view == 0:  # Axial view
-                                areas = wt_channel.sum(axis=(0, 1))  # Sum along the x and y axes
-                                slice_idx = areas.argmax()  # Get index of slice with max area
-                                slice_data = test_data["image"][0][1, :, :, slice_idx].cpu().numpy()  # C=4, hence using channel 2
-                                gt_slice = gt_channel[:, :, slice_idx] > 0.5
-                                pred_slice = pred_channel[:, :, slice_idx] > 0.5
-                            elif view == 1:  # Sagittal view
-                                areas = wt_channel.sum(axis=(1, 2))  # Sum along the x and y axes
-                                slice_idx = areas.argmax()  # Get index of slice with max area
-                                slice_data = test_data["image"][0][1, slice_idx, :, :].cpu().numpy()
-                                gt_slice = gt_channel[slice_idx, :, :] > 0.5
-                                pred_slice = pred_channel[slice_idx, :, :] > 0.5
-                            else:  # Coronal view
-                                areas = wt_channel.sum(axis=(0, 2))  # Sum along the x and y axes
-                                slice_idx = areas.argmax()  # Get index of slice with max area
-                                slice_data = test_data["image"][0][1, :, slice_idx, :].cpu().numpy()
-                                gt_slice = gt_channel[:, slice_idx, :] > 0.5
-                                pred_slice = pred_channel[:, slice_idx, :] > 0.5
-
-                            title = f"{label_names[mask_channel]}_{axis}_s{slice_idx}"
-                            plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title)  
-                            var_1+=1
-                
-             
+                            # title = f"{label_names[mask_channel]}_{axis}_s{slice_idx}_{cluster_fname[:6]}"
+                            # plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title)  
+                            # var_1+=1
+                    # print('exiting now')
+                    # sys.exit()
         metric_org = dice_metric.aggregate().item()
         
         metric_batch_org = dice_metric_batch.aggregate()
@@ -293,6 +329,7 @@ def evaluate(eval_path,test_loader,output_path,model=model):
     return metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area,slice_pred_area
 
 if __name__ =='__main__':
+    job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
     if eval_mode=='cluster':
         test_count=30
         train_count=100
@@ -317,7 +354,10 @@ if __name__ =='__main__':
         folder_name=eval_folder.split('/')[-1]
         # Get the current date and time
         now = datetime.datetime.now()
-        all_model_paths = [os.path.join(eval_folder, modelweights) for modelweights in os.listdir(eval_folder)]
+        if eval_from_folder:
+            all_model_paths = [os.path.join(eval_folder, modelweights) for modelweights in os.listdir(eval_folder)]
+        else:
+            all_model_paths=[]
         all_model_paths.append(load_path)
         
         for path in sorted(all_model_paths):            
@@ -342,7 +382,8 @@ if __name__ =='__main__':
                     elif test_samples_from=='val':
                         if orig_i in val_indices:
                             val_sheet_i.append(i)
-                        
+                    elif test_samples_from=='all':
+                        test_sheet_i.append(i)
                     else:                               
                         if orig_i in test_indices:
                            print('orig_i ',orig_i)
@@ -365,7 +406,8 @@ if __name__ =='__main__':
                 new_dir = os.path.join(output_path, formatted_time)
 
                 # Make the new directory
-                # os.makedirs(new_dir, exist_ok=True)
+                if slice_dice:
+                    os.makedirs(new_dir, exist_ok=True)
                 metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area, slice_pred_area=evaluate(eval_path,test_loader,new_dir)
                 # ind_scores['Cluster']=sheet
                 # ind_scores['Model']=modelweights
@@ -383,14 +425,17 @@ if __name__ =='__main__':
                 print(slice_gt_area_df.shape)
                 print(slice_pred_area_df.shape)
 
-                # excel_file_name = f'{new_dir}/sl_{sheet}_wm_{modelweights}_{folder_name}.xlsx'
-                # with pd.ExcelWriter(excel_file_name) as writer:
-                    # slice_dice_df.to_excel(writer, sheet_name="Dice Scores")
-                    # slice_gt_area_df.to_excel(writer, sheet_name="GT Area")
-                    # slice_pred_area_df.to_excel(writer, sheet_name="Predicted Area")
-                # print(f'saved in {new_dir}')
-                # plot_scatter(slice_dice_df, slice_gt_area_df, slice_pred_area_df, f'{new_dir}/size_dice_scatter.png')
-
+                excel_file_name = f'{new_dir}/sl_{sheet}_wm_{modelweights}_{folder_name}.xlsx'
+                with pd.ExcelWriter(excel_file_name) as writer:
+                    slice_dice_df.to_excel(writer, sheet_name="Dice Scores")
+                    slice_gt_area_df.to_excel(writer, sheet_name="GT Area")
+                    slice_pred_area_df.to_excel(writer, sheet_name="Predicted Area")
+                print(f'saved in {new_dir}')
+                for sample in range(slice_dice_df.shape[1]):
+                    start=sample
+                    end=sample+1
+                    plot_scatter(slice_dice_df.iloc[:,start:end], slice_gt_area_df.iloc[:,start:end], slice_pred_area_df.iloc[:,start:end], f'{new_dir}/{sheet}_bubble{slice_dice_df.columns[sample]}.png')
+                
                 
                 dice_scores.append(metric_org)
                 config_dict['metric_org'] = metric_org
@@ -401,15 +446,14 @@ if __name__ =='__main__':
                 log_path='/scratch/a.bip5/BraTS/eval_running_log.csv'
                 log_run_details(config_dict,[],csv_file_path=log_path)
             resultdict['m'+ modelweights]=dice_scores
-            
-            
-            
-        
+         
         ind_scores_df=pd.concat(score_list)
-        ind_scores_df.to_csv(f'./IndScores{folder_name}.csv')
-            
+        evcl_name=cluster_files.split('/')[-1][:5]
+        ind_scores_df.to_csv(f'./IndScores{folder_name}_{evcl_name}_{job_id}.csv')
+          
         resultdict=pd.DataFrame(resultdict,index=sheet_names)
-        resultdict.to_csv(f'./EvalCluster{folder_name}.csv')
+        resultdict.to_csv(f'./EvCl{folder_name}_{evcl_name}_{job_id}.csv')
+        
     elif eval_mode=='online_val':
         
         val_path='/scratch/a.bip5/ASNR-MICCAI-BraTS2023-GLI-Challenge-ValidationData'
