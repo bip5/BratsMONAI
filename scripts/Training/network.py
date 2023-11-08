@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/scratch/a.bip5/BraTS 2021/scripts/')
+sys.path.append('/scratch/a.bip5/BraTS/scripts/')
 
 from Input.config import (
 model_name,
@@ -7,14 +7,20 @@ load_save,
 seed,
 load_path,
 upsample,
+dropout
 )
 import torch
 from monai.networks.nets import UNet, SegResNet
 from monai.utils import UpsampleMode
+import numpy as np
+from monai.utils import set_determinism
 
 
 device = torch.device("cuda:0")
-    
+
+np.random.seed(seed)
+torch.cuda.manual_seed(seed)
+set_determinism(seed=seed)    
 torch.manual_seed(seed)
 if model_name=="UNet":
      model=UNet(
@@ -33,7 +39,8 @@ elif model_name=="SegResNet":
         
         in_channels=4,
         out_channels=3,
-        upsample_mode=UpsampleMode[upsample]    
+        upsample_mode=UpsampleMode[upsample],
+        dropout_prob=dropout
         ).to(device)
 
 else:

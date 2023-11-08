@@ -558,43 +558,9 @@ def mask_feat(imagef,gt_used,levels=256):
     kernel=np.ones((3,3),np.uint8)
     results=[]
     for image_paths,gt in zip(imagef,gt_used):
+    
         mask=nb.load(gt).get_fdata()
-         # Calculate the centroid of the mask
-        centroid = np.round(ndi.center_of_mass(mask)).astype(int)
-        
-        subject_features = {'mask_path': gt}
-        subject_features['a_centroid']= centroid[2]
-        subject_features['c_centroid']= centroid[1]
-        subject_features['s_centroid']= centroid[0]
-        for i,image_path in enumerate(image_paths):
-            image_data=nb.load(image_paths[i]).get_fdata()
-            image_slice_axial = image_data[:, :, centroid[2]]
-            image_slice_coronal = image_data[:, centroid[1], :]
-            image_slice_sagittal = image_data[centroid[0], :, :]
-            
-            image_slice_axial = ((image_slice_axial - image_slice_axial.min()) * (levels - 1) / (image_slice_axial.max() - image_slice_axial.min())).astype(np.uint8)
-            
-            image_slice_coronal = ((image_slice_coronal - image_slice_coronal.min()) * (levels - 1) / (image_slice_coronal.max() - image_slice_coronal.min())).astype(np.uint8)
-            
-            image_slice_sagittal = ((image_slice_sagittal - image_slice_sagittal.min()) * (levels - 1) / (image_slice_sagittal.max() - image_slice_sagittal.min())).astype(np.uint8)
-            
-            features = calculate_glcm_features(image_slice_axial, distances=[5], angles=[0], levels=256)
-            
-            for key, value in features.items():
-                subject_features[f'axial{i}_{key}'] = value
-                
-            features = calculate_glcm_features(image_slice_coronal, distances=[5], angles=[0], levels=256)
-            
-            for key, value in features.items():
-                subject_features[f'coronal{i}_{key}'] = value
-                
-            features = calculate_glcm_features(image_slice_sagittal, distances=[5], angles=[0], levels=256)
-            
-            for key, value in features.items():
-                subject_features[f'sagittal{i}_{key}'] = value
-            
-        results.append(subject_features)         
-                        
+    
         lot_size=len(np.nonzero(mask)[0])
         
         et_mask=np.where(mask==3,1,0)
@@ -747,6 +713,58 @@ def mask_feat(imagef,gt_used,levels=256):
         da_profSagittal.append(daP_indSagittal)
         da_profAxial.append(daP_indAxial)
         da_profFrontal.append(daP_indFrontal)
+        
+       
+        # Calculate the centroid of the mask -different to largest wt area
+        centroid = np.round(ndi.center_of_mass(mask_bi)).astype(int)
+        
+        subject_features = {'mask_path': gt}
+        subject_features['a_centroid']= centroid[2]
+        subject_features['c_centroid']= centroid[1]
+        subject_features['s_centroid']= centroid[0]
+        
+        
+        areas_a = mask_bi.sum(axis=(0, 1))  # Sum along the x and y axes
+        a_argmax = areas_a.argmax()
+        subject_features['a_argmax'] =  a_argmax
+        areas_s = mask_bi.sum(axis=(1, 2))
+        s_argmax = areas_s.argmax()
+        subject_features['s_argmax']= s_argmax 
+        areas_c = mask_bi.sum(axis=(0, 2))
+        c_argmax = areas_c.argmax()
+        subject_features['c_argmax']= c_argmax 
+        
+        
+        for i,image_path in enumerate(image_paths):
+            image_data=nb.load(image_paths[i]).get_fdata()
+            image_slice_axial = image_data[:, :, a_argmax]
+            image_slice_coronal = image_data[:, c_argmax, :]
+            image_slice_sagittal = image_data[s_argmax, :, :]
+            
+            image_slice_axial = ((image_slice_axial - image_slice_axial.min()) * (levels - 1) / (image_slice_axial.max() - image_slice_axial.min())).astype(np.uint8)
+            
+            image_slice_coronal = ((image_slice_coronal - image_slice_coronal.min()) * (levels - 1) / (image_slice_coronal.max() - image_slice_coronal.min())).astype(np.uint8)
+            
+            image_slice_sagittal = ((image_slice_sagittal - image_slice_sagittal.min()) * (levels - 1) / (image_slice_sagittal.max() - image_slice_sagittal.min())).astype(np.uint8)
+            
+            features = calculate_glcm_features(image_slice_axial, distances=[5], angles=[0], levels=256)
+            
+            for key, value in features.items():
+                subject_features[f'axial{i}_{key}'] = value
+                
+            features = calculate_glcm_features(image_slice_coronal, distances=[5], angles=[0], levels=256)
+            
+            for key, value in features.items():
+                subject_features[f'coronal{i}_{key}'] = value
+                
+            features = calculate_glcm_features(image_slice_sagittal, distances=[5], angles=[0], levels=256)
+            
+            for key, value in features.items():
+                subject_features[f'sagittal{i}_{key}'] = value
+            
+        results.append(subject_features)         
+                        
+        
         
     #Consecutive dice score
     sagittal_profile_tc=np.ma.masked_equal(np.array(dice_profSagittal_tc),0).mean(axis=1)#to take only non zero values for average

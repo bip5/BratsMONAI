@@ -1,4 +1,5 @@
-from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
+from monai.transforms import (EnsureChannelFirstD, ToMetaTensorD,\
+    ToTensorD,
     ScaleIntensityD, SpacingD, OrientationD,\
     ResizeD, RandAffineD,
     Activations,
@@ -23,6 +24,7 @@ from monai.transforms import (EnsureChannelFirstD, AddChannelD,\
     EnsureTyped,
     EnsureType,
 )
+import torch
 import numpy as np
 
 
@@ -102,6 +104,7 @@ train_transform = Compose(
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
         RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
         RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),
+        ToTensorD(keys=["image"]),
         EnsureTyped(keys=["image", "mask"]),
     ]
 )
@@ -119,6 +122,7 @@ val_transform = Compose(
         OrientationD(keys=["image", "mask"], axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
         CenterSpatialCropd(keys=["image", "mask"], roi_size=[192, 192, 144]),
+        # ToTensorD(keys=["image"], dtype=torch.float),
         EnsureTyped(keys=["image", "mask"]),
     ]
 )
@@ -169,6 +173,7 @@ test_transforms0 = Compose(
         ConvertToMultiChannelBasedOnBratsClassesd_val(keys="mask"),
         
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        # ToTensorD(keys=["image"], dtype=torch.float),
         EnsureTyped(keys=["image", "mask"]),
     ]
     )
@@ -178,6 +183,7 @@ test_transforms1 = Compose(
         EnsureChannelFirstD(keys=["image"]),        
         
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        # ToTensorD(keys=["image"], dtype=torch.float),
         EnsureTyped(keys=["image"]),
     ]
     )

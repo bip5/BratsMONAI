@@ -20,7 +20,7 @@ def SegResNet_features(load_path, model=model):
     ds = BratsDataset(root_dir, transform=val_transform)
     mask_list=ds.mask_list
     print(len(set(mask_list)),len(mask_list))
-    image_path=[x[:-26] for x in mask_list][:1251]
+    image_path=[x for x in mask_list][:1251]
     
     
     
@@ -49,6 +49,7 @@ def SegResNet_features(load_path, model=model):
             all_features.append(features.cpu().numpy().flatten())
     
     feature_df= pd.DataFrame(data=np.array(all_features),index=image_path)
+    feature_df.index.name='mask_path'
     feature_df.to_csv('/scratch/a.bip5/BraTS/B23Encoded_maxfeatures.csv')
     
     return None

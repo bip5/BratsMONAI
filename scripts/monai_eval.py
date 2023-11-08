@@ -81,6 +81,7 @@ import sys
 import re
 import torch
 import time
+
 from torch.utils.data import Subset
 import argparse
 from torchsummary import summary
@@ -95,11 +96,14 @@ from Evaluation.evaluation import (
 inference,
 
 )
+
+from Training.network import model
 from Input.localtransforms import (
 train_transform,
 val_transform,
 post_trans,
 )
+from Input.config import load_path
 import eval_config
 import warnings
 
@@ -132,27 +136,27 @@ if __name__=="__main__":
 
     # standard PyTorch program style: create SegResNet, DiceLoss and Adam optimizer
     device = torch.device("cuda:0")
-    if model=="UNet":
-         model=UNet(
-            spatial_dims=3,
-            in_channels=4,
-            out_channels=3,
-            channels=(64,128,256,512,1024),
-            strides=(2,2,2,2)
-            ).to(device)
-    elif model=="SegResNet":
-        model = SegResNet(
-            blocks_down=[1, 2, 2, 4],
-            blocks_up=[1, 1, 1],
-            init_filters=32,
-            norm="instance",
-            in_channels=4,
-            out_channels=3,
-            upsample_mode=UpsampleMode[upsample]    
-            ).to(device)
+    # if model=="UNet":
+         # model=UNet(
+            # spatial_dims=3,
+            # in_channels=4,
+            # out_channels=3,
+            # channels=(64,128,256,512,1024),
+            # strides=(2,2,2,2)
+            # ).to(device)
+    # elif model=="SegResNet":
+        # model = SegResNet(
+            # blocks_down=[1, 2, 2, 4],
+            # blocks_up=[1, 1, 1],
+            # init_filters=32,
+            # norm="instance",
+            # in_channels=4,
+            # out_channels=3,
+            # upsample_mode=UpsampleMode[upsample]    
+            # ).to(device)
 
-    else:
-        model = locals() [model](4,3).to(device)
+    # else:
+        # model = locals() [model](4,3).to(device)
 
     with torch.cuda.amp.autocast():
         summary(model,(4,96,96,72)) #just double all sizes
@@ -198,17 +202,17 @@ if __name__=="__main__":
 
            
     if val==10: 
-        all1=make_dataset("./BraTS21_data")
+        all1=make_dataset("/scratch/a.bip5/BraTS/BraTS_23_training")
         
-        gt_used=all1[1][:10]
-        imageall=all1[0][:10]
+        gt_used=all1[1]#[:10]
+        imageall=all1[0]#[:10]
         # imagef=[i[0] for i in imageall]
         
     elif val==1:
         val_indices=np.random.choice(np.arange(1000),max_samples,replace=False)
-        test_ds=TestDataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData",transform=test_transforms0)
+        test_ds=TestDataset("/scratch/a.bip5/BraTS/BraTS_23_training",transform=test_transforms0)
         test_ds=Subset(test_ds,val_indices)
-        gt_all=make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TrainingData")[1]
+        gt_all=make_dataset("/scratch/a.bip5/BraTS/BraTS_23_training")[1]
         gt_used=[gt_all[i] for i in val_indices]
         
         #print("list of input gt files",make_dataset("./RSNA_ASNR_MICCAI_BraTS2021_TestData")[1])
@@ -280,6 +284,8 @@ if __name__=="__main__":
             # })
         features.to_csv(f'Dataset_features{round(time.time())}.csv')
         sys.exit()
+
+        
     
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=workers) # this should return 10 different instances
 

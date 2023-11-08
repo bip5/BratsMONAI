@@ -41,6 +41,9 @@ import matplotlib.pyplot as plt
 import datetime
 from matplotlib.colors import ListedColormap
 from sklearn.preprocessing import MinMaxScaler
+from monai.config import print_config
+print_config()
+
 
 namespace = locals().copy()
 config_dict=dict()
@@ -200,11 +203,12 @@ def evaluate(eval_path,test_loader,output_path,model=model):
     slice_pred_area = dict()
     slice_gt_area = dict()
     with torch.no_grad():
-        for test_data in test_loader: # each image
+        for i,test_data in enumerate(test_loader): # each image
             
             test_inputs = test_data["image"].to(device) # pass to gpu
             test_labels=test_data["mask"].to(device)
             sub_id=test_data["id"][0]
+            image_names=test_data["imagepaths"]
             
             for idx, y in enumerate(test_labels):
                 test_labels[idx] = (y > 0.5).int()
@@ -220,7 +224,9 @@ def evaluate(eval_path,test_loader,output_path,model=model):
             current_dice = dice_metric.aggregate().item()
             ind_scores[sub_id]=round(current_dice,4)
             
-            print('sub_id: ', sub_id)
+            
+            # print('sub_id: ', sub_id)
+            # print('image_names',image_names)
 
             
             
@@ -419,6 +425,7 @@ if __name__ =='__main__':
                 ind_score_df=pd.DataFrame(ind_scores.values(),index=ind_scores.keys(),columns=['Dice'])
                 ind_score_df['Cluster']=sheet
                 ind_score_df['Model']=modelweights
+                ind_score_df['Original index']= test_sheet_i
                 score_list.append(ind_score_df)
                 
                 
@@ -453,6 +460,14 @@ if __name__ =='__main__':
          
         ind_scores_df=pd.concat(score_list)
         evcl_name=cluster_files.split('/')[-1][:5]
+        ind_scores_df.rename(columns={ind_scores_df.columns[0]: 'Subject ID'},inplace=True)
+        ind_scores_df=ind_scores_df.pivot_table(
+        index=['Subject ID', 'Original index','Cluster'],
+        columns='Model',
+        values='Dice',
+        aggfunc='first'
+        ).reset_index()
+        
         ind_scores_df.to_csv(f'./IndScores{folder_name}_{evcl_name}_{job_id}.csv')
           
         resultdict=pd.DataFrame(resultdict,index=sheet_names)

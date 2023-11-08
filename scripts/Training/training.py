@@ -106,10 +106,15 @@ namespace = locals().copy()
 # print('train_indices,val_indices,test_indices',train_indices,val_indices,test_indices)
 # sys.exit()
 config_dict=dict()
+job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
+config_dict['job_id']=job_id
 for name, value in sorted(namespace.items()):
-    if type(value) in [str,int,float,bool]:
-        print(f"{name}: {value}")
-        config_dict[f"{name}"]=value
+    if not name.startswith("__"):
+        if type(value) in [str,int,float,bool]:
+            print(f"{name}: {value}")
+            config_dict[f"{name}"]=value
+        
+
 os.environ['PYTHONHASHSEED']=str(seed)
 torch.backends.cudnn.deterministic = True
 torch.manual_seed(seed)
@@ -139,7 +144,7 @@ save_dir=os.path.join(weights_dir,'m'+formatted_time)
 os.makedirs(save_dir,exist_ok=True)
 print('SAVING MODELS IN ', save_dir)
 
-job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
+
 
 def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model,sheet_name=None,once=once):
     last_model=None
@@ -405,6 +410,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     
                     print("saved new best metric model")
                     last_model,previous_best_model=saved_model,last_model
+                    best_dice_score=metric
+                    model_performance_dict[saved_model] = metric
                     patience_counter=0
                     
                 print(
@@ -418,37 +425,26 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 
                 print('TRAINING BINSEMBLE \n \n \n \n \n')
                 if patience_counter>freeze_patience:
+                    models_to_average = [model_path for model_path, score in model_performance_dict.items() if abs(score - best_dice_score) <= 0.01]
                     if saved_models_count>last_saved_models_count:
-                        if previous_best_model and last_model:
-                            # Load weights from the two models
-                            last_model_weights = torch.load(last_model)
-                            previous_best_model_weights = torch.load(previous_best_model)
-                            
-                            # Average the weights
-                            averaged_weights = {name: (last_model_weights[name] + previous_best_model_weights[name]) / 2 
-                                                for name in last_model_weights}
-                            
-                            # Update the current model's weights
+                        if len(models_to_average) > 1:  # or any other threshold
+                            averaged_weights = None
+                            for model_path in models_to_average:
+                                model_weights = torch.load(model_path)
+                                if averaged_weights is None:
+                                    averaged_weights = {name: torch.zeros_like(param) for name, param in model_weights.items()}
+                                for name, param in model_weights.items():
+                                    averaged_weights[name] += param
+                            averaged_weights = {name: param/len(models_to_average) for name, param in averaged_weights.items()}
                             model.load_state_dict(averaged_weights)
-                            print(f"Averaged weights of models {previous_best_model} and {last_model}.")
+                            print(f"Averaged weights of {len(models_to_average)} models.")
                             last_saved_models_count=saved_models_count
                     else:
                         print("Insufficient models to average. Consider saving initial models for averaging.")
                 else:
                     patience_counter+=1
                 
-                
-                
-        # if sheet_name:
-            # if check_gainless_epochs(epoch, best_metric_epoch):
-                # gainless_counter+=1
-                # break
-        
-                
-                    
-            
-
-                
+                 
         print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
     if save_name not in model_names:
         model_names.add(save_name)
@@ -489,17 +485,19 @@ elif CV_flag:
     # val_dataset = partition_dataset(data=val_dataset, transform=train_transform), num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     
 elif exp_ensemble:
-    print('Expert Ensemble going ahead now')
+    indices_dict={}
+    indices_dict['Train indices']=train_indices
+    indices_dict['Test indices']=test_indices
+    indices_dict['Val indices']=val_indices
+    print('Expert Ensemble going ahead now', indices_dict)
     # val_count=20
-    train_count=100
-    
-    
+    train_count=100   
     
     xls = pd.ExcelFile(cluster_files)
      
     # Get all sheet names
     sheet_names = xls.sheet_names
-    sheet_names=[x for x in sheet_names if 'Cluster' in x]
+    sheet_names=[x for x in sheet_names if 'Cluster_' in x]
     for sheet in sheet_names: 
         val_sheet_i=[]
         train_sheet_i=[]

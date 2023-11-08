@@ -1,12 +1,19 @@
 import csv
 from datetime import datetime
+from Input import config
 
 
-log_path='/scratch/a.bip5/BraTS 2021/running_log.csv'
+log_path='/scratch/a.bip5/BraTS/running_log.csv'
 def log_run_details(details, model_names,best_metrics=None,csv_file_path=log_path):
     # Adding the timestamp and model names to the details
     details["timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
+    for i, model_name in enumerate(model_names):
+        details[f"model{i+1}"] = model_name
+        
+    if best_metrics:  
+        for i,best_metric in enumerate(best_metrics):
+            details[f"bestmetric{i+1}"] = best_metric
     # Define the field names
     try:
         with open(csv_file_path, 'r') as csvfile:
@@ -26,12 +33,7 @@ def log_run_details(details, model_names,best_metrics=None,csv_file_path=log_pat
     for i in range(len(model_names)):
         fieldnames.append(f"model{i+1}")
     
-    for i, model_name in enumerate(model_names):
-        details[f"model{i+1}"] = model_name
-        
-    if best_metrics:  
-        for i,best_metric in enumerate(best_metrics):
-            details[f"bestmetric{i+1}"] = best_metric
+
     
     # Rewrite the file with new columns (if any)
     with open(csv_file_path, 'w', newline='') as csvfile:
@@ -52,4 +54,33 @@ def log_run_details(details, model_names,best_metrics=None,csv_file_path=log_pat
         
         writer.writerow(details)
 
+def append_config_to_csv(log_file,job_number):
+    """
+    Append config variables to a CSV file. Create new columns if new variables are added.
 
+    Args:
+    - log_file (str): Path to the CSV log file.
+    """
+
+    # Get current config variables and values
+    current_config = {k: v for k, v in vars(config).items() if not k.startswith("__")}
+    current_config['job ID']=job_number
+    # Check if the log file exists and contains previous data
+    existing_headers = []
+    if os.path.exists(log_file):
+        with open(log_file, 'r') as f:
+            reader = csv.reader(f)
+            existing_headers = next(reader, [])
+
+    # Merge headers - Keep old headers and add any new ones found in current_config
+    all_headers = list(set(existing_headers) | set(current_config.keys()))
+
+    # Write to the CSV file
+    with open(log_file, 'a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=all_headers)
+        
+        # Write header only if the file was empty (i.e., no existing headers)
+        if not existing_headers:
+            writer.writeheader()
+
+        writer.writerow(current_config)

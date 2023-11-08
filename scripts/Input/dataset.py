@@ -46,7 +46,7 @@ def make_dataset(data_dir):
                 else:
                     im_temp.append(fpath)
         if im_temp:
-            images.append(im_temp)
+            images.append(sorted(im_temp))
 
     return images, masks
 
@@ -58,9 +58,9 @@ def make_ens_dataset(path):
     im_temp=[]
     folders=pd.read_csv(path)['mask_path']
 
-    for folder in folders:                    # for each folder
+    for folder in sorted(folders):                    # for each folder
          path=folder # combine root path with folder path
-         for root1, _, fnames in os.walk(path):       #list all file names in the folder         
+         for root1, _, fnames in sorted(os.walk(path)):       #list all file names in the folder         
             for f in fnames:                          # go through each file name
                 fpath=os.path.join(root1,f)
                 if is_image_file(f):                  # check if expected extension
@@ -69,7 +69,7 @@ def make_ens_dataset(path):
                     else:
                         im_temp.append(fpath)         # all without seg are image files, store them in a list for each folder
             if im_temp:            
-                    images.append(im_temp)                    # add image files for each folder to a list
+                    images.append(sorted(im_temp))                    # add image files for each folder to a list
                     im_temp=[]
     return images, masks
 
@@ -80,9 +80,9 @@ def make_exp_dataset(path,sheet):
     im_temp=[]
     folders=pd.read_excel(path,sheet)['Index']
 
-    for folder in folders:                    # for each folder
+    for folder in sorted(folders):                    # for each folder
          path=folder # combine root path with folder path
-         for root1, _, fnames in os.walk(path):       #list all file names in the folder         
+         for root1, _, fnames in sorted(os.walk(path)):       #list all file names in the folder         
             for f in fnames:                          # go through each file name
                 fpath=os.path.join(root1,f)
                 if is_image_file(f):                  # check if expected extension
@@ -91,7 +91,7 @@ def make_exp_dataset(path,sheet):
                     else:
                         im_temp.append(fpath)         # all without seg are image files, store them in a list for each folder
             if im_temp:            
-                    images.append(im_temp)                    # add image files for each folder to a list
+                    images.append(sorted(im_temp))                    # add image files for each folder to a list
                     im_temp=[]
     return images, masks
 
@@ -205,7 +205,8 @@ class ExpDataset(Dataset):
         if self.transform:
             item_dict={"image":image,"mask": mask}
             item_dict2=self.transform(item_dict)
-            item_dict2['id'] = mask[-16:-11]
+            item_dict2['id'] = mask[-20:-11]
+            item_dict2['imagepaths']=image
             
         
         return item_dict2

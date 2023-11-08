@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/scratch/a.bip5/BraTS 2021/scripts/')
+sys.path.append('/scratch/a.bip5/BraTS/scripts/')
 
 import torch
 import torch.nn as nn
