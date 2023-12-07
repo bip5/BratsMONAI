@@ -10,8 +10,10 @@ train_transform,
 val_transform,
 post_trans,
 )
+from prun import prune_network
+from monai.handlers.utils import from_engine
 from Input.config import (
-CV_flag,
+
 root_dir,
 weights_dir,
 total_epochs,
@@ -26,12 +28,11 @@ T_max,
 lr,
 max_samples,
 model_name,
-fs_ensemble,
-exp_ensemble,
 workers,
 load_save,
 load_path,
 DDP,
+training_mode,
 train_partial,
 unfreeze,
 freeze_train,
@@ -45,7 +46,9 @@ fix_samp_num_exp,
 freeze_patience,
 freeze_specific,
 backward_unfreeze,
-binsemble
+binsemble,
+roi,
+PRUNE_PERCENTAGE
 )
 from Evaluation.evaluation import (
 inference,
@@ -153,23 +156,29 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
    
     train_loader=DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers)
     print('loading val data')
-   
-    val_loader=DataLoader(val_dataset, batch_size=batch_size, shuffle=False,num_workers=workers)
+    if training_mode=='val_exp_ens':
+        val_loader0=DataLoader(val_dataset[0], batch_size=batch_size, shuffle=False,num_workers=workers)
+        val_loader1=DataLoader(val_dataset[1], batch_size=batch_size, shuffle=False,num_workers=workers)
+        val_loader2=DataLoader(val_dataset[2], batch_size=batch_size, shuffle=False,num_workers=workers)
+        val_loader3=DataLoader(val_dataset[3], batch_size=batch_size, shuffle=False,num_workers=workers)
+    else:
+        val_loader=DataLoader(val_dataset, batch_size=batch_size, shuffle=False,num_workers=workers)
     print("All Datasets assigned")
 
     device = torch.device(f"cuda:0")
     # torch.cuda.set_device(device)
     model=model.to(device)  
     model=torch.nn.DataParallel(model)
+    # Assuming you have a model instance called `model`
     
     
     if sheet_name is None:
         with torch.cuda.amp.autocast():
-            summary(model,(4,192,192,144))  
+            summary(model,(4,192,192,128))  
     else:    
         while once<1:
             with torch.cuda.amp.autocast():
-                summary(model,(4,192,192,144))
+                summary(model,(4,192,192,128))
             once+=1
         
     torch.manual_seed(seed)    
@@ -177,6 +186,9 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     if load_save==1:
         model.load_state_dict(torch.load(load_path),strict=False)
         print("loaded saved model ", load_path)
+        if PRUNE_PERCENTAGE is not None:
+            model = prune_network(model)
+            print('PRUNED MODEL!?!')
         if train_partial==True:
             # Step 2: Freeze all layers
             for param in model.parameters():
@@ -307,7 +319,15 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         
         
         
-        for batch_data in train_loader:
+        for batch_data in train_loader:          
+
+            if epoch==0:
+                print(batch_data['id'])
+                for sid in batch_data['id']:
+                    if training_mode=='exp_ensemble':
+                        sample_index=map_dict[sid]
+                        assert sample_index in train_indices , 'Training outside index'
+                
             step_start = time.time()
             step += 1
             inputs, masks = (
@@ -344,16 +364,20 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         if (epoch + 1) % val_interval == 0:
             model.eval()
             with torch.no_grad():
+                
+                if training_mode=='val_exp_ens':
 
                 for val_data in val_loader:
-                    val_inputs, val_masks = (
-                        val_data["image"].to(device),
-                        val_data["mask"].to(device),
-                    )
+                    val_inputs=val_data["image"].to(device)
+                    val_data["pred"] = inference(val_inputs,model)
+                    val_data = [post_trans(i) for i in decollate_batch(val_data)]
+                    val_outputs, val_masks = from_engine(["pred", "mask"])(val_data)
                     for idx, y in enumerate(val_masks):
                         val_masks[idx] = (y > 0.5).int()
-                    val_outputs = inference(val_inputs,model)
-                    val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
+                    
+                    
+                    val_outputs = [tensor.to(device) for tensor in val_outputs]
+                    val_masks = [tensor.to(device) for tensor in val_masks]    
                     dice_metric(y_pred=val_outputs, y=val_masks)
                     dice_metric_batch(y_pred=val_outputs, y=val_masks)
 
@@ -378,7 +402,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     best_metrics_epochs_and_time[1].append(best_metric_epoch)
                     best_metrics_epochs_and_time[2].append(time.time() - total_start)
                     
-                    if CV_flag==1:      
+                    if training_mode=='CV_fold':      
                         save_name=model_name+"CV"+str(fold_num)+'_j'+str(job_id)+'ep'+str(epoch)
                         saved_model=os.path.join(save_dir,save_name)
                         print(saved_model)
@@ -389,7 +413,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     
                     elif sheet_name is not None:  
                        
-                        save_name=sheet_name+'_'+str(load_save)+'_j'+str(job_id)
+                        save_name=sheet_name+'_'+str(load_save)+'_j'+str(job_id)+'_e'+str(best_metric_epoch)
                         saved_model=os.path.join(save_dir, save_name)
                         torch.save(
                             model.state_dict(),
@@ -457,23 +481,23 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
 
     print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}, total time: {total_time}.")
     with open ('./time_consumption.csv', 'a') as sample:
-        sample.write(f"{model_name},{method},{total_time},{date.today().isoformat()},{fold_num},{CV_flag},{seed},{total_epochs}\n")
+        sample.write(f"{model_name},{method},{total_time},{date.today().isoformat()},{fold_num},{training_mode},{seed},{total_epochs}\n")
    
     return once
 
+indices_dict={}
+indices_dict['Train indices']=train_indices
+indices_dict['Test indices']=test_indices
+indices_dict['Val indices']=val_indices
+print(indices_dict)
 
 
-
-if fs_ensemble:
+if training_mode=='fs_ensemble':
     train_dataset = partition_dataset(data=EnsembleDataset('/scratch/a.bip5/BraTS 2021/selected_files_seed3.csv', transform=train_transform), shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     val_dataset = partition_dataset(data=EnsembleDataset('/scratch/a.bip5/BraTS 2021/selected_files_seed4.csv', transform=train_transform), num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     trainingfunc(train_dataset, val_dataset)
-elif CV_flag:
-    indices_dict={}
-    indices_dict['Train indices']=train_indices
-    indices_dict['Test indices']=test_indices
-    indices_dict['Val indices']=val_indices
-    print(indices_dict)
+    
+elif training_mode=='CV_fold':    
     
     full_dataset_train = BratsDataset(root_dir, transform=train_transform)
     full_dataset_val = BratsDataset(root_dir, transform=val_transform)
@@ -484,12 +508,8 @@ elif CV_flag:
     # train_dataset = partition_dataset(data=train_dataset, transform=train_transform), shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     # val_dataset = partition_dataset(data=val_dataset, transform=train_transform), num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     
-elif exp_ensemble:
-    indices_dict={}
-    indices_dict['Train indices']=train_indices
-    indices_dict['Test indices']=test_indices
-    indices_dict['Val indices']=val_indices
-    print('Expert Ensemble going ahead now', indices_dict)
+elif training_mode=='exp_ensemble':    
+    print('Expert Ensemble going ahead now')
     # val_count=20
     train_count=100   
     
@@ -502,15 +522,22 @@ elif exp_ensemble:
         val_sheet_i=[]
         train_sheet_i=[]
         cluster_indices=pd.read_excel(cluster_files,sheet)['original index']
-        for i,orig_i in enumerate(cluster_indices):
+        sub_ids=pd.read_excel(cluster_files,sheet)['Index'].map(lambda x:x[-9:])
+        map_dict=dict(zip(sub_ids,cluster_indices))
+        
+        # print(cluster_indices)
+        for i,orig_i in enumerate(sorted(cluster_indices)):
             if orig_i in test_indices:
                pass
             elif orig_i in val_indices:
-                print('orig_i ',orig_i)
+                # print('orig_i ',orig_i)
                 val_sheet_i.append(i)
-            else:
+            elif orig_i in train_indices:
+                # print(orig_i, 'training index')
                 train_sheet_i.append(i)
-        
+            else:
+                continue
+        # print('train indices', train_sheet_i)
         # if len(val_sheet_i) < val_count:
             # raise(ValueError,f'Please reduce the number of val file count! Cluster {sheet} only had {len(val_sheet_i)} files')
         full_dataset_train = ExpDataset(cluster_files,sheet, transform=train_transform)
@@ -525,7 +552,7 @@ elif exp_ensemble:
             # val_dataset = Subset(full_dataset, val_sheet_i)
             # val_dataset = Subset(full_dataset, val_sheet_i[:val_count])  
         else:
-            train_dataset =Subset(full_dataset_train, train_sheet_i)
+            train_dataset =Subset(full_dataset_train, train_sheet_i)           
             if super_val:
                 super_i=train_sheet_i+val_sheet_i
                 val_dataset = Subset(full_dataset_val, super_i) 
@@ -533,6 +560,41 @@ elif exp_ensemble:
                 val_dataset = Subset(full_dataset_val, val_sheet_i) 
         trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,sheet_name=sheet)
         gc.collect()
+elif training_mode=='val_exp_ens':
+    full_dataset_train = BratsDataset(root_dir, transform=train_transform)
+    train_dataset =Subset(full_dataset_train, train_indices)
+    print('Expert by validation going ahead now')
+      
+    xls = pd.ExcelFile(cluster_files)
+    
+     
+    # Get all sheet names
+    sheet_names = xls.sheet_names
+    sheet_names=[x for x in sheet_names if 'Cluster_' in x]
+    val_sets=[]
+    for sheet in sheet_names: 
+        val_sheet_i=[]
+        train_sheet_i=[]
+        cluster_indices=pd.read_excel(cluster_files,sheet)['original index']
+        sub_ids=pd.read_excel(cluster_files,sheet)['Index'].map(lambda x:x[-9:])
+        map_dict=dict(zip(sub_ids,cluster_indices))
+        
+        for i,orig_i in enumerate(sorted(cluster_indices)):
+            if orig_i in test_indices:
+               pass
+            elif orig_i in val_indices:
+                # print('orig_i ',orig_i)
+                val_sheet_i.append(i)
+            elif orig_i in train_indices:
+                # print(orig_i, 'training index')
+                pass
+            else:
+                continue
+        full_dataset_val=ExpDataset(cluster_files,sheet, transform=val_transform)
+        val_dataset = Subset(full_dataset_val, val_sheet_i) 
+        
+        val_sets.append(val_dataset)
+    trainingfunc_simple(train_dataset, val_sets,save_dir=save_dir,sheet_name=sheet)
 else:
     print(' Choose a training method first in the config file!')
 
