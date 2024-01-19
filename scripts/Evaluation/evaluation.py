@@ -2,8 +2,9 @@ import sys
 sys.path.append('/scratch/a.bip5/BraTS/scripts/')
 import nibabel as nib
 
-from monai.metrics import DiceMetric
+
 from monai.inferers import sliding_window_inference
+from monai.handlers.utils import from_engine
 import torch
 from Input.config import (
 cluster_files,
@@ -17,17 +18,25 @@ eval_folder,
 weights_dir,
 output_path,
 slice_dice,
+model_name,
 plot_output,
 load_path,
-plot_single,
-eval_from_folder
+plot_single_slice,
+eval_from_folder,
+roi,
+use_cluster_for_online_val,
+root_dir,
+plot_list,
+limit_samples,
 
 )
-from Input.dataset import (ExpDataset,ExpDatasetEval,
+from Input.dataset import (
+BratsDataset,
+ExpDataset,ExpDatasetEval,
 test_indices,train_indices,
 val_indices,Brats23valDataset
 )
-from Input.localtransforms import test_transforms1,post_trans,train_transform,val_transform
+from Input.localtransforms import test_transforms1,post_trans,train_transform,val_transform,post_trans_test,val_transform_Flipper
 from Training.running_log import log_run_details
 import pandas as pd
 from Training.network import model
@@ -39,12 +48,19 @@ import time
 import os
 import matplotlib.pyplot as plt
 import datetime
-from matplotlib.colors import ListedColormap
+from Analysis.encoded_features import single_encode
 from sklearn.preprocessing import MinMaxScaler
 from monai.config import print_config
+from monai.metrics import DiceMetric
+from Evaluation.eval_functions import plot_scatter,plot_prediction,find_centroid,eval_model_selector
+from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch
 print_config()
 
+#trying to make the evaluation deterministic and independent to sample order
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
+device = torch.device("cuda:0")
 namespace = locals().copy()
 config_dict=dict()
 for name, value in namespace.items():
@@ -53,8 +69,6 @@ for name, value in namespace.items():
         config_dict[f"{name}"]=value
 
 
-dice_metric = DiceMetric(include_background=True, reduction="mean")
-dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
 seed = 0
 torch.manual_seed(seed)
 if torch.cuda.is_available():
@@ -66,10 +80,10 @@ def inference(input,model):
         
         return sliding_window_inference(
             inputs=input,
-            roi_size=(192,192, 144),
+            roi_size=roi,
             sw_batch_size=1,
             predictor=model,
-            overlap=0.5,
+            overlap=0,
             )
 
     if VAL_AMP:
@@ -78,123 +92,38 @@ def inference(input,model):
     else:
         return _compute(input,model)
         
-
-def plot_scatter(dice, gt, pred, save_path, use_slice_number=True, min_size=10, max_size=100):
-
-    ''' expected shape for dice: [number_of_slices, samples]
-    .values extracts just the values and not the slice numbers
-    ie 76 arrays of 144 dice values representing each slice
-    '''
-    # Flatten the dataframes to get values for all slices across all samples
-    dice_scores = dice.values.flatten()
-    gt_area = gt.values.flatten()
-    pred_area = pred.values.flatten()
-    
-    
-    # Determine color based on whether prediction area is greater or less than ground truth
-    colors = ['red' if p > g else 'blue' if p < g else 'green' for p, g in zip(pred_area, gt_area)]
-    
-
-    # Normalize the sizes
-    scaler = MinMaxScaler(feature_range=(min_size, max_size))
-    sizes = scaler.fit_transform(gt_area.reshape(-1, 1))
-    
-    plt.figure(figsize=(12, 7))
-    
-    if use_slice_number:
-        # Slice number on x-axis
-        x_values = np.tile(np.arange(dice.shape[0]), dice.shape[1])
-        # colors = colors[:len(x_values)]
-        # sizes = sizes[:len(x_values)].flatten()
-        plt.scatter(x_values, dice_scores, c=colors, s=sizes, alpha=0.5)
-        plt.xlabel('Slice Number')
-    else:
-        # Samples on x-axis (essentially sample order)
-        x_values = np.repeat(np.arange(dice.shape[1]), dice.shape[0])
-        plt.scatter(x_values, dice_scores, c=colors, s=sizes, alpha=0.5)
-        plt.xlabel('Sample')
-    
-    plt.ylabel('Dice Score')
-    plt.title('Dice Scores vs Slices/Samples')
-    plt.grid(True)
-    
-    # Save the plot to the specified path
-    plt.savefig(save_path)
-    plt.close()
-        
-def plot_prediction(image_slice, gt_mask, pred_mask, o_path, title,plot_slice=plot_output):
-    
-
-    tp = len(np.nonzero(pred_mask & gt_mask)[0])
-    fp = len(np.nonzero(pred_mask & ~gt_mask)[0])
-    fn = len(np.nonzero(~pred_mask & gt_mask)[0])
-    den = 2*tp + fp + fn
-    if plot_slice:
-        if den > 0:
-            dice_value = 2 * tp / den
-            if dice_value<0.8:
-                dice = f" - Dice Score: {dice_value:.4f}"  # For 4 decimal places
-                fig, ax = plt.subplots(2, 2, figsize=(20, 20))
-
-                ax[0][0].imshow(image_slice[0], cmap='gray', origin='lower')
-                ax[0][0].set_title('Original Slice')
-                combined_mask = np.zeros_like(pred_mask, dtype=int)
-                combined_mask[pred_mask & gt_mask] = 1  # True positives - green in cm 
-                combined_mask[pred_mask & ~gt_mask] = 2  # False positives - red in cm
-                combined_mask[~pred_mask & gt_mask] = 3  # False negatives - blue in cm
-                print(title, np.unique(combined_mask))
-                
-                colors = [(0, 0, 0, 0), (0, 1, 0, 0.3),(1, 0, 0, 0.3), (0, 0, 1, 0.3) ]
-                cm = ListedColormap(colors)
-                if not np.any(gt_mask): #not ideal but better than nothing
-                    colors = [(0, 0, 0, 0), (0, 1, 0, 0.3),(1, 0, 0, 0.3), (1, 0, 0, 0.3) ]
-                cm = ListedColormap(colors)
-                gt_colors=[(0,0,0,0),(0,1,0,0.3)]
-                gm=ListedColormap(gt_colors)
-                pred_colors=[(0,0,0,0),(1,0,0,0.3)]
-                pm=ListedColormap(pred_colors)
-                
-                ax[0][1].imshow(image_slice[1], cmap='gray', origin='lower')
-                ax[0][1].imshow(combined_mask, cmap=cm, origin='lower')
-                ax[0][1].set_title(title+dice)
-
-                ax[1][0].imshow(image_slice[2], cmap='gray', origin='lower')
-                ax[1][0].imshow(gt_mask, cmap=gm, origin='lower')
-                ax[1][0].set_title("Ground Truth" + dice)
-
-                ax[1][1].imshow(image_slice[3], cmap='gray', origin='lower')
-                ax[1][1].imshow(pred_mask, cmap=pm, origin='lower')
-                ax[1][1].set_title("Prediction" + dice)
-
-                for a in ax.ravel():
-                    a.axis('off')  # Turn off axis labels and ticks
-
-                plt.tight_layout()
-                plt.savefig(os.path.join(o_path, title + dice + '.png'))
-                plt.close()
-    else:
-        dice = " - Dice Score: Nan"
-    
-    
-
-    
-def find_centroid(mask_channel):
-    """
-    Compute the centroid slice indices along each view for a given mask channel.
-    """
-    coords = np.argwhere(mask_channel)
-    return coords.mean(axis=0).astype(int)    
+   
         
 
-def evaluate(eval_path,test_loader,output_path,model=model):
+def evaluate(eval_path,test_loader,output_path,model=model,**kwargs):
     print('function called')############################
     device = torch.device("cuda:0")
-    model=torch.nn.DataParallel(model)
+    
     model.to(device)
     
-    # model.load_state_dict(torch.load(eval_path),strict=False)
-    model.load_state_dict(torch.load(eval_path, map_location=lambda storage, loc: storage.cuda(0)), strict=False)
+    plot_list=kwargs.get('plot_list',None)
+    modelweights_folder_path=kwargs.get('modelweights_folder_path', None)
+    # state_dict=torch.load(eval_path)
+    ########Create a new state dict without the 'module.' prefix
+    # from collections import OrderedDict
+    # new_state_dict = OrderedDict()
     
+    # for k, v in state_dict.items():
+        # name = k[7:]  # remove the 'module.' prefix
+        # new_state_dict[name] = v
+    ##### Load the modified state dict into the model
+    # model.load_state_dict(new_state_dict)
+    
+    try:
+        model.load_state_dict(torch.load(eval_path),strict=True)
+        model=torch.nn.DataParallel(model)
+    except:
+        model=torch.nn.DataParallel(model)
+        model.load_state_dict(torch.load(eval_path),strict=True)
+        
+    # model.load_state_dict(torch.load(eval_path),strict=True)
+    # model.load_state_dict(torch.load(eval_path, map_location=lambda storage, loc: storage.cuda(0)), strict=False)
+    # model = torch.nn.DataParallel(model)
     model.eval()
     ind_scores = dict()
     # Initialize the Dice metric outside the loop
@@ -202,28 +131,54 @@ def evaluate(eval_path,test_loader,output_path,model=model):
     slice_dice_scores = dict()
     slice_pred_area = dict()
     slice_gt_area = dict()
+    # Save the current state of the weights before inference
+    weights_before = {name: param.clone() for name, param in model.state_dict().items()}
     with torch.no_grad():
         for i,test_data in enumerate(test_loader): # each image
             
             test_inputs = test_data["image"].to(device) # pass to gpu
-            test_labels=test_data["mask"].to(device)
-            sub_id=test_data["id"][0]
-            image_names=test_data["imagepaths"]
+            sub_id = test_data["id"][0]
+            if plot_list:
+                if sub_id in plot_list:
+                    pass
+                else:
+                    continue
             
+            if eval_mode == 'cluster':
+                print(sub_id, orig_i_list[i])
+                # image_names=test_data[0]["imagepaths"]
+            test_data["pred"] = inference(test_inputs,model)
+            test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
+            test_outputs,test_labels = from_engine(["pred","mask"])(test_data) # returns two lists of tensors
+            
+                        
             for idx, y in enumerate(test_labels):
                 test_labels[idx] = (y > 0.5).int()
+                
+            test_outputs = [tensor.to(device) for tensor in test_outputs]
+            test_labels = [tensor.to(device) for tensor in test_labels]
+
+            # test_labels=test_data["mask"].to(device)
+            sub_id=test_data[0]["id"]
             
-            test_outputs=inference(test_inputs,model)
-            test_outputs=[post_trans(i) for i in decollate_batch(test_outputs)] 
-                      
+            # torch.cuda.empty_cache()
+            # print(type(test_outputs),test_labels[0].shape)
+            
+            dice_metric_ind(y_pred=test_outputs, y=test_labels)
+            dice_metric_ind_batch(y_pred=test_outputs, y=test_labels)
+            
             dice_metric(y_pred=test_outputs, y=test_labels)
             dice_metric_batch(y_pred=test_outputs, y=test_labels)
             
             
             # Compute the Dice score for this test case
-            current_dice = dice_metric.aggregate().item()
-            ind_scores[sub_id]=round(current_dice,4)
-            
+            # current_dice = dice_metric_ind.aggregate().item()
+            current_dice = dice_metric_ind.aggregate(reduction=None).item()
+            batch_ind = dice_metric_ind_batch.aggregate()
+            tc,wt,et = batch_ind[0].item(),batch_ind[1].item(),batch_ind[2].item()
+            ind_scores[sub_id] = {'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
+            dice_metric_ind.reset()
+            dice_metric_ind_batch.reset()
             
             # print('sub_id: ', sub_id)
             # print('image_names',image_names)
@@ -263,75 +218,59 @@ def evaluate(eval_path,test_loader,output_path,model=model):
                 
                 
             if plot_output:
-                var_1=0
-                if var_1==0:
-                    os.makedirs(output_path,exist_ok=True)
-                    cluster_fname=cluster_files.split('/')[-1]
-                    
-                    # Create a unique folder for each test case
-                    case_save_path = os.path.join(output_path, f"id_{sub_id}_dice_{current_dice:.4f}")  # 4 decimal places for Dice score
-                    print('MAKING FOLDER!')
-                    os.makedirs(case_save_path, exist_ok=True)
-                    #plot the slice with largest whole tumour for all tumour categories 
-                    for mask_channel in range(test_labels.shape[1]):  # loop over the 3 mask channels
-                        wt_channel=test_labels[0][1].cpu().numpy()
-                        label_names=['TC','WT','ET']
-                        gt_channel = test_labels[0][mask_channel].cpu().numpy()
-                        pred_channel = test_outputs[0].cpu().numpy()[mask_channel]
+                
+                os.makedirs(output_path,exist_ok=True)
+                cluster_fname=cluster_files.split('/')[-1]
+                
+                # Create a unique folder for each test case
+                case_save_path = os.path.join(output_path, f"id_{sub_id}_dice_{current_dice:.4f}")  # 4 decimal places for Dice score
+                print('MAKING FOLDER!')
+                os.makedirs(case_save_path, exist_ok=True)
+                #plot the slice with largest whole tumour for all tumour categories 
+                for mask_channel in range(test_labels[0].shape[0]):  # loop over the 3 mask channels
+                    wt_channel=test_labels[0][1].cpu().numpy()
+                    label_names=['TC','WT','ET']
+                    gt_channel = test_labels[0][mask_channel].cpu().numpy()
+                    pred_channel = test_outputs[0].cpu().numpy()[mask_channel]
 
-                        centroid = find_centroid(gt_channel)
+                    centroid = find_centroid(gt_channel)
+                    
+                    for view, axis in enumerate(["Axial", "Sagittal", "Coronal"]):
+                        # slice_idx = centroid[view]
+                        axial_slices=test_data[0]['image'].shape[3]
                         
-                        for view, axis in enumerate(["Axial", "Sagittal", "Coronal"]):
-                            # slice_idx = centroid[view]
-                            axial_slices=test_data['image'][0].shape[3]
-                            
-                            # Axial view
-                            if view == 0:
-                                for slice_ in range(axial_slices):
-                                    areas = wt_channel.sum(axis=(0, 1))  # Sum along the x and y axes
-                                    slice_idx = areas.argmax()  # Get index of slice with max area
-                                    
-                                    if plot_single:
-                                        if slice_==slice_idx:
-                                            slice_data = test_data["image"][0][:, :, :, slice_idx].cpu().numpy()  # C=4, hence using channel 2
-                                            gt_slice = gt_channel[:, :, slice_idx] > 0.5
-                                            pred_slice = pred_channel[:, :, slice_idx] > 0.5
-                                            title = f"{label_names[mask_channel]}_{axis}_s{slice_idx}_{sheet}"
-                                            plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title) 
-                                    else:
-                                        slice_idx=slice_
-                                        slice_data = test_data["image"][0][:, :, :, slice_idx].cpu().numpy()  # C=4, hence using channel 2
+                        # Axial view
+                        if view == 0:
+                            for slice_ in range(axial_slices):
+                                areas = wt_channel.sum(axis=(0, 1))  # Sum along the x and y axes
+                                slice_idx = areas.argmax()  # Get index of slice with max area
+                                
+                                if plot_single_slice:
+                                    if slice_==slice_idx:
+                                        slice_data = test_data[0]["image"][:, :, :, slice_idx].cpu().numpy()  # C=4, hence using channel 2
                                         gt_slice = gt_channel[:, :, slice_idx] > 0.5
                                         pred_slice = pred_channel[:, :, slice_idx] > 0.5
                                         title = f"{label_names[mask_channel]}_{axis}_s{slice_idx}_{sheet}"
-                                        plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title) 
-                                # elif view == 1:  # Sagittal view
-                                    # pass
-                                    # areas = wt_channel.sum(axis=(1, 2))  # Sum along the x and y axes
-                                    # slice_idx = areas.argmax()  # Get index of slice with max area
-                                    # slice_data = test_data["image"][0][1, slice_idx, :, :].cpu().numpy()
-                                    # gt_slice = gt_channel[slice_idx, :, :] > 0.5
-                                    # pred_slice = pred_channel[slice_idx, :, :] > 0.5
-                                # else:  # Coronal view
-                                    # pass
-                                    # areas = wt_channel.sum(axis=(0, 2))  # Sum along the x and y axes
-                                    # slice_idx = areas.argmax()  # Get index of slice with max area
-                                    # slice_data = test_data["image"][0][1, :, slice_idx, :].cpu().numpy()
-                                    # gt_slice = gt_channel[:, slice_idx, :] > 0.5
-                                    # pred_slice = pred_channel[:, slice_idx, :] > 0.5
-
-                            # title = f"{label_names[mask_channel]}_{axis}_s{slice_idx}_{cluster_fname[:6]}"
-                            # plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title)  
-                            # var_1+=1
-                    # print('exiting now')
-                    # sys.exit()
+                                        plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title,plot_output) 
+                                else:
+                                    slice_idx=slice_
+                                    slice_data = test_data[0]["image"][:, :, :, slice_idx].cpu().numpy()  # C=4, hence using channel 2
+                                    gt_slice = gt_channel[:, :, slice_idx] > 0.5
+                                    pred_slice = pred_channel[:, :, slice_idx] > 0.5
+                                    title = f"{label_names[mask_channel]}_{axis}_s{slice_idx}_{sheet}"
+                                    plot_prediction(slice_data, gt_slice, pred_slice, case_save_path, title,plot_output) 
+                                
         metric_org = dice_metric.aggregate().item()
         
         metric_batch_org = dice_metric_batch.aggregate()
 
         dice_metric.reset()
         dice_metric_batch.reset()
-
+    
+    # Check if weights have changed after inference
+    weights_after = model.state_dict()
+    for name, param in weights_after.items():
+        assert torch.equal(weights_before[name], param), f"Weights changed for layer: {name}"
     metric_tc, metric_wt, metric_et = metric_batch_org[0].item(), metric_batch_org[1].item(), metric_batch_org[2].item()
 
     print("Metric on original image spacing: ", metric_org)
@@ -339,36 +278,103 @@ def evaluate(eval_path,test_loader,output_path,model=model):
     return metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area,slice_pred_area
 
 if __name__ =='__main__':
+    
+    if model_name=='SegResNet_Flipper':
+            
+            val_transform=val_transform_Flipper
+       
     job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
-    if eval_mode=='cluster':
-        test_count=30
-        train_count=100
-        
-        print(len(np.unique(train_indices)),len(np.unique(test_indices)), len(np.unique(val_indices)))
+    print(len(np.unique(train_indices)),len(np.unique(test_indices)), len(np.unique(val_indices)))
      
-        indices_dict=dict()
-        indices_dict['Train indices']=train_indices
-        indices_dict['Test indices']=test_indices
-        indices_dict['Val indices']=val_indices
-        print(indices_dict)
+    indices_dict=dict()
+    indices_dict['Train indices']=sorted(train_indices)
+    indices_dict['Test indices']=sorted(test_indices)
+    indices_dict['Val indices']=sorted(val_indices)
+    print(indices_dict)
+    
+    xls = pd.ExcelFile(cluster_files) #to get sheets
+    
+    # Get all sheet names
+    sheet_names = xls.sheet_names
+    sheet_names=[x for x in sheet_names if 'Cluster_' in x]
+    
+    now = datetime.datetime.now()
+    if eval_from_folder:
+        all_model_paths = [os.path.join(eval_folder, modelweights) for modelweights in os.listdir(eval_folder) if modelweights.startswith('Cluster')]
+    else:
+        all_model_paths=[]
+    all_model_paths.append(load_path)
+    
+    if eval_mode=='cluster_expert':
+
+      
+        model_names=[]
+     
+        folder_name=eval_folder.split('/')[-1]
+        # Get the current date and time
         
-        xls = pd.ExcelFile(cluster_files) #to get sheets
+     
+        full_ds = BratsDataset(root_dir,transform=val_transform)
+        test_ds = Subset(full_ds,test_indices)
         
-       # Get all sheet names
-        sheet_names = xls.sheet_names
-        sheet_names=[x for x in sheet_names if 'Cluster_' in x]
+        test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4)                
+        
+        
+        metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,slice_dice_scores,slice_gt_area, slice_pred_area=eval_model_selector(eval_folder,test_loader)#evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)
+        # ind_scores['Cluster']=sheet
+        # ind_scores['Model']=modelweights
+        
+        ind_score_df=pd.DataFrame(ind_scores)
+        ind_score_df=ind_score_df.T
+        # print(model_closest)
+        ind_score_df['Expert']=ind_score_df.index.map(model_closest)         
+        print('print(ind_score_df.head)',ind_score_df.head())
+        
+        ind_score_df.reset_index(inplace=True)
+        ind_score_df.rename(columns={'index': 'Subject ID'}, inplace=True)
+        base_perf=pd.ExcelFile('/scratch/a.bip5/BraTS/IndScoresm2023-12-07_18-50-58_cl4_m_7743367.xlsx')
+        base_sheets=base_perf.sheet_names
+        for sheet in base_sheets:
+            base_df=base_perf.parse(sheet)
+            base_df.drop(columns=['Original index', 'Cluster'],inplace=True)
+            base_df.rename(columns={'SegResNetCV1_j7688198ep128': f'Base {sheet}'},inplace=True)
+            ind_score_df=ind_score_df.merge(base_df, on='Subject ID')            
+        
+        # base_perf_df=base_perf_df.rename(columns={'tc':'tc_base','wt':'wt_base','et': 'et_base'})
+       
+        config_dict['metric_org'] = metric_org
+        config_dict['metric_tc'] = metric_tc
+        config_dict['metric_wt'] = metric_wt
+        config_dict['metric_et'] = metric_et   
+        config_dict['eval_job_id']=job_id
+
+        log_path='/scratch/a.bip5/BraTS/eval_running_log.csv'
+        log_run_details(config_dict,[],csv_file_path=log_path)
+   
+   
+        writer=pd.ExcelWriter(f'./IndScores{folder_name}_{job_id}.xlsx',engine='xlsxwriter')
+        ind_score_df.to_excel(writer,sheet_name='Everything',index=True)
+        
+        for value in ind_score_df['Expert'].unique():
+            ind_score_filt=ind_score_df[ind_score_df['Expert']==value]
+            ind_score_filt.to_excel(writer,sheet_name=f'Expert {value}')            
+
+  
+        writer.close()
+    
+    elif eval_mode=='cluster':
+        test_count=30
+        train_count=100   
+        
+        
+       
         resultdict=dict()
         model_names=[]
         score_list=[]
         slice_dice_list=[]
         folder_name=eval_folder.split('/')[-1]
         # Get the current date and time
-        now = datetime.datetime.now()
-        if eval_from_folder:
-            all_model_paths = [os.path.join(eval_folder, modelweights) for modelweights in os.listdir(eval_folder)]
-        else:
-            all_model_paths=[]
-        all_model_paths.append(load_path)
+        
         
         for path in sorted(all_model_paths):            
             eval_path = path
@@ -378,39 +384,53 @@ if __name__ =='__main__':
             for sheet in sheet_names:
                 print('sheet' ,sheet) #################################
                 test_sheet_i=[]
+                orig_i_list=[]
                 train_sheet_i=[]
                 val_sheet_i=[]
                 cluster_indices=pd.read_excel(cluster_files,sheet)['original index']
                 
-                for i,orig_i in enumerate(cluster_indices):
+                for i,orig_i in enumerate(sorted(cluster_indices)):
+                    
                     if test_samples_from=='trainval':
                         if orig_i in train_indices:
                             # while len(train_sheet_i)<train_count:
                             train_sheet_i.append(i)
+                            orig_i_list.append(orig_i)
                         elif orig_i in val_indices:
                             val_sheet_i.append(i)
+                            orig_i_list.append(orig_i)
                     elif test_samples_from=='val':
                         if orig_i in val_indices:
                             val_sheet_i.append(i)
+                            orig_i_list.append(orig_i)
                     elif test_samples_from=='all':
                         test_sheet_i.append(i)
+                        orig_i_list.append(orig_i)
+                                        
                     else:                               
                         if orig_i in test_indices:
-                           print('orig_i ',orig_i)
+                           # print('orig_i ',orig_i)
                            test_sheet_i.append(i)
+                           orig_i_list.append(orig_i)
                 #will be adding empty list to give identical when mode not trainval
                 test_sheet_i = test_sheet_i+train_sheet_i+val_sheet_i 
                 
+                if limit_samples:
+                    test_sheet_i=test_sheet_i[:limit_samples]
+                    orig_i_list=orig_i_list[:limit_samples]
+                
                 evaluating_sheet=sheet
                 print(f'Evaluating {len(test_sheet_i)} samples from {evaluating_sheet} with saved model{eval_path}')
+                
                 test_ds = ExpDataset(cluster_files,evaluating_sheet,transform=val_transform)#creating dataset from sheet in xls
                 test_ds = Subset(test_ds,test_sheet_i)
+                
                 test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4)                
                 
                 
 
                 # Convert it to a string in a specific format (e.g., YYYY-MM-DD_HH-MM-SS)
-                formatted_time = modelweights+'_'+ sheet+ '_' +now.strftime('%Y-%m-%d_%H-%M-%S')     
+                formatted_time = modelweights+'_'+ sheet+ '_' +now.strftime('%Y-%m-%d_%H-%M-%S')+str(plot_output)     
 
                 # Create the new directory path using the formatted time
                 new_dir = os.path.join(output_path, formatted_time)
@@ -418,14 +438,15 @@ if __name__ =='__main__':
                 # Make the new directory
                 if slice_dice:
                     os.makedirs(new_dir, exist_ok=True)
-                metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area, slice_pred_area=evaluate(eval_path,test_loader,new_dir)
+                metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area, slice_pred_area=evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)##eval_model_selector(eval_folder,test_loader,model)#
                 # ind_scores['Cluster']=sheet
                 # ind_scores['Model']=modelweights
                 
-                ind_score_df=pd.DataFrame(ind_scores.values(),index=ind_scores.keys(),columns=['Dice'])
+                ind_score_df=pd.DataFrame(ind_scores)
+                ind_score_df=ind_score_df.T
                 ind_score_df['Cluster']=sheet
                 ind_score_df['Model']=modelweights
-                ind_score_df['Original index']= test_sheet_i
+                ind_score_df['Original index']= orig_i_list
                 score_list.append(ind_score_df)
                 
                 
@@ -454,52 +475,183 @@ if __name__ =='__main__':
                 config_dict['metric_wt'] = metric_wt
                 config_dict['metric_et'] = metric_et
                 config_dict['Cluster'] = evaluating_sheet
+                config_dict['eval_job_id']=job_id
+
                 log_path='/scratch/a.bip5/BraTS/eval_running_log.csv'
                 log_run_details(config_dict,[],csv_file_path=log_path)
             resultdict['m'+ modelweights]=dice_scores
          
         ind_scores_df=pd.concat(score_list)
         evcl_name=cluster_files.split('/')[-1][:5]
-        ind_scores_df.rename(columns={ind_scores_df.columns[0]: 'Subject ID'},inplace=True)
-        ind_scores_df=ind_scores_df.pivot_table(
+        print(ind_scores_df.columns)
+        print(ind_scores_df.head())
+        ind_scores_df.reset_index(inplace=True)
+        ind_scores_df.rename(columns={'index': 'Subject ID'}, inplace=True)
+
+        writer=pd.ExcelWriter(f'./IndScores{folder_name}_{evcl_name}_{job_id}.xlsx',engine='xlsxwriter')
+        ind_scores_piv=ind_scores_df.pivot_table(
         index=['Subject ID', 'Original index','Cluster'],
         columns='Model',
-        values='Dice',
+        values='average',
         aggfunc='first'
         ).reset_index()
         
-        ind_scores_df.to_csv(f'./IndScores{folder_name}_{evcl_name}_{job_id}.csv')
+        ind_scores_piv.to_excel(writer,sheet_name='Average Dice',index=False)
+        
+        ind_scores_piv=ind_scores_df.pivot_table(
+        index=['Subject ID', 'Original index','Cluster'],
+        columns='Model',
+        values='wt',
+        aggfunc='first'
+        ).reset_index()
+        
+        ind_scores_piv.to_excel(writer,sheet_name='WT',index=False)
+        
+        ind_scores_piv=ind_scores_df.pivot_table(
+        index=['Subject ID', 'Original index','Cluster'],
+        columns='Model',
+        values='tc',
+        aggfunc='first'
+        ).reset_index()
+        
+        ind_scores_piv.to_excel(writer,sheet_name='TC',index=False)
+        
+        ind_scores_piv=ind_scores_df.pivot_table(
+        index=['Subject ID', 'Original index','Cluster'],
+        columns='Model',
+        values='et',
+        aggfunc='first'
+        ).reset_index()
+        
+        ind_scores_piv.to_excel(writer,sheet_name='ET',index=False)
+        
+        
           
         resultdict=pd.DataFrame(resultdict,index=sheet_names)
+        print(resultdict.shape,'resultdict.shape')
         resultdict.to_csv(f'./EvCl{folder_name}_{evcl_name}_{job_id}.csv')
-        
+        writer.save()
     elif eval_mode=='online_val':
+        non_val=np.concatenate([test_indices,val_indices,train_indices])
         
-        val_path='/scratch/a.bip5/ASNR-MICCAI-BraTS2023-GLI-Challenge-ValidationData'
-        test_ds=Brats23valDataset(val_path,transform=test_transforms1)
-        test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=workers)              
-        device = torch.device("cuda:0")
-        model=torch.nn.DataParallel(model)
-        model.to(device)
-        print(len(test_ds))
-        # model.load_state_dict(torch.load(eval_path),strict=False)
-        model.load_state_dict(torch.load(eval_path, map_location=lambda storage, loc: storage.cuda(0)), strict=False)
-        with torch.no_grad():   
+        model_names=[]
+        score_list=[]
+        slice_dice_list=[]
+        folder_name=eval_folder.split('/')[-1]
+        # Get the current date and time
+        
+        if use_cluster_for_online_val:
+            for path in sorted(all_model_paths[:-1]):            
+                eval_path = path
+                modelweights=path.split('/')[-1]
+                model_names.append(modelweights)
+                dice_scores=[]
+                for sheet in sheet_names:
+                    print(modelweights[:9], sheet)
+                    if modelweights[:9]==sheet:
+                         #################################
+                        test_sheet_i=[]
+                        orig_i_list=[]
+                        
+                        cluster_indices=pd.read_excel(cluster_files,sheet)['original index']
+                        for i,orig_i in enumerate(sorted(cluster_indices)):
+                            if orig_i not in non_val:
+                                print(orig_i, 'orig_i')
+                                test_sheet_i.append(i)
+                                orig_i_list.append(orig_i)
+                        print(test_sheet_i,'test_sheet_i')       
+                        print(f'Generating {len(test_sheet_i)} samples from {sheet} with saved model{eval_path}')
+                        
+                        test_ds = ExpDatasetEval(cluster_files,sheet,transform=test_transforms1)
+                        test_ds = Subset(test_ds,test_sheet_i)
+                        test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4) 
+                        device = torch.device("cuda:0")
+                        model=torch.nn.DataParallel(model)
+                        model.to(device)
+                        model.load_state_dict(torch.load(eval_path),strict=True)
+                        with torch.no_grad():   
 
-            for test_data in test_loader: # each image
-                print('TRIGGERED')
-                test_inputs = test_data["image"].to(device) # pass to gpu
-                
-                sub_id=test_data["id"][0]
-                new_dir = os.path.join(output_path, 'brats23')
-                os.makedirs(new_dir, exist_ok=True)
-                
-             
-                test_outputs=inference(test_inputs,model)
-                test_outputs=[post_trans(i) for i in decollate_batch(test_outputs)] 
-                nii_img=nib.Nifti1Image(test_outputs[0].cpu().numpy(),np.eye(4))
-                # Save the image to a .nii.gz file
-                nii_img.to_filename(f'{new_dir}/{sub_id}.nii.gz')
+                            for test_data in test_loader: # each image
+                                
+                                test_inputs = test_data["image"].to(device) # pass to gpu
+                                
+                                sub_id=test_data["id"][0]
+                                print(sub_id)
+                                try:
+                                    test_data["pred"]=inference(test_inputs,model)
+                                    test_data=[post_trans_test(i) for i in decollate_batch(test_data)]
+                                    test_outputs=from_engine(["pred"])(test_data) 
+                                    
+                                    nampendix=eval_path.split('/')[-1]
+                                    # returns a list of tensors
+                                    new_dir = os.path.join(output_path, f'brats23_{nampendix}')
+                                    os.makedirs(new_dir, exist_ok=True)
+                                               
+                                                    
+                                    print(test_outputs[0].shape)
+                                    nii_img=nib.Nifti1Image(test_outputs[0].numpy(),np.eye(4))
+                                    # Save the image to a .nii.gz file
+                                    nii_img.to_filename(f'{new_dir}/{sub_id}.nii.gz')
+                                except:
+                                    print(sub_id, 'issue with this file')                
+                                    continue
+        else:
+            val_path='/scratch/a.bip5/BraTS/GLIValidationData'
+            test_ds = Brats23valDataset(val_path,transform=test_transforms1)
+            test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4)              
+            device = torch.device("cuda:0")
+            model=torch.nn.DataParallel(model)
+            model.to(device)
+            print(len(test_ds))
+            model.load_state_dict(torch.load(load_path),strict=True)
+            ##model.load_state_dict(torch.load(eval_path, map_location=lambda storage, loc: storage.cuda(0)), strict=False)
+            with torch.no_grad():   
+
+                for test_data in test_loader: # each image
+                    print('TRIGGERED')
+                    test_inputs = test_data["image"].to(device) # pass to gpu
+                    
+                    sub_id=test_data["id"][0]
+                    print(sub_id)
+                    try:
+                        test_data["pred"]=inference(test_inputs,model)
+                        test_data=[post_trans_test(i) for i in decollate_batch(test_data)]
+                        test_outputs=from_engine(["pred"])(test_data) 
+                        
+                        nampendix=eval_path.split('/')[-1]
+                        #returns a list of tensors
+                        new_dir = os.path.join(output_path, f'brats23_{nampendix}')
+                        os.makedirs(new_dir, exist_ok=True)
+                                   
+                                        
+                        print(test_outputs[0].shape)
+                        nii_img=nib.Nifti1Image(test_outputs[0].numpy(),np.eye(4))
+                        ##Save the image to a .nii.gz file
+                        nii_img.to_filename(f'{new_dir}/{sub_id}.nii.gz')
+                    except:
+                        print(sub_id, 'issue with this file')                
+                        continue
+        
+    elif eval_mode=='simple':
+        
+      
+        modelname = load_path.split('/')[-1]
+        full_dataset = BratsDataset(root_dir,transform=val_transform)
+        test_indices=test_indices.tolist()
+        test_dataset = Subset(full_dataset, test_indices)
+        test_loader=DataLoader(test_dataset,shuffle=False,batch_size=1,num_workers=4)
+        
+        # Convert it to a string in a specific format (e.g., YYYY-MM-DD_HH-MM-SS)
+        formatted_time = modelname + now.strftime('%Y-%m-%d_%H-%M-%S')    
+
+        # Create the new directory path using the formatted time
+        new_dir = os.path.join(output_path, formatted_time)
+        
+        metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area, slice_pred_area=evaluate(load_path,test_loader,new_dir)
+        
+        print("Metric on original image spacing: ", metric_org)
+        print(f"metric_tc: {metric_tc:.4f}", f"   metric_wt: {metric_wt:.4f}", f"   metric_et: {metric_et:.4f}")
+        
                 
     #print the script at the end of every run
     script_path = os.path.abspath(__file__) # Gets the absolute path of the current script
