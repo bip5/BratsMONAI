@@ -12,7 +12,7 @@ seed,
 from torch.utils.data import Subset
 from monai.data import Dataset
 import pandas as pd
-
+import monai
 
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
@@ -37,7 +37,7 @@ def make_dataset(data_dir):
 
     for root, _, fnames in sorted(os.walk(data_dir)):
         im_temp = []
-        for fname in fnames:
+        for fname in sorted(fnames):
             fpath = os.path.join(root, fname)
             if is_image_file(fname):
                 if re.search("seg", fname):
@@ -46,7 +46,29 @@ def make_dataset(data_dir):
                 else:
                     im_temp.append(fpath)
         if im_temp:
-            images.append(sorted(im_temp))
+            images.append(im_temp)
+
+    return images, masks
+
+def make_atlas_dataset(data_dir):
+    images = []
+    masks = []
+    im_temp = []
+
+    assert os.path.isdir(data_dir), '%s is not a valid directory' % data_dir
+
+    for root, _, fnames in sorted(os.walk(data_dir)):
+        im_temp = []
+        for fname in sorted(fnames):
+            fpath = os.path.join(root, fname)
+            if is_image_file(fname):
+                if re.search("mask", fname):
+                    masks.append(fpath)
+                    # print(fpath)  # For debugging
+                else:
+                    im_temp.append(fpath)
+        if im_temp:
+            images.append(im_temp)
 
     return images, masks
 
@@ -61,7 +83,7 @@ def make_ens_dataset(path):
     for folder in sorted(folders):                    # for each folder
          path=folder # combine root path with folder path
          for root1, _, fnames in sorted(os.walk(path)):       #list all file names in the folder         
-            for f in fnames:                          # go through each file name
+            for f in sorted(fnames):                          # go through each file name
                 fpath=os.path.join(root1,f)
                 if is_image_file(f):                  # check if expected extension
                     if re.search("seg",f):            # look for the mask files- have'seg' in the name 
@@ -69,30 +91,65 @@ def make_ens_dataset(path):
                     else:
                         im_temp.append(fpath)         # all without seg are image files, store them in a list for each folder
             if im_temp:            
-                    images.append(sorted(im_temp))                    # add image files for each folder to a list
+                    images.append(im_temp)                    # add image files for each folder to a list
                     im_temp=[]
     return images, masks
 
-def make_exp_dataset(path,sheet):
-    all_files = []
-    images=[]
-    masks=[]
-    im_temp=[]
-    folders=pd.read_excel(path,sheet)['Index']
+# def make_exp_dataset(path, sheet):
+    # all_files = []
+    # images = []
+    # masks = []
+    # folders = pd.read_excel(path, sheet)['Index']
 
-    for folder in sorted(folders):                    # for each folder
-         path=folder # combine root path with folder path
-         for root1, _, fnames in sorted(os.walk(path)):       #list all file names in the folder         
-            for f in fnames:                          # go through each file name
-                fpath=os.path.join(root1,f)
-                if is_image_file(f):                  # check if expected extension
-                    if re.search("seg",f):            # look for the mask files- have'seg' in the name 
-                        masks.append(fpath)
-                    else:
-                        im_temp.append(fpath)         # all without seg are image files, store them in a list for each folder
-            if im_temp:            
-                    images.append(sorted(im_temp))                    # add image files for each folder to a list
-                    im_temp=[]
+    # for folder in sorted(folders):  # for each subject folder
+        
+        # if 'GLIValidationData' in folder:
+            # continue
+            
+        # else:
+        
+            # im_temp = []  # reset the temporary list for image files for each subject
+            # folder_path = os.path.join(path, folder)  # combine root path with folder path
+            
+            # for root1, _, fnames in sorted(os.walk(folder_path)):  # list all file names in the subject folder
+                # for f in sorted(fnames):  # sort file names to ensure consistent modality order
+                    # fpath = os.path.join(root1, f)
+                    # if is_image_file(f):  # check if expected extension
+                        # if re.search("seg", f):  # look for the mask files- have 'seg' in the name
+                            # masks.append(fpath)
+                        # else:
+                            # im_temp.append(fpath)  # all without 'seg' are image files, store them in a list for each subject
+                    
+            # if im_temp:
+                # images.append(im_temp)  # append the list of image files for the subject to the images list
+    
+    
+    # return images, masks
+    
+def make_exp_dataset(path, sheet):
+    all_files = []
+    images = []
+    masks = []
+    folders = pd.read_excel(path, sheet)['Index'] # list of strings eg>'scratch/a.bip5/BraTS/BraTS_23_training/BraTS-GLI-00000-000'
+
+    for folder in sorted(folders):  # for each subject folder
+       
+            im_temp = []  # reset the temporary list for image files for each subject
+            # folder_path = os.path.join(path, folder)  # combine root path with folder path
+            
+            for root1, _, fnames in sorted(os.walk(folder)):  # list all file names in the subject folder
+                for f in sorted(fnames):  # sort file names to ensure consistent modality order
+                    fpath = os.path.join(root1, f)
+                    if is_image_file(f):  # check if expected extension
+                        if re.search("seg", f):  # look for the mask files- have 'seg' in the name
+                            masks.append(fpath)
+                        else:
+                            im_temp.append(fpath)  # all without 'seg' are image files, store them in a list for each subject
+                        
+            if im_temp:
+                images.append(im_temp)  # append the list of image files for the subject to the images list
+    
+    
     return images, masks
 
 indexes=np.random.choice(np.arange(max_samples),max_samples,replace=False)
@@ -112,7 +169,46 @@ for i in range(1,6):
         # print(test_indices)
         train_indices=np.delete(indexes,np.arange(val_start,test_end))
             
-           
+class AtlasDataset(Dataset):
+    def __init__(self,data_dir,transform=None):
+        
+        data=make_atlas_dataset(data_dir)
+        
+        self.image_list=data[0]
+         
+        self.mask_list=data[1]
+        self.transform=transform
+        
+    def __len__(self):
+#         return len(os.listdir(self.mask_dir))
+        return min(max_samples,len(self.mask_list))#
+    
+    def __getitem__(self,idx):
+        # print(idx)
+       
+        image=self.image_list[idx]
+       
+    
+        mask=self.mask_list[idx] 
+        
+
+            
+        item_dict={"image":image,"mask":mask}
+        # print(item_dict)
+        
+        if self.transform:
+            item_dict={"image":image,"mask": mask}
+            
+            item_dict=self.transform(item_dict)
+            item_dict['id'] = mask[-30:-11]
+            
+            if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
+                raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
+
+            if not isinstance(item_dict['mask'], monai.data.meta_tensor.MetaTensor):
+                raise TypeError("The transformed 'mask' is not a MetaTensor. Please check your transforms.")
+        
+        return item_dict           
            
 class BratsDataset(Dataset):
     def __init__(self,data_dir,transform=None):
@@ -143,8 +239,15 @@ class BratsDataset(Dataset):
         
         if self.transform:
             item_dict={"image":image,"mask": mask}
+            
             item_dict=self.transform(item_dict)
             item_dict['id'] = mask[-30:-11]
+            
+            if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
+                raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
+
+            # if not isinstance(item_dict['mask'], monai.data.meta_tensor.MetaTensor):
+                # raise TypeError("The transformed 'mask' is not a MetaTensor. Please check your transforms.")
         
         return item_dict
 
@@ -185,75 +288,89 @@ class ExpDataset(Dataset):
         
         self.image_list,self.mask_list=make_exp_dataset(path,sheet)
         
-        # print('files processed:' , self.mask_list)
+        # print(len(self.image_list),'making sure getting all 300') #this should work
         self.transform=transform
         
     def __len__(self):
 #         return len(os.listdir(self.mask_dir))
-        return min(max_samples,len(self.mask_list))#
+        
+        return min(max_samples,len(self.image_list))#
     
     def __getitem__(self,idx):
         # print(idx)
-       
+        
         image=self.image_list[idx]
     
         mask=self.mask_list[idx] 
-
+        
             
         item_dict={"image":image,"mask":mask}
         
-        if self.transform:
-            item_dict={"image":image,"mask": mask}
+        if self.transform:            
             item_dict2=self.transform(item_dict)
-            item_dict2['id'] = mask[-20:-11]
+            item_dict2['id'] = image[0][-20:-11]
             item_dict2['imagepaths']=image
+            # print(image)
+            # print(type(item_dict2['image']))
+            if not isinstance(item_dict2['image'], monai.data.meta_tensor.MetaTensor):
+                raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
+
+            if not isinstance(item_dict2['mask'], monai.data.meta_tensor.MetaTensor):
+                raise TypeError("The transformed 'mask' is not a MetaTensor. Please check your transforms.")
             
         
         return item_dict2
 
-
 class ExpDatasetEval(Dataset):
     def __init__(self,path,sheet,transform=None):
         
-        self.image_list,self.mask_list=make_exp_dataset(path,sheet)
+        self.image_list,_=make_exp_dataset(path,sheet)
         
-        # print('files processed:' , self.mask_list)
-        self.transform=transform
-        
-    def __len__(self):
-#         return len(os.listdir(self.mask_dir))
-        return min(max_samples,len(self.mask_list))#
-    
-    def __getitem__(self,idx):
-        # print(idx)
-       
-        image=self.image_list[idx]
-    
-        mask=self.mask_list[idx] 
-
-            
-        item_dict={"image":image,"label":mask}
-        # print(item_dict)
-        
-        if self.transform:
-            item_dict={"image":image,"label": mask}
-            item_dict=self.transform(item_dict)
-            
-        
-        return item_dict
-        
-class Brats23valDataset(Dataset):
-    def __init__(self,data_dir,transform=None):
-        
-        data=make_dataset(data_dir)
-        
-        self.image_list=data[0]
         
         self.transform=transform
         
     def __len__(self):
 #         return len(os.listdir(self.mask_dir))
         return min(max_samples,len(self.image_list))#
+    
+    def __getitem__(self,idx):
+        # print(idx, 'dataset index')
+        # print(len(self.image_list),'len(self.image_list)')
+        image=self.image_list[idx]
+    
+        
+        
+            
+        item_dict={"image":image}
+        
+        if self.transform:            
+            item_dict2=self.transform(item_dict)
+            item_dict2['id'] = image[0][-20:-11]
+            item_dict2['imagepaths']=image
+            # print(image)
+            # print(type(item_dict2['image']))
+            if not isinstance(item_dict2['image'], monai.data.meta_tensor.MetaTensor):
+                raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
+
+           
+            
+        
+        return item_dict2
+
+        
+class Brats23valDataset(Dataset):
+    def __init__(self,data_dir,transform=None):
+        
+        data=make_dataset(data_dir)[0]
+        extension=make_dataset('/scratch/a.bip5/BraTS/GLIValidationData')[0]
+        data.extend(extension) # extending data list)
+        self.image_list=data
+        
+        self.transform=transform
+        
+    def __len__(self):
+#         return len(os.listdir(self.mask_dir))
+        return len(self.image_list)#
     
     def __getitem__(self,idx):
         # print(idx)
