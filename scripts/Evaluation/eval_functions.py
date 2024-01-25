@@ -17,6 +17,7 @@ from monai.handlers.utils import from_engine
 from monai.data import DataLoader,decollate_batch
 import pandas as pd
 import copy
+from datetime import datetime
 
 dice_metric = DiceMetric(include_background=True, reduction="mean")
 dice_metric_ind = DiceMetric(include_background=True, reduction="mean")
@@ -111,7 +112,7 @@ def eval_model_selector(modelweight_folder_path, loader):
     model_closest={}
     
     
- 
+    dist_lists={}
     with torch.no_grad():
         for i,test_data in enumerate(loader):
             test_input=test_data["image"].to(device)
@@ -130,6 +131,7 @@ def eval_model_selector(modelweight_folder_path, loader):
             model_index=np.argmin(distances) # assuming everything is sorted alphabetically as intent
             model_closest[sub_id]=model_index
             # print(centre_names[model_index])
+            dist_lists[sub_id]= distances +([distances[model_index]])
             model_selected=model_list[model_index]
             
             model_selected.eval()
@@ -147,7 +149,128 @@ def eval_model_selector(modelweight_folder_path, loader):
     metric_tc, metric_wt, metric_et = metric_batch_org[0].item(), metric_batch_org[1].item(), metric_batch_org[2].item()
     print("Metric on original image spacing: ", metric_org)
     print(f"metric_tc: {metric_tc:.4f}", f"   metric_wt: {metric_wt:.4f}", f"   metric_et: {metric_et:.4f}")
-    return metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,slice_dice_scores,slice_gt_area,slice_pred_area
+    return metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,dist_lists,slice_dice_scores,slice_gt_area,slice_pred_area
+    
+# New function to calculate weights from distances
+def calculate_weights(distances):
+    inverted_distances = [1/d if d != 0 else 0 for d in distances]
+    total = sum(inverted_distances)
+    normalized_weights = [d/total for d in inverted_distances]
+    return normalized_weights
+    
+def distance_ensembler(modelweight_folder_path, loader):
+    '''
+    Evaluate using the closest cluster expert model
+    '''
+    modelnames=sorted(os.listdir(modelweight_folder_path)) # assumes only cluster models here
+    
+    modelpaths=sorted([os.path.join(modelweight_folder_path,x) for x in modelnames if 'Cluster' in x])
+    print(modelpaths)
+    for idx, modelpath in enumerate(modelpaths):
+        total_weight_sum = sum_weights_from_file(modelpath)
+        print(f"Model {idx} total weight sum: {total_weight_sum}")
+    model_list=[model_loader(x) for x in modelpaths]
+    # for idx, model in enumerate(model_list):
+        # print(f"Model {idx} address: {id(model)}") # to print memory address model is stored at
+    # for idx, model in enumerate(model_list):
+        # print(f"Model {idx} weights: {next(iter(model.state_dict().values()))[:5]}") 
+    for idx, model in enumerate(model_list):
+        total_weight_sum = sum(torch.sum(param).item() for param in model.state_dict().values())
+        print(f"Model {idx} total weight sum: {total_weight_sum}")
+    # sys.exit()
+    base_model=model_loader(load_path)
+    base_model.eval()
+    cluster_path='/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers'
+    centre_names=sorted(os.listdir(cluster_path))
+    centre_names=[x for x in centre_names if 'cluster' in x]
+    print(type(centre_names[0]))
+    cluster_centre_paths=[os.path.join(cluster_path,x) for x  in centre_names]
+    print(sorted(cluster_centre_paths))
+    cluster_centres=[np.load(x) for x in sorted(cluster_centre_paths)]
+    
+    print([x.mean() for x in cluster_centres])
+    ind_scores = dict()
+    slice_dice_metric = DiceMetric(include_background=True, reduction='none')
+    slice_dice_scores = dict()
+    slice_pred_area = dict()
+    slice_gt_area = dict()
+    model_closest={}
+    current_dice, tc,wt,et, test_outputs, test_labels,decollated_raw=[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]]
+    test_outputs=[[],[],[],[]]
+    dist_lists={}
+    with torch.no_grad():
+        for i,test_data in enumerate(loader):
+            test_input=test_data["image"].to(device)
+            sub_id = test_data["id"][0][-9:]
+            print('sub_id',sub_id)
+            feat=single_encode(test_input,base_model) # assuming no need to collapse batch dimension     
+            
+            
+            feat=(feat-min_bound)/(max_bound-min_bound)
+            
+            # distances=[distance.euclidean(feat,x) for x in cluster_centres]
+            distances=[np.linalg.norm(feat-center) for center in cluster_centres]
+            ensemble_weights=calculate_weights(distances)
+            # distances=[distance.cosine(feat,x) for x in cluster_centres]
+            # print(distances)
+           
+            model_index=np.argmin(distances) # assuming everything is sorted alphabetically as intent
+            model_closest[sub_id]=model_index
+            # print(centre_names[model_index])
+            dist_lists[sub_id]= distances +([distances[model_index]])
+            
+            # base_dice, base_tc,base_wt,base_et, base_test_outputs, base_test_labels=eval_single(base_model,test_data)
+            test_inputs = test_data["image"].to(device)
+            for j,weight in enumerate(ensemble_weights): 
+                model_selected=model_list[j]          
+                model_selected.eval()
+                 
+                test_data["pred"] = inference(test_inputs,model_selected)
+                # decollated_raw[j]=[{**x, "pred": x["pred"] * weight} for x in decollate_batch(test_data)] #list of unthresholded outputs
+                
+                decollated_raw[j]=[post_trans(x) for x in decollate_batch(test_data)]
+            combined_dict_list=[]
+            for a,b,c,d in zip(*decollated_raw):
+                #now we have 4 decollated lists of raw dictionaries representing output from same batch for the 4 models  
+                if type(a)==list:
+                    print('batch greater than 1')
+                    for k in range(len(a)):
+                        weighted_sum={}
+                        #assuming first item in the batch is always the same between samples
+                        print('item type',type(a[k]))
+                        weighted_sum["pred"]=a[k]["pred"]#+b[k]["pred"]+c[k]["pred"]+d[k]["pred"]
+                        weighted_sum["mask"]=a["mask"] # mask is same between samples
+                        combined_dict_list.append(weighted_sum)
+                else:
+                    weighted_sum={}
+                    weighted_sum["pred"]=a["pred"]#+b["pred"]+c["pred"]+d["pred"]
+                    weighted_sum["mask"]=a["mask"]
+                    combined_dict_list.append(weighted_sum)
+            # tested_data=[post_trans(ii) for ii in combined_dict_list] 
+            # tested_data=[ii for ii in combined_dict_list] 
+            test_outputs,test_labels = from_engine(["pred","mask"])(decollated_raw[0])# returns two lists of tensors
+            test_outputs = [tensor.to(device) for tensor in test_outputs]
+            test_labels = [tensor.to(device) for tensor in test_labels]
+            dice_metric_ind(y_pred=test_outputs, y=test_labels)
+            dice_metric_ind_batch(y_pred=test_outputs, y=test_labels)
+            current_dice = dice_metric_ind.aggregate(reduction=None).item()
+            print(current_dice)
+            batch_ind = dice_metric_ind_batch.aggregate()
+            tc,wt,et = batch_ind[0].item(),batch_ind[1].item(),batch_ind[2].item()
+            dice_metric_ind.reset()
+            dice_metric_ind_batch.reset()
+            
+            dice_metric(y_pred=test_outputs, y=test_labels)
+            dice_metric_batch(y_pred=test_outputs, y=test_labels)
+            ind_scores[sub_id] = {'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
+        metric_org = dice_metric.aggregate().item()        
+        metric_batch_org = dice_metric_batch.aggregate()
+        dice_metric.reset()
+        dice_metric_batch.reset()
+    metric_tc, metric_wt, metric_et = metric_batch_org[0].item(), metric_batch_org[1].item(), metric_batch_org[2].item()
+    print("Metric on original image spacing: ", metric_org)
+    print(f"metric_tc: {metric_tc:.4f}", f"   metric_wt: {metric_wt:.4f}", f"   metric_et: {metric_et:.4f}")
+    return metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,dist_lists,slice_dice_scores,slice_gt_area,slice_pred_area
 
 def eval_single(loaded_model,test_data):
     '''
@@ -160,7 +283,7 @@ def eval_single(loaded_model,test_data):
         test_inputs = test_data["image"].to(device) # pass to gpu
         
         test_data["pred"] = inference(test_inputs,loaded_model)
-        test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
+        test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n dicts where n=batch_size
         test_outputs,test_labels = from_engine(["pred","mask"])(test_data)# returns two lists of tensors
         test_outputs = [tensor.to(device) for tensor in test_outputs]
         test_labels = [tensor.to(device) for tensor in test_labels]
@@ -173,6 +296,95 @@ def eval_single(loaded_model,test_data):
         dice_metric_ind.reset()
         dice_metric_ind_batch.reset()
     return current_dice, tc,wt,et, test_outputs, test_labels
+    
+def plot_expert_performance(ind_score_df,save_path,plot_together=True):
+
+    now=datetime.now().strftime('%Y-%m-%d_%H-%M')
+    save_in=os.path.join(save_path,now)
+    os.makedirs(save_in,exist_ok=True)
+    if plot_together==True:
+        ind_score_df=ind_score_df.sort_values(by='Base Average Dice',ignore_index=True)
+        
+        #setting a figure with plt allows the size to be fixed
+        plt.figure(figsize=(12,6))
+        plt.rcParams.update({'font.size': 18})
+        #now we plot all desired values in sequence
+        plt.plot(ind_score_df['average'],color='red',label='Expert Average')
+        plt.plot(ind_score_df['Base Average Dice'],color='red',linestyle=':',linewidth=2,label='Baseline Average')
+      
+        ind_score_df=ind_score_df.sort_values(by='Base TC',ignore_index=True)
+        plt.plot(ind_score_df['tc'],color='black',label='Expert TC')
+        plt.plot(ind_score_df['Base TC'],color='black', linestyle=':',linewidth=2,label='Baseline TC')
+       
+        
+        ind_score_df=ind_score_df.sort_values(by='Base WT',ignore_index=True)
+        plt.plot(ind_score_df['wt'],color='green',label='Expert WT')
+        plt.plot(ind_score_df['Base WT'],color='green', linestyle=':', linewidth=2,label='Baseline WT')
+       
+        ind_score_df=ind_score_df.sort_values(by='Base ET',ignore_index=True)
+        plt.plot(ind_score_df['et'],color='pink',label='Expert ET')
+        plt.plot(ind_score_df['Base ET'], color='pink', linestyle=':',linewidth=2,label='Baseline ET')
+        
+        plt.legend()
+        plt.grid(which='both')
+        plt.xlabel('Samples')
+        plt.ylabel('Dice Score')
+        plt.title('Comparison of Model Performances')
+        plot_name=os.path.join(save_in,'ExpertModelPerformanceComparison.jpg')
+        plt.savefig(plot_name)
+    
+    else:
+        #to sort the data frame by values we do
+        ind_score_df=ind_score_df.sort_values(by='Base Average Dice',ignore_index=True)
+        
+        #setting a figure with plt allows the size to be fixed
+        plt.figure(figsize=(12,6))
+        
+        #now we plot all desired values in sequence
+        plt.plot(ind_score_df['average'],color='red',label='Expert Average')
+        plt.plot(ind_score_df['Base Average Dice'],color='red',linestyle=':',linewidth=2,label='Baseline Average')
+        plot_name=os.path.join(save_in,'Average.jpg')
+        plt.legend()
+        plt.xlabel('Samples')
+        plt.ylabel('Dice Score')
+        plt.title('Comparison of Model Performances')
+        plt.savefig(plot_name)
+        #TC now
+        plt.figure(figsize=(12,6))
+        ind_score_df=ind_score_df.sort_values(by='Base TC',ignore_index=True)
+        plt.plot(ind_score_df['tc'],color='black',label='Expert TC')
+        plt.plot(ind_score_df['Base TC'],color='black', linestyle=':',linewidth=2,label='Baseline TC')
+        plt.legend()
+        plt.xlabel('Samples')
+        plt.ylabel('Dice Score')
+        plt.title('Comparison of Model Performances')
+        plot_name=os.path.join(save_in,'TC.jpg')
+        plt.savefig(plot_name)
+        
+        plt.figure(figsize=(12,6))
+        ind_score_df=ind_score_df.sort_values(by='Base WT',ignore_index=True)
+        plt.plot(ind_score_df['wt'],color='green',label='Expert WT')
+        plt.plot(ind_score_df['Base WT'],color='green', linestyle=':', linewidth=2,label='Baseline WT')
+        plt.legend()
+        plt.xlabel('Samples')
+        plt.ylabel('Dice Score')
+        plt.title('Comparison of Model Performances')
+        plot_name=os.path.join(save_in,'WT.jpg')
+        plt.savefig(plot_name)
+        
+        plt.figure(figsize=(12,6))
+        ind_score_df=ind_score_df.sort_values(by='Base ET',ignore_index=True)
+        plt.plot(ind_score_df['et'],color='pink',label='Expert ET')
+        plt.plot(ind_score_df['Base ET'], color='pink', linestyle=':',linewidth=2,label='Baseline ET')
+        plt.legend()
+        plt.xlabel('Samples')
+        plt.ylabel('Dice Score')
+        plt.title('Comparison of Model Performances')
+        plot_name=os.path.join(save_in,'ET.jpg')
+        plt.savefig(plot_name)
+    
+    
+    return f'plot saved successully in {save_in}' 
     
 def plot_scatter(dice, gt, pred, save_path, use_slice_number=True, min_size=10, max_size=100):
 
