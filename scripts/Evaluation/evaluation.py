@@ -27,6 +27,7 @@ roi,
 use_cluster_for_online_val,
 root_dir,
 plot_list,
+plots_dir,
 limit_samples,
 
 )
@@ -34,7 +35,7 @@ from Input.dataset import (
 BratsDataset,
 ExpDataset,ExpDatasetEval,
 test_indices,train_indices,
-val_indices,Brats23valDataset
+val_indices,Brats23valDataset,BratsTimeDataset
 )
 from Input.localtransforms import test_transforms1,post_trans,train_transform,val_transform,post_trans_test,val_transform_Flipper
 from Training.running_log import log_run_details
@@ -53,19 +54,31 @@ from sklearn.preprocessing import MinMaxScaler
 from monai.config import print_config
 from monai.metrics import DiceMetric
 from Evaluation.eval_functions import plot_scatter,plot_prediction,find_centroid,eval_model_selector
-from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch
+from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch,plot_expert_performance,distance_ensembler,model_loader
+from Evaluation.eval_functions2 import evaluate_time_samples
+import scipy.stats as stats
+import matplotlib.pyplot as plt
 print_config()
 
 #trying to make the evaluation deterministic and independent to sample order
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+config_path='/scratch/a.bip5/BraTS/scripts/Input/config.py'
+with open(config_path, 'r') as config_file:
+               config_content = config_file.read()
+               
+print("\n\n------ Config Content ------\n")
+print(config_content)
+print("\n---------------------------\n")
+
+
 device = torch.device("cuda:0")
 namespace = locals().copy()
 config_dict=dict()
 for name, value in namespace.items():
     if type(value) in [str,int,float,bool]:
-        print(f"{name}: {value}")
+        # print(f"{name}: {value}")
         config_dict[f"{name}"]=value
 
 
@@ -307,7 +320,7 @@ if __name__ =='__main__':
     
     if eval_mode=='cluster_expert':
 
-      
+        print('CLUSTER EXPERT')
         model_names=[]
      
         folder_name=eval_folder.split('/')[-1]
@@ -320,28 +333,47 @@ if __name__ =='__main__':
         test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4)                
         
         
-        metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,slice_dice_scores,slice_gt_area, slice_pred_area=eval_model_selector(eval_folder,test_loader)#evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)
+        metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,dist_lists,slice_dice_scores,slice_gt_area, slice_pred_area=eval_model_selector(eval_folder,test_loader)#evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)
         # ind_scores['Cluster']=sheet
         # ind_scores['Model']=modelweights
         
         ind_score_df=pd.DataFrame(ind_scores)
         ind_score_df=ind_score_df.T
         # print(model_closest)
-        ind_score_df['Expert']=ind_score_df.index.map(model_closest)         
+        ind_score_df['Expert']=ind_score_df.index.map(model_closest)  
+        
+        dist_df = pd.DataFrame.from_dict(dist_lists, orient='index', columns=['d0', 'd1', 'd2', 'd3','dmin'])
+        ind_score_df = ind_score_df.join(dist_df)
         print('print(ind_score_df.head)',ind_score_df.head())
         
         ind_score_df.reset_index(inplace=True)
         ind_score_df.rename(columns={'index': 'Subject ID'}, inplace=True)
+       
         base_perf=pd.ExcelFile('/scratch/a.bip5/BraTS/IndScoresm2023-12-07_18-50-58_cl4_m_7743367.xlsx')
         base_sheets=base_perf.sheet_names
-        for sheet in base_sheets:
-            base_df=base_perf.parse(sheet)
-            base_df.drop(columns=['Original index', 'Cluster'],inplace=True)
-            base_df.rename(columns={'SegResNetCV1_j7688198ep128': f'Base {sheet}'},inplace=True)
-            ind_score_df=ind_score_df.merge(base_df, on='Subject ID')            
+        # for sheet in base_sheets:
+            # base_df=base_perf.parse(sheet)            
+            # base_df.drop(columns=['Original index', 'Cluster'],inplace=True)
+            # base_df.rename(columns={'SegResNetCV1_j7688198ep128': f'Base {sheet}'},inplace=True)            
+            # ind_score_df=ind_score_df.merge(base_df, on='Subject ID')         
+            
         
-        # base_perf_df=base_perf_df.rename(columns={'tc':'tc_base','wt':'wt_base','et': 'et_base'})
-       
+   
+        # # plot_expert_performance(ind_score_df,plots_dir)
+        
+        # t, p_val=stats.ttest_rel(ind_score_df['average'],ind_score_df['Base Average Dice'])
+        # t_et, p_val_et=stats.ttest_rel(ind_score_df['et'],ind_score_df['Base ET'])
+        # t_wt, p_val_wt=stats.ttest_rel(ind_score_df['wt'],ind_score_df['Base WT'])
+        # t_tc, p_val_tc=stats.ttest_rel(ind_score_df['tc'],ind_score_df['Base TC'])
+        # # base_perf_df=base_perf_df.rename(columns={'tc':'tc_base','wt':'wt_base','et': 'et_base'})
+        
+        
+        # all_t = [t, t_et,t_wt,t_tc]
+        # all_p = [p_val, p_val_et, p_val_wt, p_val_tc]
+        # rows = ['Overall', 'et','wt','tc']
+        # d = {'t-statistic':all_t,'p-value':all_p}
+        # p_df = pd.DataFrame(d,index=rows)
+        
         config_dict['metric_org'] = metric_org
         config_dict['metric_tc'] = metric_tc
         config_dict['metric_wt'] = metric_wt
@@ -354,12 +386,107 @@ if __name__ =='__main__':
    
         writer=pd.ExcelWriter(f'./IndScores{folder_name}_{job_id}.xlsx',engine='xlsxwriter')
         ind_score_df.to_excel(writer,sheet_name='Everything',index=True)
+        print('ind score df shape', ind_score_df.shape)
+        # p_df.to_excel(writer,sheet_name='P_all')
+        
+        # for value in ind_score_df['Expert'].unique():
+            # ind_score_filt=ind_score_df[ind_score_df['Expert']==value]
+            # ind_score_filt.to_excel(writer,sheet_name=f'Expert {value}')            
+            # t, p_val=stats.ttest_rel(ind_score_filt['average'],ind_score_filt['Base Average Dice'])
+            # t_et, p_val_et=stats.ttest_rel(ind_score_filt['et'],ind_score_filt['Base ET'])
+            # t_wt, p_val_wt=stats.ttest_rel(ind_score_filt['wt'],ind_score_filt['Base WT'])
+            # t_tc, p_val_tc=stats.ttest_rel(ind_score_filt['tc'],ind_score_filt['Base TC'])
+            # all_t = [t, t_et,t_wt,t_tc]
+            # all_p = [p_val, p_val_et, p_val_wt, p_val_tc]
+            # rows = ['Overall', 'et','wt','tc']
+            # d = {'t-statistic':all_t,'p-value':all_p}
+            # p_df = pd.DataFrame(d,index=rows)
+            # p_df.to_excel(writer,sheet_name=f'P_{value}')
+        
+        modelname_df=pd.DataFrame(all_model_paths,columns=["Evaluated models"])
+        modelname_df.to_excel(writer,sheet_name='RunInfo')
+  
+        writer.close()
+        
+    elif eval_mode=="distance_ensemble":
+             # Get the current date and time
+        print('DISTANCE ENSEMBLE')
+        folder_name=eval_folder.split('/')[-1]
+        full_ds = BratsDataset(root_dir,transform=val_transform)
+        test_ds = Subset(full_ds,test_indices)
+        
+        test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4)                
+        
+        
+        metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,dist_lists,slice_dice_scores,slice_gt_area, slice_pred_area=distance_ensembler(eval_folder,test_loader)#evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)
+        # ind_scores['Cluster']=sheet
+        # ind_scores['Model']=modelweights
+        
+        ind_score_df=pd.DataFrame(ind_scores)
+        ind_score_df=ind_score_df.T
+        # print(model_closest)
+        ind_score_df['Expert']=ind_score_df.index.map(model_closest)  
+        
+        dist_df = pd.DataFrame.from_dict(dist_lists, orient='index', columns=['d0', 'd1', 'd2', 'd3','dmin'])
+        ind_score_df = ind_score_df.join(dist_df)
+        print('print(ind_score_df.head)',ind_score_df.head())
+        
+        ind_score_df.reset_index(inplace=True)
+        ind_score_df.rename(columns={'index': 'Subject ID'}, inplace=True)
+        base_perf=pd.ExcelFile('/scratch/a.bip5/BraTS/IndScoresm2023-12-07_18-50-58_cl4_m_7743367.xlsx')
+        base_sheets=base_perf.sheet_names
+        for sheet in base_sheets:
+            base_df=base_perf.parse(sheet)
+            base_df.drop(columns=['Original index', 'Cluster'],inplace=True)
+            base_df.rename(columns={'SegResNetCV1_j7688198ep128': f'Base {sheet}'},inplace=True)
+            ind_score_df=ind_score_df.merge(base_df, on='Subject ID')         
+        
+        
+   
+        plot_expert_performance(ind_score_df,plots_dir)
+        
+        t, p_val=stats.ttest_rel(ind_score_df['average'],ind_score_df['Base Average Dice'])
+        t_et, p_val_et=stats.ttest_rel(ind_score_df['et'],ind_score_df['Base ET'])
+        t_wt, p_val_wt=stats.ttest_rel(ind_score_df['wt'],ind_score_df['Base WT'])
+        t_tc, p_val_tc=stats.ttest_rel(ind_score_df['tc'],ind_score_df['Base TC'])
+        # base_perf_df=base_perf_df.rename(columns={'tc':'tc_base','wt':'wt_base','et': 'et_base'})
+        
+        
+        all_t = [t, t_et,t_wt,t_tc]
+        all_p = [p_val, p_val_et, p_val_wt, p_val_tc]
+        rows = ['Overall', 'et','wt','tc']
+        d = {'t-statistic':all_t,'p-value':all_p}
+        p_df = pd.DataFrame(d,index=rows)
+        
+        config_dict['metric_org'] = metric_org
+        config_dict['metric_tc'] = metric_tc
+        config_dict['metric_wt'] = metric_wt
+        config_dict['metric_et'] = metric_et   
+        config_dict['eval_job_id']=job_id
+
+        log_path='/scratch/a.bip5/BraTS/eval_running_log.csv'
+        log_run_details(config_dict,[],csv_file_path=log_path)
+   
+   
+        writer=pd.ExcelWriter(f'./IndEnsemble{folder_name}_{job_id}.xlsx',engine='xlsxwriter')
+        ind_score_df.to_excel(writer,sheet_name='Everything',index=True)
+        p_df.to_excel(writer,sheet_name='P_all')
         
         for value in ind_score_df['Expert'].unique():
             ind_score_filt=ind_score_df[ind_score_df['Expert']==value]
             ind_score_filt.to_excel(writer,sheet_name=f'Expert {value}')            
-
-  
+            t, p_val=stats.ttest_rel(ind_score_filt['average'],ind_score_filt['Base Average Dice'])
+            t_et, p_val_et=stats.ttest_rel(ind_score_filt['et'],ind_score_filt['Base ET'])
+            t_wt, p_val_wt=stats.ttest_rel(ind_score_filt['wt'],ind_score_filt['Base WT'])
+            t_tc, p_val_tc=stats.ttest_rel(ind_score_filt['tc'],ind_score_filt['Base TC'])
+            all_t = [t, t_et,t_wt,t_tc]
+            all_p = [p_val, p_val_et, p_val_wt, p_val_tc]
+            rows = ['Overall', 'et','wt','tc']
+            d = {'t-statistic':all_t,'p-value':all_p}
+            p_df = pd.DataFrame(d,index=rows)
+            p_df.to_excel(writer,sheet_name=f'P_{value}')
+        modelname_df=pd.DataFrame(all_model_paths,columns=["Evaluated models"])
+        modelname_df.to_excel(writer,sheet_name='RunInfo')
         writer.close()
     
     elif eval_mode=='cluster':
@@ -373,7 +500,7 @@ if __name__ =='__main__':
         score_list=[]
         slice_dice_list=[]
         folder_name=eval_folder.split('/')[-1]
-        # Get the current date and time
+    
         
         
         for path in sorted(all_model_paths):            
@@ -487,6 +614,8 @@ if __name__ =='__main__':
         print(ind_scores_df.head())
         ind_scores_df.reset_index(inplace=True)
         ind_scores_df.rename(columns={'index': 'Subject ID'}, inplace=True)
+        
+        
 
         writer=pd.ExcelWriter(f'./IndScores{folder_name}_{evcl_name}_{job_id}.xlsx',engine='xlsxwriter')
         ind_scores_piv=ind_scores_df.pivot_table(
@@ -525,7 +654,8 @@ if __name__ =='__main__':
         
         ind_scores_piv.to_excel(writer,sheet_name='ET',index=False)
         
-        
+        modelname_df=pd.DataFrame(all_model_paths,columns=["Evaluated models"])
+        modelname_df.to_excel(writer,sheet_name='RunInfo')
           
         resultdict=pd.DataFrame(resultdict,index=sheet_names)
         print(resultdict.shape,'resultdict.shape')
@@ -603,7 +733,7 @@ if __name__ =='__main__':
             model=torch.nn.DataParallel(model)
             model.to(device)
             print(len(test_ds))
-            model.load_state_dict(torch.load(load_path),strict=True)
+            model.load_state_dict(torch.load(load_path),strict=False)
             ##model.load_state_dict(torch.load(eval_path, map_location=lambda storage, loc: storage.cuda(0)), strict=False)
             with torch.no_grad():   
 
@@ -631,10 +761,47 @@ if __name__ =='__main__':
                     except:
                         print(sub_id, 'issue with this file')                
                         continue
+    
+    elif eval_mode=='time':
+        old_ds = BratsTimeDataset(root_dir,0,transform=val_transform)
+        new_ds = BratsTimeDataset(root_dir,1,transform=val_transform)
+        ## here we're creating two loaders to be able to call a mask from a different dataset
+        old_loader=DataLoader(old_ds,shuffle=False,batch_size=1,num_workers=4)
+        new_loader=DataLoader(new_ds,shuffle=False,batch_size=1,num_workers=4)
+        out=evaluate_time_samples(load_path,old_loader,new_loader,eval_folder)
+        
+        
+        
+        ind_scores,ind_scores_new,ind_scores_newold,ind_scores_oldnew,ind_scores_GTGT=[pd.DataFrame(df) for df in out]
+        
+        ind_scores=ind_scores.T
+        ind_scores_new=ind_scores_new.T
+        ind_scores_newold=ind_scores_newold.T
+        ind_scores_oldnew=ind_scores_oldnew.T
+        ind_scores_GTGT = ind_scores_GTGT.T
+        
+        ind_scores.reset_index(inplace=True)
+        
+
+        
+        ind_scores.rename(columns={x: x+'_old' for x in ind_scores.columns if x not in ['index', 'new in', 'old in']}, inplace=True)
+        print(ind_scores.columns)
+        print(ind_scores.head())
+        
+        ind_scores_new.rename(columns={x: x+'_new' for x in ind_scores_new.columns if x != 'index'}, inplace=True)
+
+        ind_scores_newold.rename(columns={x: x+'_newSoldT' for x in ind_scores_newold.columns if x not in ['index', 'new in', 'old in']}, inplace=True)
+        ind_scores_oldnew.rename(columns={x: x+'_oldSnewT' for x in ind_scores_oldnew.columns if x != 'index'}, inplace=True)
+        ind_scores_GTGT.rename(columns={x: x+'_GTGT' for x in ind_scores_GTGT.columns if x != 'index'}, inplace=True)
+        
+        final_df=pd.merge(ind_scores,ind_scores_new, on='index', how='inner')
+        final_df=pd.merge(final_df,ind_scores_newold, on='index' ,how='inner')
+        final_df=pd.merge(final_df,ind_scores_oldnew, on='index', how='inner')
+        final_df=pd.merge(final_df,ind_scores_GTGT, on='index', how='inner')
+        final_df.to_csv(f'./time_samp_{job_id}.csv')
         
     elif eval_mode=='simple':
         
-      
         modelname = load_path.split('/')[-1]
         full_dataset = BratsDataset(root_dir,transform=val_transform)
         test_indices=test_indices.tolist()

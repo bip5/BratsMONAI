@@ -11,13 +11,15 @@ from Input.localtransforms import post_trans
 from Analysis.encoded_features import single_encode
 from scipy.spatial import distance
 import torch
-from Input.config import load_path,VAL_AMP,roi
+from Input.config import load_path,VAL_AMP,roi,DE_option,dropout
 from monai.inferers import sliding_window_inference
 from monai.handlers.utils import from_engine
 from monai.data import DataLoader,decollate_batch
 import pandas as pd
 import copy
 from datetime import datetime
+import cv2
+from Training.dropout import dropout_network
 
 dice_metric = DiceMetric(include_background=True, reduction="mean")
 dice_metric_ind = DiceMetric(include_background=True, reduction="mean")
@@ -73,18 +75,90 @@ def sum_weights_from_file(file_path):
     total_weight_sum = sum(torch.sum(param).item() for param in state_dict.values())
     return total_weight_sum
 
-def eval_model_selector(modelweight_folder_path, loader):
+
+    
+def dropout_model_list(load_path):
     '''
-    Evaluate using the closest cluster expert model
+    Returns a list of models loaded ready to be called 
+    Input: folder path with desired modelweights
+    Output: List with model objects 
+    '''
+    model_list=[]
+    seedlist=[0,1,2,3]
+    model = model_loader(load_path)
+    print([name for name,param in model.named_parameters()])
+
+    for seed in seedlist:
+        torch.manual_seed(seed)
+        model = model_loader(load_path)
+        model_list.append(dropout_network(model))
+    return model_list
+    
+def model_in_list(modelweight_folder_path):
+    '''
+    Returns a list of models loaded ready to be called 
+    Input: folder path with desired modelweights
+    Output: List with model objects 
     '''
     modelnames=sorted(os.listdir(modelweight_folder_path)) # assumes only cluster models here
     
     modelpaths=[os.path.join(modelweight_folder_path,x) for x in modelnames if 'Cluster' in x]
-    print(modelpaths)
-    for idx, modelpath in enumerate(modelpaths):
-        total_weight_sum = sum_weights_from_file(modelpath)
-        print(f"Model {idx} total weight sum: {total_weight_sum}")
+    # print(modelpaths)
+    # for idx, modelpath in enumerate(modelpaths):
+        # total_weight_sum = sum_weights_from_file(modelpath)
+        # print(f"Model {idx} total weight sum: {total_weight_sum}")
     model_list=[model_loader(x) for x in modelpaths]
+    return model_list
+
+def load_cluster_centres(cluster_path='/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers'):
+    '''
+    Load cluster centres
+    '''
+     
+    centre_names=sorted(os.listdir(cluster_path))
+    centre_names=[x for x in centre_names if 'cluster' in x]
+    print(type(centre_names[0]))
+    cluster_centre_paths=[os.path.join(cluster_path,x) for x  in centre_names]
+    print(sorted(cluster_centre_paths))
+    cluster_centres = [np.load(x) for x in sorted(cluster_centre_paths)]
+    max_bound=np.load('/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers/max_bound.npy')
+    min_bound=np.load('/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers/min_bound.npy')
+    return cluster_centres, min_bound,max_bound
+    
+def model_selector(model_list,test_data,base_model,min_bound,max_bound,cluster_centres,dist_lists):
+    #select a mode and perform a single evaluation
+    test_input=test_data["image"].to(device)
+    sub_id = test_data["id"][0][-9:]
+    print('sub_id',sub_id)
+    feat=single_encode(test_input,base_model) # assuming no need to collapse batch dimension     
+    
+    
+    feat=(feat-min_bound)/(max_bound-min_bound)
+    
+    # distances=[distance.euclidean(feat,x) for x in cluster_centres]
+    distances=[np.linalg.norm(feat-center) for center in cluster_centres]
+    
+    # distances=[distance.cosine(feat,x) for x in cluster_centres]
+    # print(distances)
+    model_index=np.argmin(distances) # assuming everything is sorted alphabetically as intent
+    
+    # print(centre_names[model_index])
+    dist_lists[sub_id]= distances +([distances[model_index]])
+    model_selected=model_list[model_index]
+    
+    model_selected.eval()
+    # base_dice, base_tc,base_wt,base_et, base_test_outputs, base_test_labels=eval_single(base_model,test_data)
+    
+    current_dice, tc,wt,et, test_outputs, test_labels=eval_single(model_selected,test_data)   
+    return current_dice, tc,wt,et, test_outputs, test_labels,model_index,dist_lists
+    
+def eval_model_selector(modelweight_folder_path, loader):
+    '''
+    Evaluate using the closest cluster expert model    
+    '''
+   # Returns a list of models loaded ready to be called
+    model_list = model_in_list(modelweight_folder_path)
+    
     # for idx, model in enumerate(model_list):
         # print(f"Model {idx} address: {id(model)}") # to print memory address model is stored at
     # for idx, model in enumerate(model_list):
@@ -93,15 +167,10 @@ def eval_model_selector(modelweight_folder_path, loader):
         total_weight_sum = sum(torch.sum(param).item() for param in model.state_dict().values())
         print(f"Model {idx} total weight sum: {total_weight_sum}")
     # sys.exit()
-    base_model=model_loader(load_path)
+    base_model = model_loader(load_path)
     base_model.eval()
-    cluster_path='/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers'
-    centre_names=sorted(os.listdir(cluster_path))
-    centre_names=[x for x in centre_names if 'cluster' in x]
-    print(type(centre_names[0]))
-    cluster_centre_paths=[os.path.join(cluster_path,x) for x  in centre_names]
-    print(sorted(cluster_centre_paths))
-    cluster_centres=[np.load(x) for x in sorted(cluster_centre_paths)]
+    
+    cluster_centres,min_bound,max_bound = load_cluster_centres()
     
     print([x.mean() for x in cluster_centres])
     ind_scores = dict()
@@ -115,33 +184,26 @@ def eval_model_selector(modelweight_folder_path, loader):
     dist_lists={}
     with torch.no_grad():
         for i,test_data in enumerate(loader):
-            test_input=test_data["image"].to(device)
-            sub_id = test_data["id"][0][-9:]
-            print('sub_id',sub_id)
-            feat=single_encode(test_input,base_model) # assuming no need to collapse batch dimension     
             
-            
-            feat=(feat-min_bound)/(max_bound-min_bound)
-            
-            # distances=[distance.euclidean(feat,x) for x in cluster_centres]
-            distances=[np.linalg.norm(feat-center) for center in cluster_centres]
-            
-            # distances=[distance.cosine(feat,x) for x in cluster_centres]
-            # print(distances)
-            model_index=np.argmin(distances) # assuming everything is sorted alphabetically as intent
+            current_dice, tc,wt,et, test_outputs, test_labels,model_index,dist_lists=model_selector(model_list,test_data,base_model,min_bound,max_bound,cluster_centres,dist_lists)   
             model_closest[sub_id]=model_index
-            # print(centre_names[model_index])
-            dist_lists[sub_id]= distances +([distances[model_index]])
-            model_selected=model_list[model_index]
-            
-            model_selected.eval()
-            # base_dice, base_tc,base_wt,base_et, base_test_outputs, base_test_labels=eval_single(base_model,test_data)
-            
-            current_dice, tc,wt,et, test_outputs, test_labels=eval_single(model_selected,test_data)   
-            
             dice_metric(y_pred=test_outputs, y=test_labels)
             dice_metric_batch(y_pred=test_outputs, y=test_labels)
             ind_scores[sub_id] = {'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
+            metrics = dice_profile_and_sphericity(test_outputs[0])  # Assuming test_outputs[0] is your mask_input
+            # Average the metrics across channels and views
+            
+            avg_dice = np.mean([metrics[view][channel]['Dice'] for view in ['Sagittal', 'Frontal', 'Axial'] for channel in ['TC', 'WT', 'ET']])
+            avg_delta_area = np.mean([metrics[view][channel]['dArea'] for view in ['Sagittal', 'Frontal', 'Axial'] for channel in ['TC', 'WT', 'ET']])
+            avg_regularity = np.mean([metrics[view][channel]['Regularity'] for view in ['Sagittal', 'Frontal', 'Axial'] for channel in ['TC', 'WT', 'ET']])
+
+            # Update the ind_scores dictionary
+            ind_scores[sub_id].update({
+                
+                'avg_dice_profile': round(avg_dice, 4),
+                'avg_delta_area': round(avg_delta_area, 4),
+                'avg_regularity': round(avg_regularity, 4)
+            })
         metric_org = dice_metric.aggregate().item()        
         metric_batch_org = dice_metric_batch.aggregate()
         dice_metric.reset()
@@ -157,8 +219,14 @@ def calculate_weights(distances):
     total = sum(inverted_distances)
     normalized_weights = [d/total for d in inverted_distances]
     return normalized_weights
+
+def calculate_squared_weights(distances):
+    inverted_distances = [1/(d**2) if d != 0 else 0 for d in distances]
+    total = sum(inverted_distances)
+    normalized_weights = [d/total for d in inverted_distances]
+    return normalized_weights
     
-def distance_ensembler(modelweight_folder_path, loader):
+def distance_ensembler(modelweight_folder_path, loader,option=DE_option):
     '''
     Evaluate using the closest cluster expert model
     '''
@@ -168,8 +236,29 @@ def distance_ensembler(modelweight_folder_path, loader):
     print(modelpaths)
     for idx, modelpath in enumerate(modelpaths):
         total_weight_sum = sum_weights_from_file(modelpath)
-        print(f"Model {idx} total weight sum: {total_weight_sum}")
-    model_list=[model_loader(x) for x in modelpaths]
+        print(f"Model {idx} total weight sum: {total_weight_sum}")  # checking to see models are unique
+    if dropout:
+        print('''
+        D 
+        R
+        O 
+        P 
+        O
+        U 
+        T
+        
+        E
+        N
+        S
+        E
+        M
+        B
+        L
+        E   
+        ''')
+        model_list=dropout_model_list(load_path)
+    else:
+        model_list=[model_loader(x) for x in modelpaths]
     # for idx, model in enumerate(model_list):
         # print(f"Model {idx} address: {id(model)}") # to print memory address model is stored at
     # for idx, model in enumerate(model_list):
@@ -196,7 +285,7 @@ def distance_ensembler(modelweight_folder_path, loader):
     slice_gt_area = dict()
     model_closest={}
     current_dice, tc,wt,et, test_outputs, test_labels,decollated_raw=[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]]
-    test_outputs=[[],[],[],[]]
+    test_outputs=[[],[],[],[]] #creating empty list of lists to store individual values separately for each model we then iterate through each model to fill these 
     dist_lists={}
     with torch.no_grad():
         for i,test_data in enumerate(loader):
@@ -210,7 +299,10 @@ def distance_ensembler(modelweight_folder_path, loader):
             
             # distances=[distance.euclidean(feat,x) for x in cluster_centres]
             distances=[np.linalg.norm(feat-center) for center in cluster_centres]
-            ensemble_weights=calculate_weights(distances)
+            if DE_option=='squared':
+                ensemble_weights=calculate_squared_weights(distances)            
+            else:
+                ensemble_weights=calculate_weights(distances)
             # distances=[distance.cosine(feat,x) for x in cluster_centres]
             # print(distances)
            
@@ -226,29 +318,36 @@ def distance_ensembler(modelweight_folder_path, loader):
                 model_selected.eval()
                  
                 test_data["pred"] = inference(test_inputs,model_selected)
-                # decollated_raw[j]=[{**x, "pred": x["pred"] * weight} for x in decollate_batch(test_data)] #list of unthresholded outputs
+                if DE_option=='plain':
+                    decollated_raw[j]=[{**x, "pred": x["pred"]} for x in decollate_batch(test_data)]
+                else:                    
+                    decollated_raw[j]=[{**x, "pred": x["pred"] * weight} for x in decollate_batch(test_data)] #list of unthresholded outputs in batch - 1 item if batch size is 1
                 
-                decollated_raw[j]=[post_trans(x) for x in decollate_batch(test_data)]
+                # decollated_raw[j]=[post_trans(x) for x in decollate_batch(test_data)]
             combined_dict_list=[]
             for a,b,c,d in zip(*decollated_raw):
                 #now we have 4 decollated lists of raw dictionaries representing output from same batch for the 4 models  
                 if type(a)==list:
-                    print('batch greater than 1')
-                    for k in range(len(a)):
+                    print('batch greater than 1,exiting')
+                    sys.exit()
+                    for k in range(len(a)): # this shouldn't trigger for batch size=1
                         weighted_sum={}
                         #assuming first item in the batch is always the same between samples
                         print('item type',type(a[k]))
-                        weighted_sum["pred"]=a[k]["pred"]#+b[k]["pred"]+c[k]["pred"]+d[k]["pred"]
+                        weighted_sum["pred"]=a[k]["pred"]+b[k]["pred"]+c[k]["pred"]+d[k]["pred"]
                         weighted_sum["mask"]=a["mask"] # mask is same between samples
                         combined_dict_list.append(weighted_sum)
                 else:
                     weighted_sum={}
-                    weighted_sum["pred"]=a["pred"]#+b["pred"]+c["pred"]+d["pred"]
+                    
+                    weighted_sum["pred"]=a["pred"]+b["pred"]+c["pred"]+d["pred"]
+                    if DE_option=='plain':                         
+                        weighted_sum["pred"]=weighted_sum["pred"]/4
                     weighted_sum["mask"]=a["mask"]
                     combined_dict_list.append(weighted_sum)
-            # tested_data=[post_trans(ii) for ii in combined_dict_list] 
+            tested_data=[post_trans(ii) for ii in combined_dict_list] 
             # tested_data=[ii for ii in combined_dict_list] 
-            test_outputs,test_labels = from_engine(["pred","mask"])(decollated_raw[0])# returns two lists of tensors
+            test_outputs,test_labels = from_engine(["pred","mask"])(tested_data)# returns two lists of tensors
             test_outputs = [tensor.to(device) for tensor in test_outputs]
             test_labels = [tensor.to(device) for tensor in test_labels]
             dice_metric_ind(y_pred=test_outputs, y=test_labels)
@@ -263,6 +362,22 @@ def distance_ensembler(modelweight_folder_path, loader):
             dice_metric(y_pred=test_outputs, y=test_labels)
             dice_metric_batch(y_pred=test_outputs, y=test_labels)
             ind_scores[sub_id] = {'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
+            metrics = dice_profile_and_sphericity(test_outputs[0])  # Assuming test_outputs[0] is your mask_input
+            # Average the metrics across channels and views
+            dice_prof_vals=[metrics[view][channel]['Dice'] for view in ['Sagittal', 'Frontal', 'Axial'] for channel in ['TC', 'WT', 'ET']]
+            da_vals=[metrics[view][channel]['dArea'] for view in ['Sagittal', 'Frontal', 'Axial'] for channel in ['TC', 'WT', 'ET']]
+            reg_vals = [metrics[view][channel]['Regularity'] for view in ['Sagittal', 'Frontal', 'Axial'] for channel in ['TC', 'WT', 'ET']]
+            avg_dice = np.mean([dice_prof_vals[x] for x in np.nonzero(dice_prof_vals)[0].astype(int)])
+            avg_delta_area = np.mean([da_vals[x] for x in np.nonzero(da_vals)[0].astype(int)])
+            avg_regularity = np.mean([reg_vals[x] for x in np.nonzero(reg_vals)[0].astype(int)])
+
+            # Update the ind_scores dictionary
+            ind_scores[sub_id].update({
+                
+                'avg_dice_profile': round(avg_dice, 4),
+                'avg_delta_area': round(avg_delta_area, 4),
+                'avg_regularity': round(avg_regularity, 4)
+            })
         metric_org = dice_metric.aggregate().item()        
         metric_batch_org = dice_metric_batch.aggregate()
         dice_metric.reset()
@@ -491,3 +606,85 @@ def find_centroid(mask_channel):
     """
     coords = np.argwhere(mask_channel)
     return coords.mean(axis=0).astype(int)  
+    
+
+
+def calculate_perimeter_and_regularity(mask_slice, kernel):
+    area_slice = torch.nonzero(mask_slice).numel()
+    perimeter = torch.nonzero(torch.tensor(cv2.erode(mask_slice.cpu().numpy(), kernel))).numel()
+    rep_rad = np.sqrt(area_slice / np.pi)
+    reg_score = perimeter / (2 * np.pi * rep_rad + 0.001)
+    return area_slice, reg_score
+
+def calculate_dice_score(mask1, mask2):
+    intersection = (mask1 * mask2).sum()
+    dice=(2 * intersection) / (mask1.sum() + mask2.sum() + 0.001)
+
+    return dice.cpu().numpy()
+    
+def calculate_sphericity(mask):
+    channels = ['TC', 'WT', 'ET']
+    pred_feat = {}
+    for o in range(mask.shape[0]):
+        mask_volume = torch.nonzero(mask[o]).size(0)
+        pi = torch.tensor(np.pi)
+        rep_rad = torch.pow((0.75 * mask_volume / pi), (1/3))
+        sphericity = mask_volume / ((4/3) * pi * torch.pow(rep_rad, 3))
+        pred_feat['Sphericity_[channels[o]}']=sphericity
+    return pred_feat
+
+def dice_profile_and_sphericity(mask_input):
+    kernel = np.ones((3, 3), np.uint8)
+    dims = mask_input.shape[1:]  # H, W, D dimensions
+    channels = ['TC', 'WT', 'ET']
+    metrics = {}
+
+    # Initializing metrics for each dimension and channel
+    for dim_label in ['Sagittal', 'Frontal', 'Axial']:
+        metrics[dim_label] = {ch: {'Area': [], 'Regularity': [], 'Dice': [], 'dArea': []} for ch in channels}
+
+    # Iterate over each dimension
+    for dim in range(3):
+        for i in range(dims[dim]): #eg dims[0]==192
+            # Select the appropriate 2D slices for each channel
+            if dim == 0:  # Sagittal
+                slices = mask_input[:, i, :, :]
+            elif dim == 1:  # Frontal
+                slices = mask_input[:, :, i, :]
+            else:  # Axial
+                slices = mask_input[:, :, :, i]#.squeeze(3)
+
+            # Iterate over each channel
+            for ch in range(mask_input.shape[0]):
+                slice = slices[ch]
+                prev_slice = None
+                if i > 0:
+                    if dim == 0:
+                        prev_slice = mask_input[ch, i-1, :, :]#.squeeze(1)
+                    elif dim == 1:
+                        prev_slice = mask_input[ch, :, i-1, :]#.squeeze(2)
+                    else:
+                        prev_slice = mask_input[ch, :, :, i-1]#.squeeze(3)
+
+                # Calculate area and regularity and append each slice value to a list
+                area_slice, reg_score = calculate_perimeter_and_regularity(slice, kernel)
+                metrics['Sagittal' if dim == 0 else 'Frontal' if dim == 1 else 'Axial'][channels[ch]]['Area'].append(area_slice)
+                metrics['Sagittal' if dim == 0 else 'Frontal' if dim == 1 else 'Axial'][channels[ch]]['Regularity'].append(reg_score)
+
+                # Calculate Dice scores and dArea if not the first slice
+                if prev_slice is not None:
+                    dice_score = calculate_dice_score(prev_slice, slice)
+                    metrics['Sagittal' if dim == 0 else 'Frontal' if dim == 1 else 'Axial'][channels[ch]]['Dice'].append(dice_score)
+                    prev_area = metrics['Sagittal' if dim == 0 else 'Frontal' if dim == 1 else 'Axial'][channels[ch]]['Area'][-2] #-2 selecting the 2nd to last area item
+                    darea = 2 * abs(area_slice - prev_area) / (area_slice + prev_area + 0.001)
+                    metrics['Sagittal' if dim == 0 else 'Frontal' if dim == 1 else 'Axial'][channels[ch]]['dArea'].append(darea)
+
+    # Averaging the lists in the metrics
+    for dim_label in ['Sagittal', 'Frontal', 'Axial']:
+        for ch in channels:
+            for key in metrics[dim_label][ch]:
+                # print(key,type(metrics[dim_label][ch][key][0]))
+                v=metrics[dim_label][ch][key]
+                metrics[dim_label][ch][key] = np.mean([v[x] for x in np.nonzero(v)[0].astype(int)]) if v else 0
+                #take a non-zero mean instead of mean of all cases- useful when some tumor categories don't exist
+    return metrics
