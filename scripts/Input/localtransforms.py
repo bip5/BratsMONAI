@@ -370,6 +370,7 @@ val_transform_PA = Compose(
         ]
         
 )
+
 val_transform = Compose(
     [
         LoadImaged(keys=["image", "mask"],simple_keys=True),

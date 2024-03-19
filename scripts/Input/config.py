@@ -5,30 +5,38 @@ exp_train_count=5
 exp_val_count=5
 freeze_patience=2
 fold_num = 1
+init_filter_number= 32#16 # So we don't have keep creating new networks
 #set depending on how many items to unfreeze from layer list
 load_save = 0
-load_path = '/scratch/a.bip5/BraTS/weights/m2023-11-07_20-07-54/SegResNetCV1_j7688198ep128'#'/scratch/a.bip5/BraTS/weights/m2023-11-13_23-07-03/transformerCV1_j7692226ep82' #'/scratch/a.bip5/BraTS/weights/m2023-11-07_20-07-54/SegResNetCV1_j7688198ep77'#'/scratch/a.bip5/BraTS/weights/m2023-12-11_14-11-24/SegResNet_halfCV1_j7716060ep60'#'/scratch/a.bip5/BraTS/weights/m2023-12-11_21-59-50/2023-12-12SegResNet_CA_half_j7716246'#
-lr = 0.0002
+load_path ='/scratch/a.bip5/BraTS/weights/m2023-11-07_20-07-54/SegResNetCV1_j7688198ep128'#'/scratch/a.bip5/BraTS/weights/m2023-12-11_14-11-24/SegResNet_halfCV1_j7716060ep60'#  '/scratch/a.bip5/BraTS/weights/job_7766530/2024-02-05SegResNet_half_j7766530'# #'/scratch/a.bip5/BraTS/weights/m2023-11-13_23-07-03/transformerCV1_j7692226ep82' #'/scratch/a.bip5/BraTS/weights/m2023-11-07_20-07-54/SegResNetCV1_j7688198ep77'#'/scratch#'/scratch/a.bip5/BraTS/weights/m2023-12-11_21-59-50/2023-12-12SegResNet_CA_half_j7716246'#
+lr = 0.0005
 root_dir = "/scratch/a.bip5/BraTS/BraTS_23_training/" # /scratch/a.bip5/ATLAS_2/Training #
 weights_dir = "/scratch/a.bip5/BraTS/weights"
 max_samples = 1250
 method = 'A'#type of ensemble method
-model_name =  'SegResNet'# 'WNet'#'UNet'#'transformer' # pick from UNet SegResNet transformer #change roi when changing model name 
-roi=[192,192,144]#[192,192,128]#
+model_name = 'SegResNet'# 'SegResNet_half'#'SegResNetVAE'#'ScaleFocus' #'DualFocus'# 'WNet'#'UNet'#'transformer' #'DeepFocus'# pick from UNet SegResNet transformer #change roi when changing model name 
+num_layers=2
+num_filters=64 #only for deep focus line of models
+plots_dir='/scratch/a.bip5/BraTS/plots'
+PRUNE_PERCENTAGE= None # -0.05 #
+roi=[192,192,144]#[192,192,128]#[128,128,128]#
 seed = 0
 total_epochs = 150
 T_max = total_epochs #how often to reset cycling
 unfreeze = 22 
-upsample = 'DECONV' # upsample method in SegResNet
+upsample = 'DECONV' #'NONTRAINABLE'# upsample method in SegResNet
 val_interval = 1
 workers = 4
-PRUNE_PERCENTAGE= None # -0.05 #
-init_filter_number= 32#16 # So we don't have keep creating new networks
+dropout=None
 
 
 
 
-mode_index = 1
+
+
+
+
+mode_index = 0
 
 if mode_index==0:
     training_mode='CV_fold'
@@ -63,6 +71,10 @@ elif mode_index==11:
     training_mode='SegResNetAtt'
     model_name='SegResNetAtt'
     init_filter_number=init_filter_number/2 #Just to ease work flow in switching 
+elif mode_index==12:
+    training_mode='LoadNet'
+    model_name='SegResNet_half'
+    init_filter_number=16 #Just to ease work flow in switching 
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
     
@@ -80,16 +92,17 @@ lr_cycling = True
 super_val = False
 train_partial = False
 VAL_AMP = False
-
+DE_option='plain'#'squared'#
+TTA_ensemble=True
 
 
 
 ################EVAL SPECIFIC VARIABLES#################
 eval_path = '/scratch/a.bip5/BraTS/weights/m2023-11-07_20-07-54/SegResNetCV1_j7688198ep128' #for non cluster path
-eval_folder = '/scratch/a.bip5/BraTS/weights/m2024-01-17_18-32-16'#'/scratch/a.bip5/BraTS/weights/m2023-11-22_18-52-42'# tfmr #'/scratch/a.bip5/BraTS/weights/m2023-11-22_00-04-01'#
-eval_mode = 'cluster_expert' # 'cluster'  # 'simple'#'online_val'# choose between simple, cluster, online_val.
+eval_folder ='/scratch/a.bip5/BraTS/weights/m2024-01-17_18-32-16'#'/scratch/a.bip5/BraTS/weights/m2024-01-22_19-23-02' #'/scratch/a.bip5/BraTS/weights/m2023-11-07_20-07-54'#'/scratch/a.bip5/BraTS/weights/m2023-11-22_18-52-42'# tfmr #'/scratch/a.bip5/BraTS/weights/m2023-11-22_00-04-01'#
+eval_mode = 'time' #'distance_ensemble'# 'cluster_expert' # 'simple'#    'cluster'  # 'online_val'# choose between simple, cluster, online_val.
 output_path = '/scratch/a.bip5/BraTS/saved_predictions'
-test_samples_from = 'test'#'trainval' evalmode will test performance on training+val
+test_samples_from ='test'#'trainval' # evalmode will test performance on training+val
 plot_list = None #['00619-001','01479-000','00113-000','01498-000','01487-000','0025-000','01486-000','01327-000','0684-000','0155-000','01433-000','0084-001','0753-000','0012-000','01169-000','01483-000','00152-000'] #     #use if you want to plot specific samples
 limit_samples = None # 10 #  only evaluate limited samples
 
@@ -97,5 +110,5 @@ use_cluster_for_online_val = False
 slice_dice=True
 plot_output= False #True # 
 plot_single_slice=False
-eval_from_folder=True #False # 
+eval_from_folder= False # True #
 # unused_collection=True if fs_ensemble==0 else False

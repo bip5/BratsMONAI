@@ -250,6 +250,65 @@ class BratsDataset(Dataset):
                 # raise TypeError("The transformed 'mask' is not a MetaTensor. Please check your transforms.")
         
         return item_dict
+def time_list(root_dir):
+    images,masks=make_dataset(root_dir)
+    old_index=[]
+    new_index=[]
+
+    old=[]
+    new=[]
+    for index, (iname, mname) in enumerate(zip(images,masks)):
+        if '001-seg' in mname:
+            new_index.append(index)
+            new.append((iname,mname))            
+            
+            old_index.append(index-1)
+            old.append((images[index-1], masks[index-1]))
+    return old,new,old_index,new_index
+class BratsTimeDataset(Dataset):
+    def __init__(self,data_dir,tid,transform=None):
+        
+        data=time_list(data_dir)
+        if tid==0:
+            self.data_list=data[0]         
+            self.data_index=data[2]
+        else:
+            self.data_list=data[1]         
+            self.data_index=data[3]
+            
+        self.transform=transform
+        
+    def __len__(self):
+#         return len(os.listdir(self.mask_dir))
+        return min(max_samples,len(self.data_list))#
+    
+    def __getitem__(self,idx):
+        # print(idx)
+       
+        image=self.data_list[idx][0]
+       
+    
+        mask=self.data_list[idx][1] 
+        
+
+            
+        item_dict={"image":image,"mask":mask}
+        # print(item_dict)
+        
+        if self.transform:
+            item_dict={"image":image,"mask": mask}
+            
+            item_dict=self.transform(item_dict)
+            item_dict['id'] = mask[-30:-11]
+            item_dict['index'] = self.data_index[idx]
+            
+            if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
+                raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
+
+            # if not isinstance(item_dict['mask'], monai.data.meta_tensor.MetaTensor):
+                # raise TypeError("The transformed 'mask' is not a MetaTensor. Please check your transforms.")
+        
+        return item_dict
 
 
 class EnsembleDataset(Dataset):
