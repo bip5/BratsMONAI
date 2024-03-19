@@ -399,7 +399,7 @@ def save_cluster_files(df_features, n_clusters=number_clusters,retries=3):
     # Write mean and std dev dataframes to separate sheets
     mean_df.to_excel(writer, sheet_name='Mean_Features', index=True)
     std_df.to_excel(writer, sheet_name='Std_Dev_Features', index=True)
-    CV_df=std_df/mean_df
+    CV_df = std_df/mean_df
     CV_df.to_excel(writer,sheet_name='Coefficient of variation',index=True)
     
     # Save the excel
