@@ -20,12 +20,14 @@ import copy
 from datetime import datetime
 import cv2
 from Input.dataset import make_dataset
-from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch,model_loader, model_selector,load_cluster_centres,model_in_list
+from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch,model_loader, model_selector,load_cluster_centres,model_in_list,eval_single_raw
 from monai.data import Dataset
 from Input.dataset import train_indices,val_indices,test_indices
 
 
+
 ## At this point we have two dictionaries new and old with each key representing the index and value being the tuple with image and masks. This is different to the previous pipeline where the images and masks were separate lists. 
+
 
 
 def check_membership(index, train,val, test):
@@ -55,8 +57,12 @@ dice_metric_GTGT = DiceMetric(include_background=True, reduction="mean")
 dice_metric_ind_GTGT = DiceMetric(include_background=True, reduction="mean")
 dice_metric_ind_batch_GTGT = DiceMetric(include_background=True, reduction="mean_batch")
 dice_metric_batch_GTGT = DiceMetric(include_background=True, reduction="mean_batch") 
-   
-def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_path,expert=True):
+ 
+ 
+dice_metric_ind_delta = DiceMetric(include_background=True, reduction="mean")
+dice_metric_ind_batch_delta = DiceMetric(include_background=True, reduction="mean_batch")
+
+def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_path,expert=True,ensemble=False):
     model=model_loader(load_path)
     device = torch.device("cuda:0")        
     model.to(device)
@@ -75,14 +81,30 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
     dist_lists_new = {}
     with torch.no_grad():
         for i,(old_data,new_data) in enumerate (zip(old_loader,new_loader)): # each image
-
+           
             if expert:
                 model_list = model_in_list(modelweight_folder_path)
+                if ensemble:
+                    old_data['pred'] = torch.zeros_like(old_data['mask']).to(device)
+                    new_data['pred'] = torch.zeros_like(new_data['mask']).to(device)
+                    for model in model_list:
+                        old_data["pred"] += eval_single_raw(model,old_data)
+                        new_data["pred"] += eval_single_raw(model,new_data)
+                    old_data["pred"] = old_data["pred"]/len(model_list)
+                    new_data["pred"] = new_data["pred"]/len(model_list)
+                    sub_index=old_data["index"]
+                    sub_id = old_data["id"][0]
+                    old_data=[post_trans(ii) for ii in decollate_batch(old_data)]
+                    old_outputs,old_labels = from_engine(["pred","mask"])(old_data)
+                    new_data=[post_trans(ii) for ii in decollate_batch(new_data)]
+                    new_outputs,new_labels=from_engine(["pred","mask"])(new_data)
+                else:
+                    current_dice_old, tc_old,wt_old,et_old, old_outputs, old_labels,model_index,dist_lists_old= model_selector(model_list,old_data,base_model,min_bound,max_bound,cluster_centres,dist_lists_old)
+                    current_dice_new, tc_new,wt_new,et_new, new_outputs, new_labels,model_index,dist_lists_new= model_selector(model_list,new_data,base_model,min_bound,max_bound,cluster_centres,dist_lists_new)
+                    sub_index=old_data["index"]
+                    sub_id = old_data["id"][0]
                 
-                current_dice_old, tc_old,wt_old,et_old, old_outputs, old_labels,model_index,dist_lists_old= model_selector(model_list,old_data,base_model,min_bound,max_bound,cluster_centres,dist_lists_old)
-                current_dice_new, tc_new,wt_new,et_new, new_outputs, new_labels,model_index,dist_lists_new= model_selector(model_list,new_data,base_model,min_bound,max_bound,cluster_centres,dist_lists_new)
-                sub_index=old_data["index"]
-                sub_id = old_data["id"][0]
+              
             else:
                 old_inputs = old_data["image"].to(device) # pass to gpu
                 sub_id = old_data["id"][0]
@@ -103,8 +125,14 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
                 old_outputs,old_labels = from_engine(["pred","mask"])(old_data) # returns two lists of 
                 new_outputs,new_labels=from_engine(["pred","mask"])(new_data)
                             
-                for idx, y in enumerate(old_labels):
-                    old_labels[idx] = (y > 0.5).int()
+            for idx, y in enumerate(old_labels):
+                old_labels[idx] = (y > 0.5).int()
+            for idx, y in enumerate(old_outputs):
+                old_outputs[idx] = (y > 0.5).int()
+            for idx, y in enumerate(new_labels):
+                new_labels[idx] = (y > 0.5).int()    
+            for idx, y in enumerate(new_outputs):
+                new_outputs[idx] = (y > 0.5).int()
                     
             old_outputs = [tensor.to(device) for tensor in old_outputs]
             old_labels = [tensor.to(device) for tensor in old_labels]
@@ -112,9 +140,21 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
             new_labels = [tensor.to(device) for tensor in new_labels]
             # old_labels=old_data["mask"].to(device)
         
+            old_volume_gt = [tensor.sum() for tensor in old_labels][0].item() #Batch Size=1
+            new_volume_gt = [tensor.sum() for tensor in new_labels][0].item() #Batch size=1
+            gt_delta = new_volume_gt - old_volume_gt
             
+            old_volume_pred = [tensor.sum() for tensor in old_outputs][0].item()
+            new_volume_pred = [tensor.sum() for tensor in new_outputs][0].item()
+            pred_delta  = new_volume_pred - old_volume_pred
+            
+            delta_delta = pred_delta - gt_delta
             # torch.cuda.empty_cache()
             # print(type(old_outputs),old_labels[0].shape)
+            
+            ### ^ = bitwise XOR : ie how much of the change are we actually segmenting
+            change_GT = [tensor1^tensor2 for tensor1,tensor2 in zip(old_labels,new_labels)]
+            change_pred = [tensor1^tensor2 for tensor1,tensor2 in zip(old_outputs,new_outputs)]
             
             #OLD sample OLD TARGET
             dice_metric_ind(y_pred=old_outputs, y=old_labels)
@@ -122,6 +162,9 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
             
             dice_metric(y_pred=old_outputs, y=old_labels)
             dice_metric_batch(y_pred=old_outputs, y=old_labels)
+            
+            dice_metric_ind_delta(y_pred=change_pred, y=change_GT)
+            dice_metric_ind_batch_delta(y_pred=change_pred, y=change_GT)
             
             dice_metric_ind_GTGT(y_pred=old_labels, y=new_labels)
             dice_metric_ind_batch_GTGT(y_pred=old_labels, y=new_labels)
@@ -152,12 +195,30 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
             
             membership_old=check_membership(sub_index.item(),train=train_indices,val=val_indices,test=test_indices)
             membership_new=check_membership(sub_index.item()+1,train=train_indices,val=val_indices,test=test_indices)
+            marker_colors=['green','blue','red','orange']
+            
+            if membership_old == membership_new:
+                if membership_old == 'train':
+                    color = 'green'
+                else: 
+                    color = 'blue'
+            else:   
+                if membership_old == 'train':
+                    color = 'red'
+                else:
+                    color = 'orange'
+            
+            
             # Compute the Dice score for this test case
             # current_dice = dice_metric_ind.aggregate().item()
             current_dice = dice_metric_ind.aggregate(reduction=None).item()
             batch_ind = dice_metric_ind_batch.aggregate()
             tc,wt,et = batch_ind[0].item(),batch_ind[1].item(),batch_ind[2].item()
-            ind_scores[sub_id] = {'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4),'index': sub_index.item(), 'old in': membership_old, 'new in': membership_new}
+            
+            current_dice_delta = dice_metric_ind_delta.aggregate(reduction=None).item()
+            batch_ind_delta = dice_metric_ind_batch_delta.aggregate()
+            tc_delta,wt_delta,et_delta = batch_ind_delta[0].item(),batch_ind_delta[1].item(),batch_ind_delta[2].item()
+            ind_scores[sub_id] = {'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4),'index': sub_index.item(), 'old in': membership_old, 'new in': membership_new,'d average':round(current_dice_delta,4), 'd tc':round(tc_delta,4),'d wt':round(wt_delta,4),'d et':round(et_delta,4), 'predicted volume delta': delta_delta, 'old volume gt': old_volume_gt, 'new volume gt': new_volume_gt, 'GT delta': gt_delta, 'old volume pred': old_volume_pred,'new volume pred': new_volume_pred, 'pred delta':pred_delta, 'marker_color': color}
             
             current_dice_GTGT = dice_metric_ind_GTGT.aggregate(reduction=None).item()
             batch_ind_GTGT = dice_metric_ind_batch_GTGT.aggregate()
@@ -183,6 +244,8 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
             
             dice_metric_ind.reset()
             dice_metric_ind_batch.reset()
+            dice_metric_ind_delta.reset()
+            dice_metric_ind_batch_delta.reset()
             dice_metric_ind_GTGT.reset()
             dice_metric_ind_batch_GTGT.reset()
             dice_metric_ind_new.reset()
@@ -251,6 +314,6 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
         print(f"metric_tc: {metric_tc_oldnew:.4f}", f"   metric_wt: {metric_wt_oldnew:.4f}", f"   metric_et: {metric_et_oldnew:.4f}")
         
         return ind_scores,ind_scores_new,ind_scores_newold,ind_scores_oldnew,ind_scores_GTGT
-        
+
         
         

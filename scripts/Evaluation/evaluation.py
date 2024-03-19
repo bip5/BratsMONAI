@@ -768,7 +768,7 @@ if __name__ =='__main__':
         ## here we're creating two loaders to be able to call a mask from a different dataset
         old_loader=DataLoader(old_ds,shuffle=False,batch_size=1,num_workers=4)
         new_loader=DataLoader(new_ds,shuffle=False,batch_size=1,num_workers=4)
-        out=evaluate_time_samples(load_path,old_loader,new_loader,eval_folder)
+        out=evaluate_time_samples(load_path,old_loader,new_loader,eval_folder,expert=True,ensemble=True)
         
         
         
@@ -784,7 +784,7 @@ if __name__ =='__main__':
         
 
         
-        ind_scores.rename(columns={x: x+'_old' for x in ind_scores.columns if x not in ['index', 'new in', 'old in']}, inplace=True)
+        ind_scores.rename(columns={x: x+'_old' for x in ind_scores.columns if x not in ['index', 'new in', 'old in','predicted volume delta', 'old volume gt','new volume gt','GT delta','old volume pred','new volume pred','pred delta','marker_color','d average','d tc', 'd wt', 'd et']}, inplace=True)
         print(ind_scores.columns)
         print(ind_scores.head())
         
@@ -798,7 +798,19 @@ if __name__ =='__main__':
         final_df=pd.merge(final_df,ind_scores_newold, on='index' ,how='inner')
         final_df=pd.merge(final_df,ind_scores_oldnew, on='index', how='inner')
         final_df=pd.merge(final_df,ind_scores_GTGT, on='index', how='inner')
-        final_df.to_csv(f'./time_samp_{job_id}.csv')
+        final_df.to_csv(f'./expert_time_samp_{job_id}.csv')
+        save_path= os.path.join(plots_dir,f'expert_time_Dice_avg_plot_{job_id}.png')
+        plt.figure()
+        plt.scatter(final_df['average_GTGT'],final_df['d average'],c=final_df['marker_color'], alpha=0.5)
+        plt.xlabel('Dice score between the two Ground Truths')
+        plt.ylabel('Dice score for delta volume expert model segmentation')
+        plt.ylim(0.4,1)
+        plt.xlim(0,1)
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(save_path)
+        
+        plt.close()
         
     elif eval_mode=='simple':
         

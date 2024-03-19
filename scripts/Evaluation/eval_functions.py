@@ -11,7 +11,7 @@ from Input.localtransforms import post_trans
 from Analysis.encoded_features import single_encode
 from scipy.spatial import distance
 import torch
-from Input.config import load_path,VAL_AMP,roi,DE_option,dropout
+from Input.config import load_path,VAL_AMP,roi,DE_option,dropout, TTA_ensemble
 from monai.inferers import sliding_window_inference
 from monai.handlers.utils import from_engine
 from monai.data import DataLoader,decollate_batch
@@ -20,6 +20,7 @@ import copy
 from datetime import datetime
 import cv2
 from Training.dropout import dropout_network
+from monai.transforms import CenterSpatialCrop,SpatialPad,CropForeground,ScaleIntensity,AdjustContrast,Identity
 
 dice_metric = DiceMetric(include_background=True, reduction="mean")
 dice_metric_ind = DiceMetric(include_background=True, reduction="mean")
@@ -84,7 +85,7 @@ def dropout_model_list(load_path):
     Output: List with model objects 
     '''
     model_list=[]
-    seedlist=[0,1,2,3]
+    seedlist=np.arange(4)
     model = model_loader(load_path)
     print([name for name,param in model.named_parameters()])
 
@@ -226,13 +227,27 @@ def calculate_squared_weights(distances):
     normalized_weights = [d/total for d in inverted_distances]
     return normalized_weights
     
+TT_transforms=[
+# # CenterSpatialCrop(roi_size=(192,192,144)),
+# CropForeground(),
+# AdjustContrast(gamma=1.1),
+# Identity(),
+# ScaleIntensity(factor=0.1),
+AdjustContrast(gamma=0.5),
+AdjustContrast(gamma=0.25),
+AdjustContrast(gamma=1),
+AdjustContrast(gamma=1.25),
+]
+fix_size=SpatialPad(spatial_size=(240,240,155))
+    
 def distance_ensembler(modelweight_folder_path, loader,option=DE_option):
     '''
     Evaluate using the closest cluster expert model
     '''
     modelnames=sorted(os.listdir(modelweight_folder_path)) # assumes only cluster models here
     
-    modelpaths=sorted([os.path.join(modelweight_folder_path,x) for x in modelnames if 'Cluster' in x])
+    # modelpaths=sorted([os.path.join(modelweight_folder_path,x) for x in modelnames if 'Cluster' in x]) 
+    modelpaths=sorted([os.path.join(modelweight_folder_path,x) for x in modelnames if 'Seg' in x])
     print(modelpaths)
     for idx, modelpath in enumerate(modelpaths):
         total_weight_sum = sum_weights_from_file(modelpath)
@@ -284,8 +299,8 @@ def distance_ensembler(modelweight_folder_path, loader,option=DE_option):
     slice_pred_area = dict()
     slice_gt_area = dict()
     model_closest={}
-    current_dice, tc,wt,et, test_outputs, test_labels,decollated_raw=[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]]
-    test_outputs=[[],[],[],[]] #creating empty list of lists to store individual values separately for each model we then iterate through each model to fill these 
+    current_dice, tc,wt,et, test_outputs, test_labels,decollated_raw = [[] for x in modelpaths],[[] for x in modelpaths],[[] for x in modelpaths],[[] for x in modelpaths],[[] for x in modelpaths],[[] for x in modelpaths],[[] for x in modelpaths]
+   #creating empty list of lists to store individual values separately for each model we then iterate through each model to fill these 
     dist_lists={}
     with torch.no_grad():
         for i,test_data in enumerate(loader):
@@ -313,38 +328,69 @@ def distance_ensembler(modelweight_folder_path, loader,option=DE_option):
             
             # base_dice, base_tc,base_wt,base_et, base_test_outputs, base_test_labels=eval_single(base_model,test_data)
             test_inputs = test_data["image"].to(device)
-            for j,weight in enumerate(ensemble_weights): 
-                model_selected=model_list[j]          
-                model_selected.eval()
-                 
-                test_data["pred"] = inference(test_inputs,model_selected)
+            # print(len(ensemble_weights),'ensemble_weights')
+            for j in range(4): 
+                # print('we are in counter ', j)
+                if TTA_ensemble:
+                    
+                    transformed_input=TT_transforms[j](test_inputs[0]) #pointing to first item in batch- will only work with bs=1
+                    # print('the transformed input shape is', transformed_input.shape)
+                    transformed_input=transformed_input.unsqueeze(dim=0) # restoring the batch dimension for inference
+                    # print('the transformed input shape is after unsquezing', transformed_input.shape)
+                    test_data["pred"] = inference(transformed_input,base_model)
+                    # print('pred,shape is', test_data["pred"].shape)
+                    # if j<2:
+                    test_data["pred"]=fix_size(test_data["pred"][0]).unsqueeze(dim=0)
+                        # print('pred,shape is after fixing shape', test_data["pred"].shape)
+                
+                
+                
+                
+                   
+                else:  
+                    try:
+                        model_selected=model_list[j]          
+                        model_selected.eval()
+                    except:
+                        continue
+                    test_data["pred"] = inference(test_inputs,model_selected)
+                
+               
                 if DE_option=='plain':
                     decollated_raw[j]=[{**x, "pred": x["pred"]} for x in decollate_batch(test_data)]
                 else:                    
-                    decollated_raw[j]=[{**x, "pred": x["pred"] * weight} for x in decollate_batch(test_data)] #list of unthresholded outputs in batch - 1 item if batch size is 1
+                    decollated_raw[j]=[{**x, "pred": x["pred"] * ensemble_weights[j]} for x in decollate_batch(test_data)] #list of unthresholded outputs in batch - 1 item if batch size is 1
                 
                 # decollated_raw[j]=[post_trans(x) for x in decollate_batch(test_data)]
             combined_dict_list=[]
-            for a,b,c,d in zip(*decollated_raw):
-                #now we have 4 decollated lists of raw dictionaries representing output from same batch for the 4 models  
-                if type(a)==list:
+            weighted_sum={}
+            for ii, a in enumerate(decollated_raw):
+                #now we have 4 decollated lists of raw dictionaries representing output from same batch for the 4 models 
+                # print('length of decollated items', len(decollated_raw))
+                # print('length of the first item',len(a))
+                # print('type of first item in list',type(a))
+                # print(type(a[0]))
+                if type(a[0])==list:
                     print('batch greater than 1,exiting')
                     sys.exit()
-                    for k in range(len(a)): # this shouldn't trigger for batch size=1
-                        weighted_sum={}
-                        #assuming first item in the batch is always the same between samples
-                        print('item type',type(a[k]))
-                        weighted_sum["pred"]=a[k]["pred"]+b[k]["pred"]+c[k]["pred"]+d[k]["pred"]
-                        weighted_sum["mask"]=a["mask"] # mask is same between samples
-                        combined_dict_list.append(weighted_sum)
-                else:
-                    weighted_sum={}
-                    
-                    weighted_sum["pred"]=a["pred"]+b["pred"]+c["pred"]+d["pred"]
-                    if DE_option=='plain':                         
-                        weighted_sum["pred"]=weighted_sum["pred"]/4
-                    weighted_sum["mask"]=a["mask"]
-                    combined_dict_list.append(weighted_sum)
+                    # for k in range(len(a)): # this shouldn't trigger for batch size=1
+                        # weighted_sum={}
+                        # #assuming first item in the batch is always the same between samples
+                        # print('item type',type(a[k]))
+                        # weighted_sum["pred"]=a[k]["pred"]+b[k]["pred"]+c[k]["pred"]+d[k]["pred"]
+                        # weighted_sum["mask"]=a["mask"] # mask is same between samples
+                        # combined_dict_list.append(weighted_sum)
+                else:                    
+                    if ii==0:
+                        weighted_sum["pred"]=a[0]["pred"]
+                        weighted_sum["mask"]=a[0]["mask"]
+                    else:
+                        weighted_sum["pred"]+=a[0]["pred"]
+                        
+                if DE_option=='plain':                         
+                    weighted_sum["pred"]=weighted_sum["pred"]/len(decollated_raw)
+
+                combined_dict_list.append(weighted_sum) # assuming batch size=1
             tested_data=[post_trans(ii) for ii in combined_dict_list] 
             # tested_data=[ii for ii in combined_dict_list] 
             test_outputs,test_labels = from_engine(["pred","mask"])(tested_data)# returns two lists of tensors
@@ -412,11 +458,25 @@ def eval_single(loaded_model,test_data):
         dice_metric_ind_batch.reset()
     return current_dice, tc,wt,et, test_outputs, test_labels
     
+def eval_single_raw(loaded_model,test_data):
+    '''
+    Takes an initialised model and returns the dice score
+    '''
+    with torch.no_grad():
+        loaded_model.eval()
+        #assuming model eval already set
+        # print(f"Model address: {id(loaded_model)}") #printing mem address to ensure different models
+        test_inputs = test_data["image"].to(device) # pass to gpu
+        
+        test_outputs = inference(test_inputs,loaded_model)
+      
+    return test_outputs
+    
 def plot_expert_performance(ind_score_df,save_path,plot_together=True):
 
     now=datetime.now().strftime('%Y-%m-%d_%H-%M')
-    save_in=os.path.join(save_path,now)
-    os.makedirs(save_in,exist_ok=True)
+    # save_in=os.path.join(save_path,now)
+    # os.makedirs(save_in,exist_ok=True)
     if plot_together==True:
         ind_score_df=ind_score_df.sort_values(by='Base Average Dice',ignore_index=True)
         
@@ -444,9 +504,9 @@ def plot_expert_performance(ind_score_df,save_path,plot_together=True):
         plt.grid(which='both')
         plt.xlabel('Samples')
         plt.ylabel('Dice Score')
-        plt.title('Comparison of Model Performances')
-        plot_name=os.path.join(save_in,'ExpertModelPerformanceComparison.jpg')
-        plt.savefig(plot_name)
+        # plt.title('Comparison of Model Performances')
+        # plot_name=os.path.join(save_in,'indComp.svg')
+        plt.savefig(save_path)
     
     else:
         #to sort the data frame by values we do
@@ -499,7 +559,7 @@ def plot_expert_performance(ind_score_df,save_path,plot_together=True):
         plt.savefig(plot_name)
     
     
-    return f'plot saved successully in {save_in}' 
+    return f'plot saved successully' #in {save_in}' 
     
 def plot_scatter(dice, gt, pred, save_path, use_slice_number=True, min_size=10, max_size=100):
 
