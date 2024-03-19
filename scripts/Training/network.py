@@ -1,34 +1,34 @@
 import sys
 sys.path.append('/scratch/a.bip5/BraTS/scripts/')
 
-def uncache(exclude):
-    """Remove package modules from cache except excluded ones.
-    On next import they will be reloaded.
+# def uncache(exclude):
+    # """Remove package modules from cache except excluded ones.
+    # On next import they will be reloaded.
 
-    Args:
-        exclude (iter<str>): Sequence of module paths.
-    """
-    pkgs = []
-    for mod in exclude:
-        pkg = mod.split('.', 1)[0]
-        pkgs.append(pkg)
+    # Args:
+        # exclude (iter<str>): Sequence of module paths.
+    # """
+    # pkgs = []
+    # for mod in exclude:
+        # pkg = mod.split('.', 1)[0]
+        # pkgs.append(pkg)
 
-    to_uncache = []
-    for mod in sys.modules:
-        if mod in exclude:
-            continue
+    # to_uncache = []
+    # for mod in sys.modules:
+        # if mod in exclude:
+            # continue
 
-        if mod in pkgs:
-           to_uncache.append(mod)
-           continue
+        # if mod in pkgs:
+           # to_uncache.append(mod)
+           # continue
 
-        for pkg in pkgs:
-            if mod.startswith(pkg + '.'):
-                to_uncache.append(mod)
-                break
+        # for pkg in pkgs:
+            # if mod.startswith(pkg + '.'):
+                # to_uncache.append(mod)
+                # break
 
-    for mod in to_uncache:
-        del sys.modules[mod]
+    # for mod in to_uncache:
+        # del sys.modules[mod]
 from Input.config import (
 model_name,
 load_save,
@@ -36,18 +36,24 @@ seed,
 load_path,
 upsample,
 dropout,
-init_filter_number
+init_filter_number,
+num_layers,
+num_filters
 )
 from Training.CustomActivation import LinSig,AllActivation
 import torch
 from torch import nn
-from monai.networks.nets import UNet, SwinUNETR
+from monai.networks.nets import UNet, SwinUNETR, SegResNetVAE
 from Training.segresnetprj import SegResNet
 from Training.custom_networks import SegResNetAtt,manUNet,WNet
+from Training.deepFocus import DeepFocusCNN
+from Training.hiddenfocus import HiddenFocus as DualFocus
+from Training.scale_focus import ScaleFocus
 from Training.layer_net import LayerNet
 from monai.utils import UpsampleMode
 import numpy as np
 from monai.utils import set_determinism
+
 import torch.nn.functional as F
 
 device = torch.device("cuda:0")
@@ -62,7 +68,13 @@ def create_model(model_name=model_name):
         model=manUNet(4,3,i=init_filter_number)
 
     elif model_name=='WNet':
-        model=WNet(4,3,i=init_filter_number)    
+        model=WNet(4,3,i=init_filter_number)  
+    elif model_name=="DeepFocus":
+        model=DeepFocusCNN()
+    elif model_name=="ScaleFocus":
+        model=ScaleFocus(num_layers=num_layers,num_filters=num_filters)
+    elif model_name=="DualFocus":
+        model=DualFocus()
       
     elif model_name=="UNet":    
         model=UNet(
@@ -183,6 +195,19 @@ def create_model(model_name=model_name):
             norm="instance",
             
             in_channels=8,
+            out_channels=3,
+            upsample_mode=UpsampleMode[upsample],
+            dropout_prob=dropout
+            ).to(device)
+    elif model_name=="SegResNetVAE":
+        model = SegResNetVAE(
+            input_image_size=(192,192,144),
+            blocks_down=[1, 2, 2, 4],
+            blocks_up=[1, 1, 1],
+            init_filters=init_filter_number,
+            norm="instance",
+            
+            in_channels=4,
             out_channels=3,
             upsample_mode=UpsampleMode[upsample],
             dropout_prob=dropout

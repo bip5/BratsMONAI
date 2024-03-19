@@ -147,7 +147,7 @@ now = datetime.now()
 formatted_time =now.strftime('%Y-%m-%d_%H-%M-%S')
 
 total_start = time.time()
-save_dir=os.path.join(weights_dir,'m'+formatted_time)
+save_dir=os.path.join(weights_dir,'job_'+str(job_id))
 
 os.makedirs(save_dir,exist_ok=True)
 print('SAVING MODELS IN ', save_dir)
@@ -263,6 +263,12 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         print(training_mode)
         if training_mode=='Flipper':            
             summary(model,(8,192,192,128)) 
+        elif model_name=="DeepFocus":
+            summary(model,(4,128,128,128)) 
+        elif model_name=="ScaleFocus":
+            summary(model,(4,128,128,128)) 
+        elif model_name=="DualFocus":
+            summary(model,(4,128,128,128)) 
         else:
             summary(model,(4,192,192,128))
        
@@ -314,8 +320,11 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     metric_values_wt = []
     metric_values_et = []
 
-    
-    
+    if training_mode=='val_exp_ens':
+        cluster_names=['Cluster_0','Cluster_1','Cluster_2','Cluster_3']
+        best_metric=[-1]*len(cluster_names)
+        best_metric_epoch=[-1]*len(cluster_names)
+
 
 
 
@@ -459,26 +468,27 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             model.eval()
             with torch.no_grad():                
                 if training_mode=='val_exp_ens':
+                    
                     sheet_name='Cluster_0'
-                    save_name,best_metric=validate(val_loader0,epoch,best_metric,best_metric_epoch,sheet_name)
+                    save_name,best_metric[0],best_metric_epoch[0]=validate(val_loader0,epoch,best_metric[0],best_metric_epoch[0],sheet_name)
                     if save_name not in model_names:
                         model_names.add(save_name)
-                        best_metrics.add(best_metric)
+                        best_metrics.add(best_metric[0])
                     sheet_name='Cluster_1'
-                    save_name,best_metric,best_metric_epoch=validate(val_loader1,epoch,best_metric,best_metric_epoch,sheet_name)
+                    save_name,best_metric[1],best_metric_epoch[1]=validate(val_loader1,epoch,best_metric[1],best_metric_epoch[1],sheet_name)
                     if save_name not in model_names:
                         model_names.add(save_name)
-                        best_metrics.add(best_metric)
+                        best_metrics.add(best_metric[1])
                     sheet_name='Cluster_2'
-                    save_name,best_metric,best_metric_epoch=validate(val_loader2,epoch,best_metric,best_metric_epoch,sheet_name)
+                    save_name,best_metric[2],best_metric_epoch[2]=validate(val_loader2,epoch,best_metric[2],best_metric_epoch[2],sheet_name)
                     if save_name not in model_names:
                         model_names.add(save_name)
-                        best_metrics.add(best_metric)
+                        best_metrics.add(best_metric[2])
                     sheet_name='Cluster_3'
-                    save_name,best_metric,best_metric_epoch=validate(val_loader3,epoch,best_metric,best_metric_epoch,sheet_name)
+                    save_name,best_metric[3],best_metric_epoch[3]=validate(val_loader3,epoch,best_metric[3],best_metric_epoch[3],sheet_name)
                     if save_name not in model_names:
                         model_names.add(save_name)
-                        best_metrics.add(best_metric)
+                        best_metrics.add(best_metric[3])
                 else:
                     save_name,best_metric,best_metric_epoch=validate(val_loader,epoch,best_metric,best_metric_epoch,sheet_name)
                     if save_name not in model_names:
@@ -512,7 +522,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
     
     del model
-    del optimiser
+    # del optimiser
     gc.collect()
     torch.cuda.empty_cache()
     total_time = time.time() - total_start
@@ -524,9 +534,9 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     return once
 
 indices_dict={}
-indices_dict['Train indices']=train_indices
-indices_dict['Test indices']=test_indices
-indices_dict['Val indices']=val_indices
+indices_dict['Train indices']=sorted(train_indices)
+indices_dict['Test indices']=sorted(test_indices)
+indices_dict['Val indices']=sorted(val_indices)
 print(indices_dict)
 
 
@@ -708,7 +718,30 @@ elif training_mode=='LayerNet':
             with torch.cuda.amp.autocast():
                 outputs, loss_array = model(inputs)
                 loss=sum(loss_array)
+elif training_mode=='LoadNet':
+    full_dataset_train = BratsDataset(root_dir, transform=train_transform)
+    full_dataset_val = BratsDataset(root_dir, transform=val_transform)
+     
+    train_dataset =Subset(full_dataset_train, train_indices)
+    val_dataset = Subset(full_dataset_val, val_indices,)
+    train_loader=DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers)
+    val_loader=DataLoader(val_dataset, batch_size=batch_size, shuffle=False,num_workers=workers)
+    model=model.to(device) 
+    new_state_dict=torch.load(load_path,map_location=lambda storage,loc:storage.cuda(0))
+    filtered_state_dict = {key: value for key, value in new_state_dict.items() if 'norm' not in key and 'up' not in key and 'conv_final' not in key}
+    current_state_dict=model.state_dict()
     
+    for key, value in new_state_dict.items():       
+        if key in current_state_dict:
+            current_state_dict[key] = value
+            
+    model.load_state_dict(current_state_dict,strict=False)
+    optimiser =torch.optim.Adam(model.parameters(), lr, weight_decay=1e-5)
+    summary(model,(4,192,192,144))
+    
+    trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
+ 
+        
     
 else:
     print(' Choose a training method first in the config file!')
