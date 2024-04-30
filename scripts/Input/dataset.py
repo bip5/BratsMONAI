@@ -14,7 +14,7 @@ test_temporal,
 train_temporal
 )
 from Input.config import root_dir as root_dir_actual
-from Input.localtransforms import val_trasform
+from Input.localtransforms import val_transform
 from torch.utils.data import Subset
 from monai.data import Dataset
 import pandas as pd
