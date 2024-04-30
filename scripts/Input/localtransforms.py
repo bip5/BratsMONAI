@@ -371,6 +371,20 @@ val_transform_PA = Compose(
         
 )
 
+train_transform_infuse = Compose(
+    [
+             
+        RandSpatialCropd(keys=["image", "mask"], roi_size=roi, random_size=False),
+       
+        RandRotateD(keys=["image","mask"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),
+       
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
+        RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),    
+        
+    ]
+)
+
 val_transform = Compose(
     [
         LoadImaged(keys=["image", "mask"],simple_keys=True),
