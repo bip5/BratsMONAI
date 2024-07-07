@@ -24,12 +24,13 @@ load_path,
 plot_single_slice,
 eval_from_folder,
 roi,
-use_cluster_for_online_val,
+online_val_mode,
 root_dir,
 plot_list,
 plots_dir,
 limit_samples,
-
+base_perf_path,
+inf_overlap
 )
 from Input.dataset import (
 BratsDataset,
@@ -53,25 +54,43 @@ from Analysis.encoded_features import single_encode
 from sklearn.preprocessing import MinMaxScaler
 from monai.config import print_config
 from monai.metrics import DiceMetric
-from Evaluation.eval_functions import plot_scatter,plot_prediction,find_centroid,eval_model_selector
+from Evaluation.eval_functions import plot_scatter,plot_prediction,find_centroid,eval_model_selector,ensemble_inference
 from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch,plot_expert_performance,distance_ensembler,model_loader
 from Evaluation.eval_functions2 import evaluate_time_samples
 import scipy.stats as stats
 import matplotlib.pyplot as plt
-print_config()
+from BraTS2023Metrics.metrics import get_LesionWiseResults as lesion_wise
+# print_config()
 
 #trying to make the evaluation deterministic and independent to sample order
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-config_path='/scratch/a.bip5/BraTS/scripts/Input/config.py'
-with open(config_path, 'r') as config_file:
-               config_content = config_file.read()
-               
-print("\n\n------ Config Content ------\n")
-print(config_content)
-print("\n---------------------------\n")
-
+print(
+'cluster_files',cluster_files,
+'VAL_AMP',VAL_AMP,
+'eval_path',eval_path,
+'eval_mode',eval_mode,
+'batch_size',batch_size,
+'workers',workers,
+'test_samples_from',test_samples_from,
+'eval_folder',eval_folder,
+'weights_dir',weights_dir,
+'output_path',output_path,
+'slice_dice',slice_dice,
+'model_name',model_name,
+'plot_output',plot_output,
+'load_path',load_path,
+'plot_single_slice',plot_single_slice,
+'eval_from_folder',eval_from_folder,
+'roi',roi,
+'online_val_mode', online_val_mode,
+'root_dir',root_dir,
+'plot_list',plot_list,
+'plots_dir',plots_dir,
+'limit_samples',limit_samples,
+'base_perf_path',base_perf_path
+)
 
 device = torch.device("cuda:0")
 namespace = locals().copy()
@@ -87,28 +106,10 @@ torch.manual_seed(seed)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(seed)
     
-def inference(input,model):
-
-    def _compute(input,model):
-        
-        return sliding_window_inference(
-            inputs=input,
-            roi_size=roi,
-            sw_batch_size=1,
-            predictor=model,
-            overlap=0,
-            )
-
-    if VAL_AMP:
-        with torch.cuda.amp.autocast():
-            return _compute(input,model)
-    else:
-        return _compute(input,model)
-        
    
         
 
-def evaluate(eval_path,test_loader,output_path,model=model,**kwargs):
+def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
     print('function called')############################
     device = torch.device("cuda:0")
     
@@ -146,6 +147,7 @@ def evaluate(eval_path,test_loader,output_path,model=model,**kwargs):
     slice_gt_area = dict()
     # Save the current state of the weights before inference
     weights_before = {name: param.clone() for name, param in model.state_dict().items()}
+    result_rows=[]
     with torch.no_grad():
         for i,test_data in enumerate(test_loader): # each image
             
@@ -164,6 +166,18 @@ def evaluate(eval_path,test_loader,output_path,model=model,**kwargs):
             test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
             test_outputs,test_labels = from_engine(["pred","mask"])(test_data) # returns two lists of tensors
             
+            if i==4:
+                
+                           
+                                
+                print(test_outputs[0].shape)
+                nii_img=nib.Nifti1Image(test_outputs[0][2].cpu().numpy(),np.eye(4))
+                ##Save the image to a .nii.gz file
+                nii_img.to_filename(f'./pred{sub_id}.nii.gz')
+                
+                nii_img=nib.Nifti1Image(test_labels[0][2].cpu().numpy(),np.eye(4))
+                ##Save the image to a .nii.gz file
+                nii_img.to_filename(f'./label{sub_id}.nii.gz')
                         
             for idx, y in enumerate(test_labels):
                 test_labels[idx] = (y > 0.5).int()
@@ -172,10 +186,20 @@ def evaluate(eval_path,test_loader,output_path,model=model,**kwargs):
             test_labels = [tensor.to(device) for tensor in test_labels]
 
             # test_labels=test_data["mask"].to(device)
-            sub_id=test_data[0]["id"]
+            sub_id=test_data[0]["id"][-9:]
             
             # torch.cuda.empty_cache()
             # print(type(test_outputs),test_labels[0].shape)
+            
+            df= lesion_wise(test_outputs[0].cpu().numpy(),test_labels[0].cpu().numpy(),output='./lesion_wise.csv')
+            df_row = df.stack().to_frame().T
+            #columns are tuples after stacking, joining the row and col names with an underscore
+            df_row.columns=['_'.join(map(str,col)).strip() for col in df_row.columns.values]
+          
+            df_row['Subject_ID'] = sub_id
+            
+            new_order = ['Subject_ID'] + [col for col in df_row.columns if col!='Subject_ID']
+            df_row=df_row[new_order]
             
             dice_metric_ind(y_pred=test_outputs, y=test_labels)
             dice_metric_ind_batch(y_pred=test_outputs, y=test_labels)
@@ -189,7 +213,14 @@ def evaluate(eval_path,test_loader,output_path,model=model,**kwargs):
             current_dice = dice_metric_ind.aggregate(reduction=None).item()
             batch_ind = dice_metric_ind_batch.aggregate()
             tc,wt,et = batch_ind[0].item(),batch_ind[1].item(),batch_ind[2].item()
-            ind_scores[sub_id] = {'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
+            ind_scores[sub_id] = {'original index': test_indices[i], 'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
+            df_row['original index'] = test_indices[i]
+            df_row['Plain_dice_avg'] = round(current_dice,4)
+            df_row['pd_tc'] = round(tc,4)
+            df_row['pd_wt'] = round(wt,4)
+            df_row[ 'pd_et'] = round(et,4) 
+            result_rows.append(df_row)
+            
             dice_metric_ind.reset()
             dice_metric_ind_batch.reset()
             
@@ -276,7 +307,7 @@ def evaluate(eval_path,test_loader,output_path,model=model,**kwargs):
         metric_org = dice_metric.aggregate().item()
         
         metric_batch_org = dice_metric_batch.aggregate()
-
+        all_results = pd.concat(result_rows)
         dice_metric.reset()
         dice_metric_batch.reset()
     
@@ -288,7 +319,7 @@ def evaluate(eval_path,test_loader,output_path,model=model,**kwargs):
 
     print("Metric on original image spacing: ", metric_org)
     print(f"metric_tc: {metric_tc:.4f}", f"   metric_wt: {metric_wt:.4f}", f"   metric_et: {metric_et:.4f}")
-    return metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area,slice_pred_area
+    return metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area,slice_pred_area,all_results
 
 if __name__ =='__main__':
     
@@ -333,13 +364,16 @@ if __name__ =='__main__':
         test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4)                
         
         
-        metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,dist_lists,slice_dice_scores,slice_gt_area, slice_pred_area=eval_model_selector(eval_folder,test_loader)#evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)
-        # ind_scores['Cluster']=sheet
-        # ind_scores['Model']=modelweights
+        metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,dist_lists,slice_dice_scores,slice_gt_area, slice_pred_area,all_results = eval_model_selector(eval_folder,test_loader)
+        
+        # metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area,slice_pred_area,all_results=evaluate(eval_path,test_loader)#,new_dir,plot_list=plot_list)#
+        # # ind_scores['Cluster']=sheet
+        # # ind_scores['Model']=modelweights
         
         ind_score_df=pd.DataFrame(ind_scores)
         ind_score_df=ind_score_df.T
-        # print(model_closest)
+        # # print(model_closest)
+        
         ind_score_df['Expert']=ind_score_df.index.map(model_closest)  
         
         dist_df = pd.DataFrame.from_dict(dist_lists, orient='index', columns=['d0', 'd1', 'd2', 'd3','dmin'])
@@ -348,31 +382,37 @@ if __name__ =='__main__':
         
         ind_score_df.reset_index(inplace=True)
         ind_score_df.rename(columns={'index': 'Subject ID'}, inplace=True)
-       
-        base_perf=pd.ExcelFile('/scratch/a.bip5/BraTS/IndScoresm2023-12-07_18-50-58_cl4_m_7743367.xlsx')
+        base_perf=pd.ExcelFile(base_perf_path)
         base_sheets=base_perf.sheet_names
-        # for sheet in base_sheets:
-            # base_df=base_perf.parse(sheet)            
-            # base_df.drop(columns=['Original index', 'Cluster'],inplace=True)
-            # base_df.rename(columns={'SegResNetCV1_j7688198ep128': f'Base {sheet}'},inplace=True)            
-            # ind_score_df=ind_score_df.merge(base_df, on='Subject ID')         
-            
+           
+        base_sheets.remove('RunInfo') # in place operation
+        base_sheets.remove('AllMetrics')
+        
+        for sheet in base_sheets:
+            base_df=base_perf.parse(sheet)
+            print(base_df['Unnamed: 0'].dtype)
+            base_df['Unnamed: 0'] = base_df['Unnamed: 0'].astype('object')
+
+            # base_df.drop(columns=['original index', 'Cluster'],inplace=True)
+            base_df.rename(columns={'average': 'Base Average Dice', 'Unnamed: 0': 'Subject ID', 'tc': 'Base TC', 'wt': 'Base WT', 'et': 'Base ET'},inplace=True)
+            ind_score_df = ind_score_df.merge(base_df, on='Subject ID')
+       
         
    
-        # # plot_expert_performance(ind_score_df,plots_dir)
+        # # # plot_expert_performance(ind_score_df,plots_dir)
         
-        # t, p_val=stats.ttest_rel(ind_score_df['average'],ind_score_df['Base Average Dice'])
-        # t_et, p_val_et=stats.ttest_rel(ind_score_df['et'],ind_score_df['Base ET'])
-        # t_wt, p_val_wt=stats.ttest_rel(ind_score_df['wt'],ind_score_df['Base WT'])
-        # t_tc, p_val_tc=stats.ttest_rel(ind_score_df['tc'],ind_score_df['Base TC'])
-        # # base_perf_df=base_perf_df.rename(columns={'tc':'tc_base','wt':'wt_base','et': 'et_base'})
+        t, p_val=stats.ttest_rel(ind_score_df['average'],ind_score_df['Base Average Dice'])
+        t_et, p_val_et=stats.ttest_rel(ind_score_df['et'],ind_score_df['Base ET'])
+        t_wt, p_val_wt=stats.ttest_rel(ind_score_df['wt'],ind_score_df['Base WT'])
+        t_tc, p_val_tc=stats.ttest_rel(ind_score_df['tc'],ind_score_df['Base TC'])
         
         
-        # all_t = [t, t_et,t_wt,t_tc]
-        # all_p = [p_val, p_val_et, p_val_wt, p_val_tc]
-        # rows = ['Overall', 'et','wt','tc']
-        # d = {'t-statistic':all_t,'p-value':all_p}
-        # p_df = pd.DataFrame(d,index=rows)
+        
+        all_t = [t, t_et,t_wt,t_tc]
+        all_p = [p_val, p_val_et, p_val_wt, p_val_tc]
+        rows = ['Overall', 'et','wt','tc']
+        d = {'t-statistic':all_t,'p-value':all_p}
+        p_df = pd.DataFrame(d,index=rows)
         
         config_dict['metric_org'] = metric_org
         config_dict['metric_tc'] = metric_tc
@@ -387,23 +427,24 @@ if __name__ =='__main__':
         writer=pd.ExcelWriter(f'./IndScores{folder_name}_{job_id}.xlsx',engine='xlsxwriter')
         ind_score_df.to_excel(writer,sheet_name='Everything',index=True)
         print('ind score df shape', ind_score_df.shape)
-        # p_df.to_excel(writer,sheet_name='P_all')
+        p_df.to_excel(writer,sheet_name='P_all')
         
-        # for value in ind_score_df['Expert'].unique():
-            # ind_score_filt=ind_score_df[ind_score_df['Expert']==value]
-            # ind_score_filt.to_excel(writer,sheet_name=f'Expert {value}')            
-            # t, p_val=stats.ttest_rel(ind_score_filt['average'],ind_score_filt['Base Average Dice'])
-            # t_et, p_val_et=stats.ttest_rel(ind_score_filt['et'],ind_score_filt['Base ET'])
-            # t_wt, p_val_wt=stats.ttest_rel(ind_score_filt['wt'],ind_score_filt['Base WT'])
-            # t_tc, p_val_tc=stats.ttest_rel(ind_score_filt['tc'],ind_score_filt['Base TC'])
-            # all_t = [t, t_et,t_wt,t_tc]
-            # all_p = [p_val, p_val_et, p_val_wt, p_val_tc]
-            # rows = ['Overall', 'et','wt','tc']
-            # d = {'t-statistic':all_t,'p-value':all_p}
-            # p_df = pd.DataFrame(d,index=rows)
-            # p_df.to_excel(writer,sheet_name=f'P_{value}')
+        for value in ind_score_df['Expert'].unique():
+            ind_score_filt=ind_score_df[ind_score_df['Expert']==value]
+            ind_score_filt.to_excel(writer,sheet_name=f'Expert {value}')            
+            t, p_val=stats.ttest_rel(ind_score_filt['average'],ind_score_filt['Base Average Dice'])
+            t_et, p_val_et=stats.ttest_rel(ind_score_filt['et'],ind_score_filt['Base ET'])
+            t_wt, p_val_wt=stats.ttest_rel(ind_score_filt['wt'],ind_score_filt['Base WT'])
+            t_tc, p_val_tc=stats.ttest_rel(ind_score_filt['tc'],ind_score_filt['Base TC'])
+            all_t = [t, t_et,t_wt,t_tc]
+            all_p = [p_val, p_val_et, p_val_wt, p_val_tc]
+            rows = ['Overall', 'et','wt','tc']
+            d = {'t-statistic':all_t,'p-value':all_p}
+            p_df = pd.DataFrame(d,index=rows)
+            p_df.to_excel(writer,sheet_name=f'P_{value}')
         
         modelname_df=pd.DataFrame(all_model_paths,columns=["Evaluated models"])
+        all_results.to_excel(writer,sheet_name = 'AllMetrics',index=True)
         modelname_df.to_excel(writer,sheet_name='RunInfo')
   
         writer.close()
@@ -414,11 +455,12 @@ if __name__ =='__main__':
         folder_name=eval_folder.split('/')[-1]
         full_ds = BratsDataset(root_dir,transform=val_transform)
         test_ds = Subset(full_ds,test_indices)
+        print('length of test_ds', len(test_ds))
         
         test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4)                
         
         
-        metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,dist_lists,slice_dice_scores,slice_gt_area, slice_pred_area=distance_ensembler(eval_folder,test_loader)#evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)
+        metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,dist_lists,slice_dice_scores,slice_gt_area, slice_pred_area, all_results = distance_ensembler(eval_folder,test_loader)#evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)
         # ind_scores['Cluster']=sheet
         # ind_scores['Model']=modelweights
         
@@ -433,13 +475,20 @@ if __name__ =='__main__':
         
         ind_score_df.reset_index(inplace=True)
         ind_score_df.rename(columns={'index': 'Subject ID'}, inplace=True)
-        base_perf=pd.ExcelFile('/scratch/a.bip5/BraTS/IndScoresm2023-12-07_18-50-58_cl4_m_7743367.xlsx')
+        base_perf=pd.ExcelFile(base_perf_path)
         base_sheets=base_perf.sheet_names
+           
+        base_sheets.remove('RunInfo') # in place operation
+        base_sheets.remove('AllMetrics')
+        
         for sheet in base_sheets:
             base_df=base_perf.parse(sheet)
-            base_df.drop(columns=['Original index', 'Cluster'],inplace=True)
-            base_df.rename(columns={'SegResNetCV1_j7688198ep128': f'Base {sheet}'},inplace=True)
-            ind_score_df=ind_score_df.merge(base_df, on='Subject ID')         
+            print(base_df['Unnamed: 0'].dtype)
+            base_df['Unnamed: 0'] = base_df['Unnamed: 0'].astype('object')
+
+            # base_df.drop(columns=['original index', 'Cluster'],inplace=True)
+            base_df.rename(columns={'average': 'Base Average Dice', 'Unnamed: 0': 'Subject ID', 'tc': 'Base TC', 'wt': 'Base WT', 'et': 'Base ET'},inplace=True)
+            ind_score_df = ind_score_df.merge(base_df, on='Subject ID')         
         
         
    
@@ -449,7 +498,7 @@ if __name__ =='__main__':
         t_et, p_val_et=stats.ttest_rel(ind_score_df['et'],ind_score_df['Base ET'])
         t_wt, p_val_wt=stats.ttest_rel(ind_score_df['wt'],ind_score_df['Base WT'])
         t_tc, p_val_tc=stats.ttest_rel(ind_score_df['tc'],ind_score_df['Base TC'])
-        # base_perf_df=base_perf_df.rename(columns={'tc':'tc_base','wt':'wt_base','et': 'et_base'})
+       
         
         
         all_t = [t, t_et,t_wt,t_tc]
@@ -486,10 +535,11 @@ if __name__ =='__main__':
             p_df = pd.DataFrame(d,index=rows)
             p_df.to_excel(writer,sheet_name=f'P_{value}')
         modelname_df=pd.DataFrame(all_model_paths,columns=["Evaluated models"])
+        all_results.to_excel(writer,sheet_name = 'AllMetrics',index=True)
         modelname_df.to_excel(writer,sheet_name='RunInfo')
         writer.close()
     
-    elif eval_mode=='cluster':
+    elif eval_mode=='cluster': #OLD eval where clusters already chosen can be removed. 
         test_count=30
         train_count=100   
         
@@ -565,7 +615,7 @@ if __name__ =='__main__':
                 # Make the new directory
                 if slice_dice:
                     os.makedirs(new_dir, exist_ok=True)
-                metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area, slice_pred_area=evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)##eval_model_selector(eval_folder,test_loader,model)#
+                metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area, slice_pred_area,all_results=evaluate(eval_path,test_loader,new_dir,plot_list=plot_list)##eval_model_selector(eval_folder,test_loader,model)#
                 # ind_scores['Cluster']=sheet
                 # ind_scores['Model']=modelweights
                 
@@ -660,6 +710,7 @@ if __name__ =='__main__':
         resultdict=pd.DataFrame(resultdict,index=sheet_names)
         print(resultdict.shape,'resultdict.shape')
         resultdict.to_csv(f'./EvCl{folder_name}_{evcl_name}_{job_id}.csv')
+        all_results.to_excel(writer,sheet_name = 'AllMetrics',index=True)
         writer.save()
     elif eval_mode=='online_val':
         non_val=np.concatenate([test_indices,val_indices,train_indices])
@@ -669,8 +720,13 @@ if __name__ =='__main__':
         slice_dice_list=[]
         folder_name=eval_folder.split('/')[-1]
         # Get the current date and time
-        
-        if use_cluster_for_online_val:
+        if online_val_mode == 'ensemble':
+            val_path='/scratch/a.bip5/BraTS/GLIValidationData'
+            test_ds = Brats23valDataset(val_path,transform=test_transforms1)
+            test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4)
+            ensemble_inference(eval_folder,test_loader)
+            
+        elif online_val_mode=='cluster':
             for path in sorted(all_model_paths[:-1]):            
                 eval_path = path
                 modelweights=path.split('/')[-1]
@@ -738,7 +794,7 @@ if __name__ =='__main__':
             with torch.no_grad():   
 
                 for test_data in test_loader: # each image
-                    print('TRIGGERED')
+                    
                     test_inputs = test_data["image"].to(device) # pass to gpu
                     
                     sub_id=test_data["id"][0]
@@ -768,7 +824,7 @@ if __name__ =='__main__':
         ## here we're creating two loaders to be able to call a mask from a different dataset
         old_loader=DataLoader(old_ds,shuffle=False,batch_size=1,num_workers=4)
         new_loader=DataLoader(new_ds,shuffle=False,batch_size=1,num_workers=4)
-        out=evaluate_time_samples(load_path,old_loader,new_loader,eval_folder,expert=True,ensemble=True)
+        out = evaluate_time_samples(load_path,old_loader,new_loader,eval_folder,expert=False,ensemble=False)
         
         
         
@@ -812,12 +868,15 @@ if __name__ =='__main__':
         
         plt.close()
         
+
+                    
+        
     elif eval_mode=='simple':
         
         modelname = load_path.split('/')[-1]
         full_dataset = BratsDataset(root_dir,transform=val_transform)
         test_indices=test_indices.tolist()
-        test_dataset = Subset(full_dataset, test_indices)
+        test_dataset = Subset(full_dataset, test_indices[:limit_samples])
         test_loader=DataLoader(test_dataset,shuffle=False,batch_size=1,num_workers=4)
         
         # Convert it to a string in a specific format (e.g., YYYY-MM-DD_HH-MM-SS)
@@ -826,10 +885,24 @@ if __name__ =='__main__':
         # Create the new directory path using the formatted time
         new_dir = os.path.join(output_path, formatted_time)
         
-        metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area, slice_pred_area=evaluate(load_path,test_loader,new_dir)
+        metric_org,metric_tc,metric_wt,metric_et,ind_scores,slice_dice_scores,slice_gt_area,slice_pred_area,all_results = evaluate(eval_path,test_loader)#,new_dir,plot_list=plot_list)#
         
         print("Metric on original image spacing: ", metric_org)
         print(f"metric_tc: {metric_tc:.4f}", f"   metric_wt: {metric_wt:.4f}", f"   metric_et: {metric_et:.4f}")
+        
+        ind_score_df=pd.DataFrame(ind_scores)
+        ind_score_df=ind_score_df.T
+        
+        ind_score_df.rename(columns={'index': 'Subject ID'}, inplace=True)
+        folder_name=eval_path.split('/')[-2]
+    
+        writer=pd.ExcelWriter(f'./IndScores{folder_name}_{job_id}.xlsx',engine='xlsxwriter')
+        ind_score_df.to_excel(writer,sheet_name='OriginalDice',index=True) 
+        all_results.to_excel(writer,sheet_name = 'AllMetrics',index=True)
+        modelname_df=pd.DataFrame(all_model_paths,columns=["Evaluated models"])
+        modelname_df.to_excel(writer,sheet_name='RunInfo')
+  
+        writer.close()
         
                 
     #print the script at the end of every run
