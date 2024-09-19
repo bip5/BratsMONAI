@@ -53,7 +53,7 @@ else:
     val_temporal,test_temporal,train_temporal = None,None,None
 raw_features_filename= 'ft_25April_ts0'# 'TfmrBotN_ft_13July'#'Tfmrft_04July'# 'tf_18thApril_repSplit' # 'trainFeatures_5x_repSplit'# #Ensure correct file for evaluation.
 
-
+training_samples=1000
 
 
 
@@ -154,6 +154,7 @@ elif mode_index==19:
     init_filter_number= 32
     in_channels = 2
     out_channels = 1
+    training_samples=200
 elif mode_index==20:
     
     load_save = 0
@@ -167,6 +168,7 @@ elif mode_index==20:
     init_filter_number= 32
     in_channels = 1
     out_channels = 1
+    training_samples=20
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
     

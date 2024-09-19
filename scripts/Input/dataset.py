@@ -14,7 +14,8 @@ test_temporal,
 train_temporal,
 xval,
 no_val,
-training_mode
+training_mode,
+training_samples
 )
 from Input.config import root_dir as root_dir_actual
 from Input.localtransforms import train_transform, val_transform
@@ -87,11 +88,11 @@ def time_list(root_dir):
 
 indexes=np.random.choice(np.arange(max_samples),max_samples,replace=False)
 if training_mode=='isles':
-    train_indices = indexes[:200]
+    train_indices = indexes[:training_samples]
     val_indices=indexes[200:210]
     test_indices=indexes[210:]
 elif training_mode=='atlas':
-    train_indices = indexes[:600]
+    train_indices = indexes[:training_samples]
     val_indices=indexes[600:615]
     test_indices=indexes[615:]
 else:
