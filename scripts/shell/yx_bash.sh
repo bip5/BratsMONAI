@@ -23,7 +23,7 @@ echo "Submitted job with ID: $JOB_ID"
 # Commit the current codebase to Git and tag with the job ID
 git add ${BASE_DIR}
 git commit -m "Code snapshot for job $JOB_ID"
-git tag "job_$JOB_ID"
+git tag "$JOB_ID"
 
 # Push the commit and tag to GitHub
 git push origin main

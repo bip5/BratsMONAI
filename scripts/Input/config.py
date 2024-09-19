@@ -58,7 +58,7 @@ raw_features_filename= 'ft_25April_ts0'# 'TfmrBotN_ft_13July'#'Tfmrft_04July'# '
 
 
 
-mode_index = 19
+mode_index = 20
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
