@@ -15,6 +15,16 @@ SLURM_SCRIPT="${JOB_DIR}/shell/yx2.sh"
 cp "/scratch/a.bip5/BraTS/scripts/shell/yx2.sh" ${SLURM_SCRIPT}
 sed -i "s|__JOB_DIR__|${JOB_DIR}|g" ${SLURM_SCRIPT}  # Replace placeholders with actual paths
 
+# Submit the job and capture the Slurm job ID
+JOB_ID=$(sbatch "$@" ${SLURM_SCRIPT} | awk '{print $4}')
 
-# Submit the job
-sbatch "$@" ${SLURM_SCRIPT}
+echo "Submitted job with ID: $JOB_ID"
+
+# Commit the current codebase to Git and tag with the job ID
+git add ${BASE_DIR}
+git commit -m "Code snapshot for job $JOB_ID"
+git tag "job_$JOB_ID"
+
+# Push the commit and tag to GitHub
+git push origin main
+git push origin --tags
