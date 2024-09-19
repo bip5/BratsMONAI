@@ -91,7 +91,7 @@ if training_mode=='isles':
     val_indices=indexes[200:210]
     test_indices=indexes[210:]
 elif training_mode=='atlas':
-    train_indices = indexes[:100]
+    train_indices = indexes[:600]
     val_indices=indexes[600:615]
     test_indices=indexes[615:]
 else:

@@ -813,11 +813,18 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         
         if best_loss>epoch_loss:
             best_loss = epoch_loss
+            state = {
+            'epoch': epoch + 1,
+            'state_dict': model.state_dict(),
+            'optimizer': optimiser.state_dict(),
+            'scaler': scaler.state_dict(),
+            'scheduler': lr_scheduler.state_dict(),
+            }
             print(f'saving best loss model at epoch{epoch+1}')
-            save_name=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)+'_nv'+'e'+str(epoch+1)+ '_LL'
+            save_name=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)+ '_LL'
             saved_model=os.path.join(save_dir, save_name)
             torch.save(
-                model.state_dict(),
+                state,
                 saved_model,
             )
                 
