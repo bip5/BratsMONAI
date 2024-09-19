@@ -11,7 +11,7 @@ from time import time
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import MinMaxScaler
 
-# Load the Excel file
+# Load the Excel file to read in the dataset to predict performance
 file_path = '/scratch/a.bip5/BraTS/Itemised Dice/Expert_eval_full_set/output/MFP_TrainExpertClusterExp_7763883.xlsx'#'/scratch/a.bip5/BraTS/TrainExpertClusterExp_7763883.xlsx'  # Update with your file path
 df = pd.read_excel(file_path, sheet_name='Everything')
 print(df.columns)

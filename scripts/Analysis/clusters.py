@@ -14,12 +14,16 @@ from scipy.spatial import distance
 import seaborn as sns
 from datetime import datetime
 import os
+from Input.config import temporal_split
 from Input.dataset import (
 test_indices,train_indices,
 val_indices
 )
+from Input.config import raw_features_filename
 
-parser=argparse.ArgumentParser(prog=sys.argv[0],description="Eval parser")
+'''Script to separate extracted features into defined clusters'''
+
+parser = argparse.ArgumentParser(prog=sys.argv[0],description="Eval parser")
 parser.add_argument("--seed",default =0, type=int,help="seed")
 parser.add_argument("--normaliser",default =2, type=int,help="0=standard scaler,1=SS+Normalizer(datapoint,euc norm),2=MinMaxScaler, 3=RobustScaler")
 args=parser.parse_args()
@@ -29,26 +33,33 @@ args=parser.parse_args()
 
 seed=args.seed
 np.random.seed(args.seed)
-# Assuming you have a DataFrame `df` with your data, and 'labels' column is not used in PCA
+
+
+indices_dict={}
+indices_dict['Train indices']=sorted(train_indices)
+indices_dict['Test indices']=sorted(test_indices)
+indices_dict['Val indices']=sorted(val_indices)
+print(indices_dict)
+
 number_clusters=4
 # filename='B23allEncoded_maxfeatures'
-filename= 'trainFeatures_17thJan'#'Encoded_maxfeatures'# 'merged_features'
+filename= raw_features_filename#'trainFeatures_01April'#'Encoded_maxfeatures'# 'merged_features'
 df= pd.read_csv(f'/scratch/a.bip5/BraTS/{filename}.csv')
 # df= pd.read_csv('Dataset_features.csv')
 df.drop_duplicates(inplace=True)
 # df.sort_values('mask_path',inplace=True)
-print('COLUMNS in ORIGINAL DF', df.columns)
+# print('COLUMNS in ORIGINAL DF', df.columns)
 if filename=='merged_features':
     df['mask_path'] = df['mask_path'].map(lambda x: '/'+os.path.join(*x.split('/')[:-1]))
 
 # df.drop(['a_centroid', 's_centroid','c_centroid'], axis=1, inplace=True)
-df_features=df.drop(columns=['Unnamed: 0','mask_path','subject_id'],errors='ignore') 
+df_features=df.drop(columns=['sample_id','Unnamed: 0','mask_path','subject_id'],errors='ignore') 
 
 df_features.drop_duplicates(inplace=True)
 df_features.fillna(0,inplace=True)
 df_features.replace([np.inf, -np.inf], 0, inplace=True)
 
-mask_col='mask_path'#'Unnamed: 0' # 
+mask_col= 'mask_path'#'Unnamed: 0' # 
     
 now = datetime.now()
 formatted_time =now.strftime('%Y-%m-%d_%H-%M-%S')
@@ -98,7 +109,7 @@ def sil_plots(df_features):
     features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Define the range of variations
-    variation_range = np.arange(50, 100, 5)  # 50%, 55%, ..., 95%
+    variation_range = np.arange(90, 100, 5)  # 50%, 55%, ..., 95%
 
     # Initialize a dictionary to store silhouette scores
     silhouette_scores_dict = {}
@@ -115,11 +126,11 @@ def sil_plots(df_features):
         k = features_pca.shape[1]
         print(f'Number of principal components (k) = {k}')
 
-        range_n_clusters = np.arange(2, k + 1)
+        range_n_clusters = np.arange(2, 10)#k + 1)
 
         # Initialize a list to store silhouette scores for this variation level
         silhouette_scores_list = []
-        fit_with=features_pca
+        fit_with=features#_pca
         for n_clusters in range_n_clusters:
             # Initialize KMeans with n_clusters
             kmeans = KMeans(n_clusters=n_clusters)
@@ -274,38 +285,41 @@ def count_nearest_points(check_data, kmeans,max_bound,min_bound):
         original_index=val_indices[i]
         counts[closest_cluster].append([original_index,min_distance])
     return counts   
-        
-def save_cluster_files(df_features, n_clusters=number_clusters,retries=3):
+ 
+ 
+''' Cluster the training data using kmeans and then check which of the validation points are closest to which cluster using count_nearest_points function. Then save val and train samples together in a excel file'''
+
+def save_cluster_files(df_features, n_clusters=number_clusters,retries=30):
     if retries <= 0:
        return 'Failed to validate clusters after specified attempts. Please modify function signature to increase attempts'
     retries=retries-1
 
     
     
+    print('features shape before choosing training indices',df_features.shape)
+    print('len(train_indices)',len(train_indices))
+    
     training_data = df_features.iloc[train_indices]
     check_data = df_features.iloc[val_indices]
-    print('check_data.shape)',check_data.shape)
+    
     max_bound=np.array(training_data.max(axis=0))
     min_bound=np.array(training_data.min(axis=0))
-    np.save(f'/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers/max_bound.npy',max_bound)
-    np.save(f'/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers/min_bound.npy',min_bound) 
+    np.save(f'/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers/{filename}_max_bound.npy',max_bound)
+    np.save(f'/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers/{filename}_min_bound.npy',min_bound) 
     
     features = normalise(training_data)
-    print('features.shape', features.shape)
-    dp_index=np.where(train_indices==425)[0][0]
-    print(training_data.iloc[dp_index,:])
-    print('normalised oi 425',features[dp_index,:])   
-    sys.exit()
+    
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans.fit(features)
-    # sys.exit()
+    
     cluster_labels = kmeans.labels_
     
     
     ## Count points nearest to each cluster center
     counts = count_nearest_points(check_data, kmeans,max_bound,min_bound)
     
-    print(counts, 'validation data split into clusters')
+    for count in counts:
+        print(len(count))
     # Check if each cluster has at least 15 nearest points
     validation = all(len(count) >= 15 for count in counts)
     
@@ -315,7 +329,7 @@ def save_cluster_files(df_features, n_clusters=number_clusters,retries=3):
         save_cluster_files(df_features,n_clusters,retries)
         
     # Create a Pandas Excel writer using XlsxWriter as the engine
-    writer = pd.ExcelWriter(f'cl{number_clusters}_{filename[:5]}_{formatted_time}.xlsx', engine='xlsxwriter')
+    writer = pd.ExcelWriter(f'/scratch/a.bip5/BraTS/cluster_files/cl{number_clusters}_{filename}_ts{temporal_split}.xlsx', engine='xlsxwriter')
     
     # Create dataframes to store mean and std dev of features for each cluster
     mean_df = pd.DataFrame()
@@ -323,31 +337,30 @@ def save_cluster_files(df_features, n_clusters=number_clusters,retries=3):
     
     # Assuming df_features is the original DataFrame and features is a numpy array derived from df_features
     features_df = pd.DataFrame(features, columns=df_features.columns[:])
-    
-    # features_df['modified_mask_path'] = df['mask_path'].str[:-5]
+
     
     features_df['modified_mask_path'] = df[mask_col].iloc[train_indices] 
 
     for i in range(n_clusters):
         cluster_points_indices = np.where(cluster_labels == i)[0]  # get global indices of all points in cluster i
         cluster_points = features[cluster_points_indices]  # get all points in cluster i
-        print('cluster_points.shape',cluster_points.shape)
+        # print('cluster_points.shape',cluster_points.shape)
         cluster_center = kmeans.cluster_centers_[i]  # get the center of cluster i   
-        print('cluster_center', cluster_center)
+        # print('cluster_center', cluster_center)
         
-        np.save(f'/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers/cluster_centre_{i}.npy',cluster_center)
+        np.save(f'/scratch/a.bip5/BraTS/scripts/Evaluation/cluster_centers/{filename}_centre_{i}.npy',cluster_center)
         # distances,cov_matrix = mahalanobis_distance(cluster_points, cluster_center)#[distance.euclidean(p, cluster_center) for p in cluster_points] 
         # calculate distances
-        distances=[distance.euclidean(p, cluster_center) for p in cluster_points] 
-        val_distances=[x[1] for x in counts[i]]
+        distances = [distance.euclidean(p, cluster_center) for p in cluster_points] 
+        val_distances = [x[1] for x in counts[i]]
         distances.extend(val_distances)
         
-        file_indices=train_indices[cluster_points_indices]
-        val_selected_indices=np.array([x[0] for x in counts[i]])
+        file_indices = train_indices[cluster_points_indices]
+        val_selected_indices = np.array([x[0] for x in counts[i]])
         
         file_indices = np.concatenate((file_indices, val_selected_indices))
 
-        # filepath = df['mask_path'].iloc[cluster_points_indices]
+        
         filepath = df[mask_col][file_indices] 
         # Create a DataFrame
         
@@ -362,21 +375,13 @@ def save_cluster_files(df_features, n_clusters=number_clusters,retries=3):
         df_sep.sort_values('Distance', inplace=True)
         
         
-        print(df_sep['Index'].iloc[1],features_df['modified_mask_path'].iloc[1])
-        # df_sep.drop(columns=['original index'],inplace=True)
-        # Merge the dataframes on the matching columns
-        # sys.exit()
+        
         
         result_df = pd.merge(df_sep, df, left_on='Index', right_on='mask_path', how='inner')
         
-        # result_df.drop(columns=['modified_mask_path'],inplace=True)
         
-        print(df_sep.shape, features_df.shape,result_df.shape)
         assert df_sep.shape[0] == result_df.shape[0],"The shapes of the DataFrames do not match!"
-        # corr_df=pd.DataFrame(cov_matrix,index=df_features.columns[:], columns=df_features.columns[:])
-        # plot_heatmap(i, corr_df)
-        # plot_bubble_correlation(i,corr_df)
-        # plot_pairgrid(i,corr_df)
+       
         # Calculate mean and std dev for each feature in this cluster
         mean_series = result_df.mean(numeric_only=True)
         std_series = result_df.std(numeric_only=True)
@@ -403,7 +408,7 @@ def save_cluster_files(df_features, n_clusters=number_clusters,retries=3):
     CV_df.to_excel(writer,sheet_name='Coefficient of variation',index=True)
     
     # Save the excel
-    writer.save()
+    writer.close() #save()
     
     return 'Files saved successfully'
 

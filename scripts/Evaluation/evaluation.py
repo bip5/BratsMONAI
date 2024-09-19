@@ -60,7 +60,7 @@ from Evaluation.eval_functions2 import evaluate_time_samples
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 from BraTS2023Metrics.metrics import get_LesionWiseResults as lesion_wise
-# print_config()
+
 
 #trying to make the evaluation deterministic and independent to sample order
 torch.backends.cudnn.deterministic = True
@@ -97,7 +97,7 @@ namespace = locals().copy()
 config_dict=dict()
 for name, value in namespace.items():
     if type(value) in [str,int,float,bool]:
-        # print(f"{name}: {value}")
+      
         config_dict[f"{name}"]=value
 
 
@@ -113,38 +113,24 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
     print('function called')############################
     device = torch.device("cuda:0")
     
-    model.to(device)
     
     plot_list=kwargs.get('plot_list',None)
     modelweights_folder_path=kwargs.get('modelweights_folder_path', None)
-    # state_dict=torch.load(eval_path)
-    ########Create a new state dict without the 'module.' prefix
-    # from collections import OrderedDict
-    # new_state_dict = OrderedDict()
     
-    # for k, v in state_dict.items():
-        # name = k[7:]  # remove the 'module.' prefix
-        # new_state_dict[name] = v
-    ##### Load the modified state dict into the model
-    # model.load_state_dict(new_state_dict)
-    
-    try:
-        model.load_state_dict(torch.load(eval_path),strict=True)
-        model=torch.nn.DataParallel(model)
-    except:
-        model=torch.nn.DataParallel(model)
-        model.load_state_dict(torch.load(eval_path),strict=True)
-        
-    # model.load_state_dict(torch.load(eval_path),strict=True)
-    # model.load_state_dict(torch.load(eval_path, map_location=lambda storage, loc: storage.cuda(0)), strict=False)
-    # model = torch.nn.DataParallel(model)
+
+    model = model_loader(eval_path) # load either state dict or model itself
+    model.to(device)          
+
+
     model.eval()
     ind_scores = dict()
+    
     # Initialize the Dice metric outside the loop
     slice_dice_metric = DiceMetric(include_background=True, reduction='none')
     slice_dice_scores = dict()
     slice_pred_area = dict()
     slice_gt_area = dict()
+    
     # Save the current state of the weights before inference
     weights_before = {name: param.clone() for name, param in model.state_dict().items()}
     result_rows=[]
@@ -188,9 +174,7 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
             # test_labels=test_data["mask"].to(device)
             sub_id=test_data[0]["id"][-9:]
             
-            # torch.cuda.empty_cache()
-            # print(type(test_outputs),test_labels[0].shape)
-            
+                      
             df= lesion_wise(test_outputs[0].cpu().numpy(),test_labels[0].cpu().numpy(),output='./lesion_wise.csv')
             df_row = df.stack().to_frame().T
             #columns are tuples after stacking, joining the row and col names with an underscore
@@ -325,7 +309,7 @@ if __name__ =='__main__':
     
     if model_name=='SegResNet_Flipper':
             
-            val_transform=val_transform_Flipper
+        val_transform = val_transform_Flipper
        
     job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
     print(len(np.unique(train_indices)),len(np.unique(test_indices)), len(np.unique(val_indices)))

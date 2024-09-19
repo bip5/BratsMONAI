@@ -38,13 +38,18 @@ upsample,
 dropout,
 init_filter_number,
 num_layers,
-num_filters
+num_filters,
+roi,
+activation,
+in_channels,
+out_channels
 )
 from Training.CustomActivation import LinSig,AllActivation
 import torch
 from torch import nn
-from monai.networks.nets import UNet, SwinUNETR, SegResNetVAE
+from monai.networks.nets import UNet, SwinUNETR, SegResNetVAE, SegResNetDS
 from Training.segresnetprj import SegResNet
+from Training.clusterBlend import ClusterBlend
 from Training.custom_networks import SegResNetAtt,manUNet,WNet
 from Training.deepFocus import DeepFocusCNN
 from Training.hiddenfocus import HiddenFocus as DualFocus
@@ -63,6 +68,7 @@ torch.cuda.manual_seed(seed)
 set_determinism(seed=seed)    
 torch.manual_seed(seed)
 
+
 def create_model(model_name=model_name):
     if model_name=="manUNet":
         model=manUNet(4,3,i=init_filter_number)
@@ -75,12 +81,38 @@ def create_model(model_name=model_name):
         model=ScaleFocus(num_layers=num_layers,num_filters=num_filters)
     elif model_name=="DualFocus":
         model=DualFocus()
+    elif model_name=="ClusterBlend":
+       
+        model= SegResNet(
+            blocks_down=[1, 2, 2, 4],
+            blocks_up=[1, 1, 1],
+            init_filters=init_filter_number,
+            norm="instance",
+            
+            in_channels=4,
+            out_channels=3,
+            upsample_mode=UpsampleMode[upsample],
+            dropout_prob=dropout
+            ).to(device)
+    elif model_name=="PixelLayer":       
+        model= SegResNet(
+            blocks_down=[1, 2, 2, 4],
+            blocks_up=[1, 1, 1],
+            init_filters=init_filter_number,
+            norm="instance",
+            act= activation,#'hardswish',
+            in_channels=4,
+            out_channels=3,
+            upsample_mode=UpsampleMode[upsample],
+            dropout_prob=dropout
+            ).to(device)
+        
       
     elif model_name=="UNet":    
         model=UNet(
             spatial_dims=3,
-            in_channels=4,
-            out_channels=3,
+            in_channels=in_channels,
+            out_channels=out_channels,
             channels=(16,32,64,128,256),
             strides=(2,2,2,2)
             ).to(device)
@@ -104,8 +136,8 @@ def create_model(model_name=model_name):
             init_filters=init_filter_number,
             norm="instance",
             
-            in_channels=4,
-            out_channels=3,
+            in_channels=in_channels,
+            out_channels=out_channels,
             upsample_mode=UpsampleMode[upsample],
             dropout_prob=dropout
             ).to(device)
@@ -123,11 +155,14 @@ def create_model(model_name=model_name):
             ).to(device)
     elif model_name=="transformer":
         model=SwinUNETR(
-        img_size=[192,192,128],
-        in_channels=4,
-        out_channels=3,
+        img_size=roi,
+        feature_size=48,
+        in_channels=in_channels,
+        out_channels=out_channels,
+        use_checkpoint=True
         ).to(device)
     elif model_name=="SegResNet_CA":
+               
         model = SegResNet(
             blocks_down=[1, 2, 2, 4],
             blocks_up=[1, 1, 1],
@@ -139,6 +174,7 @@ def create_model(model_name=model_name):
             upsample_mode=UpsampleMode[upsample],
             dropout_prob=dropout
             ).to(device)
+       
     elif model_name=="SegResNet_CA_half":    
         model = SegResNet(
             blocks_down=[1, 2, 2, 4],
@@ -211,6 +247,18 @@ def create_model(model_name=model_name):
             out_channels=3,
             upsample_mode=UpsampleMode[upsample],
             dropout_prob=dropout
+            ).to(device)
+    elif model_name=='SegResNetDS':
+        model = SegResNetDS(
+            blocks_down=[2, 4, 4, 4,4],
+            blocks_up=[1, 1, 1,1],
+            init_filters = init_filter_number,
+            norm="instance",
+            act="SWISH",
+            in_channels=in_channels,
+            out_channels=out_channels,
+            dsdepth=4,
+            upsample_mode=UpsampleMode[upsample]    
             ).to(device)
     else:
         model = locals() [model_name](4,3).to(device)

@@ -24,41 +24,59 @@ excel_data2 = pd.read_excel(file_path2, sheet_name='Everything')
 # excel_data=excel_data.dropna()
 # excel_data2=excel_data2.replace(0,pd.NA).dropna()
 
-# Preprocessing: Imputing NaN values with the median
-for col in ['avg_dice_profile', 'avg_delta_area', 'avg_regularity']:
-    # median_value = excel_data[col].median()
-    median_value2 = excel_data2[col].median()
-    # excel_data[col].fillna(median_value, inplace=True)
-    excel_data2 = excel_data2.replace(0, np.nan).fillna(median_value2)
+columns_to_average = [
+    'sagittal_profile_tc','frontal_profile_tc','axial_profile_tc','sagittal_profile_wt','frontal_profile_wt','axial_profile_wt','sagittal_profile_et','frontal_profile_et','axial_profile_et'
+        ]
+        
+    # we want to drop all the samples where one or more tumor category is missing to remove noise from later analysis     
+for column in columns_to_average:
+    excel_data2 = excel_data2[excel_data2[column]!=0]
+ 
+# # Preprocessing: Imputing NaN values with the median
+# for col in ['avg_dice_profile', 'avg_delta_area', 'avg_regularity']:
+    # # median_value = excel_data[col].median()
+    # median_value2 = excel_data2[col].median()
+    # # excel_data[col].fillna(median_value, inplace=True)
+    # excel_data2 = excel_data2.replace(0, np.nan).fillna(median_value2)
     
+
+
+
+
+#making sure data is sorted to use iloc indices 
+excel_data2 = excel_data2.sort_values(by='Unnamed: 0_x') 
+
+print(excel_data2.iloc[0:2,:])
 
     # excel_data2[col].fillna(median_value2, inplace=True)
 # train_indices=np.concatenate((train_indices, val_indices))
+
 # Selecting the relevant columns for input features and target variable
-input_features = ['avg_dice_profile']# 'avg_dice_profile','avg_delta_area','dmin', 'avg_regularity', 'Expert', 'd0', 'd1', 'd2', 'd3','average_profile',,'average dprofile',,'average dprofile','average_profile'
+input_features = ['average dprofile']# 'avg_dice_profile','avg_delta_area','dmin', 'avg_regularity', 'Expert', 'd0', 'd1', 'd2', 'd3','average_profile',,'average dprofile',,'average dprofile','average_profile'
 target = 'average'
 # X = excel_data[input_features]
 
 # y = excel_data[target]*100
 
 
-X2 = excel_data2[input_features]
 
-y2= excel_data2[target]*100
-
-
-randomstate=np.random.randint(213)
 
 # print(X.sample(n=5,random_state=randomstate))
-print(X2.sample(n=5,random_state=randomstate))
-# print(y.sample(n=5,random_state=randomstate))
-print(y2.sample(n=5,random_state=randomstate))
+# print(X2.sample(n=5,random_state=randomstate))
+# # print(y.sample(n=5,random_state=randomstate))
+# print(y2.sample(n=5,random_state=randomstate))
 
 
 
 # Splitting the dataset into training, validation, and test sets
 # Assuming train_indices, val_indices, and test_indices are defined
 train_indices=np.concatenate((train_indices, val_indices))
+
+filt_train = np.isin(train_indices, excel_data2['Unnamed: 0_x'])
+
+train_indices_filt = train_indices[filt_train] #getting rid indices that have been dropped
+
+
 # X_train = X.iloc[train_indices]
 # y_train = y.iloc[train_indices]
 
@@ -68,8 +86,21 @@ train_indices=np.concatenate((train_indices, val_indices))
 # X_test = X.iloc[np.sort(test_indices)]
 # y_test = y.iloc[np.sort(test_indices)]
 
-X_train2 = X2.iloc[train_indices]
-y_train2 = y2.iloc[train_indices]
+print('train indices length, max and min', len(train_indices_filt), max(train_indices_filt), min(train_indices_filt))
+
+# print('X2 shape', X2.shape) 
+# print('y2 shape', y2.shape) 
+
+
+X_train2 = excel_data2[excel_data2['Unnamed: 0_x'].isin(train_indices_filt)][input_features]
+
+y_train2= excel_data2[excel_data2['Unnamed: 0_x'].isin(train_indices_filt)][target]*100
+
+print(X_train2.head())
+
+randomstate=np.random.randint(213)
+# X_train2 = X2.iloc[train_indices_filt]
+# y_train2 = y2.iloc[train_indices_filt]
 
 # equal=[0,0]
 # notequal=[0,0]
@@ -91,9 +122,16 @@ y_train2 = y2.iloc[train_indices]
 
 # print('equal, notequal',equal, notequal)
 
-X_test2 = X2.iloc[np.sort(test_indices)]
-y_test2 = y2.iloc[np.sort(test_indices)]
+filt_test = np.isin(test_indices, excel_data2['Unnamed: 0_x'])
 
+test_indices_filt=test_indices[filt_test] #getting rid indices that have been dropped
+
+print('test indices length, max and min', len(test_indices_filt), max(test_indices_filt), min(test_indices_filt))
+
+X_test2 =excel_data2[excel_data2['Unnamed: 0_x'].isin(test_indices_filt)][input_features]
+y_test2 = excel_data2[excel_data2['Unnamed: 0_x'].isin(test_indices_filt)][target]*100
+
+print(X_test2.head())
 # X_t = X.iloc[np.sort(test_indices)]
 # y_t = y.iloc[np.sort(test_indices)]
 

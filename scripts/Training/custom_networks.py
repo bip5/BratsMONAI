@@ -513,7 +513,66 @@ class VANet(nn.Module):
 
         
         
+class manSegResNet(nn.Module):
+    def __init__(self, n_channels, n_classes, bilinear=True):
+        super(manSegResNet, self).__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+
+        self.inc = nn.Sequential(
+            nn.Conv3d(n_channels, 32, kernel_size=3, padding=1, bias=False,groups=1),
+            nn.InstanceNorm3d(32),
+            nn.ReLU(inplace=True))
+        self.res1=DoubleConv(32,32)
         
+        self.down1 = DownConv(32,64,2)
+        self.res2 = DoubleConv(64, 64)
+        
+        self.down2 = DownConv(64, 128,2)
+        self.res3 = DoubleConv(128, 128)
+        
+        self.down3 = DownConv(128, 256,2)
+        self.res4 = DoubleConv(256, 256)
+      
+  
+        
+        self.up1 = sUp(256, 128, bilinear)
+        self.up2 = sUp(128, 64 , bilinear)
+        self.up3 = sUp(64, 16 , bilinear)
+      
+        self.outc = wOutConv(16, n_classes)
+
+    def forward(self, x):
+        x1 = self.inc(x)
+        x1=self.res1(x1)  
+        
+        x2 = self.down1(x1)
+        x2=self.res2(x2)
+        x2=self.res2(x2)
+        
+        x3 = self.down2(x2)
+        x3=self.res3(x3)
+        x3=self.res3(x3)
+        
+        x4 = self.down3(x3)
+        x4=self.res4(x4)
+        x4=self.res4(x4)
+        x4=self.res4(x4)
+        x4=self.res4(x4)
+        
+        x3up = self.up1(x4)
+        x3up=x3+x3up
+        
+        x2up = self.up2(x3up)
+        x2up=x2+x2up
+        
+        x1up = self.up3(x2up)
+        x1up=x1+x1up
+        
+        logits = self.outc(x1up)
+        return logits
+               
         
     
         

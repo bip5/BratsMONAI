@@ -20,7 +20,7 @@ import copy
 from datetime import datetime
 import cv2
 from Input.dataset import make_dataset
-from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch,model_loader, model_selector,load_cluster_centres,model_in_list,eval_single_raw
+from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch,model_loader, model_selector,load_cluster_centres,model_in_list,eval_single_raw,plot_prediction
 from monai.data import Dataset
 from Input.dataset import train_indices,val_indices,test_indices
 
@@ -62,11 +62,11 @@ dice_metric_batch_GTGT = DiceMetric(include_background=True, reduction="mean_bat
 dice_metric_ind_delta = DiceMetric(include_background=True, reduction="mean")
 dice_metric_ind_batch_delta = DiceMetric(include_background=True, reduction="mean_batch")
 
-def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_path,expert=True,ensemble=False):
-    model=model_loader(load_path)
+def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_path,expert=True,ensemble=True):
+    base_model=model_loader(load_path)
     device = torch.device("cuda:0")        
-    model.to(device)
-    model.eval()
+    base_model.to(device)
+    base_model.eval()
     ind_scores = dict()
     ind_scores_new = dict()
     ind_scores_newold = dict()
@@ -81,7 +81,7 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
     dist_lists_new = {}
     with torch.no_grad():
         for i,(old_data,new_data) in enumerate (zip(old_loader,new_loader)): # each image
-           
+            print('Evaluating sample pair',i)
             if expert:
                 model_list = model_in_list(modelweight_folder_path)
                 if ensemble:
@@ -99,8 +99,8 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
                     new_data=[post_trans(ii) for ii in decollate_batch(new_data)]
                     new_outputs,new_labels=from_engine(["pred","mask"])(new_data)
                 else:
-                    current_dice_old, tc_old,wt_old,et_old, old_outputs, old_labels,model_index,dist_lists_old= model_selector(model_list,old_data,base_model,min_bound,max_bound,cluster_centres,dist_lists_old)
-                    current_dice_new, tc_new,wt_new,et_new, new_outputs, new_labels,model_index,dist_lists_new= model_selector(model_list,new_data,base_model,min_bound,max_bound,cluster_centres,dist_lists_new)
+                    current_dice_old, tc_old,wt_old,et_old, old_outputs, old_labels,model_index,dist_lists_old,sub_id= model_selector(model_list,old_data,base_model,min_bound,max_bound,cluster_centres,dist_lists_old)
+                    current_dice_new, tc_new,wt_new,et_new, new_outputs, new_labels,model_index,dist_lists_new,sub_id= model_selector(model_list,new_data,base_model,min_bound,max_bound,cluster_centres,dist_lists_new)
                     sub_index=old_data["index"]
                     sub_id = old_data["id"][0]
                 
@@ -111,7 +111,7 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
                 sub_index=old_data["index"]
                 
 
-                old_data["pred"] = inference(old_inputs,model)
+                old_data["pred"] = inference(old_inputs,base_model)
                 old_data=[post_trans(ii) for ii in decollate_batch(old_data)] #returns a list of n tensors where n=batch_size
                 old_outputs,old_labels = from_engine(["pred","mask"])(old_data) # returns two lists of tensors
                 new_inputs = new_data["image"].to(device) # pass to gpu
@@ -119,7 +119,7 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
                 sub_index_new=new_data["index"]
                 
 
-                new_data["pred"] = inference(new_inputs,model)
+                new_data["pred"] = inference(new_inputs,base_model)
                 new_data=[post_trans(ii) for ii in decollate_batch(new_data)] #returns a list of n tensors where n=batch_size
                 
                 old_outputs,old_labels = from_engine(["pred","mask"])(old_data) # returns two lists of 
@@ -166,6 +166,7 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
             dice_metric_ind_delta(y_pred=change_pred, y=change_GT)
             dice_metric_ind_batch_delta(y_pred=change_pred, y=change_GT)
             
+                        
             dice_metric_ind_GTGT(y_pred=old_labels, y=new_labels)
             dice_metric_ind_batch_GTGT(y_pred=old_labels, y=new_labels)
             
@@ -218,6 +219,30 @@ def evaluate_time_samples(load_path,old_loader,new_loader,modelweight_folder_pat
             current_dice_delta = dice_metric_ind_delta.aggregate(reduction=None).item()
             batch_ind_delta = dice_metric_ind_batch_delta.aggregate()
             tc_delta,wt_delta,et_delta = batch_ind_delta[0].item(),batch_ind_delta[1].item(),batch_ind_delta[2].item()
+            
+            wt_channel = change_GT[0][1].cpu().numpy()
+            wt_channel_pred=change_pred[0][1].cpu().numpy()
+            for view, axis in enumerate(["Axial", "Sagittal", "Coronal"]):
+                # slice_idx = centroid[view]
+                axial_slices=old_inputs.shape[3]
+                
+                # Axial view
+                if view == 0:
+                    for slice_ in range(axial_slices):
+                        areas = wt_channel.sum(axis=(0, 1))  # Sum along the x and y axes
+                        slice_idx = areas.argmax()  # Get index of slice with max area  
+                        if slice_==slice_idx:
+                            # print(type(old_inputs))#<class 'monai.data.meta_tensor.MetaTensor'>
+                            # print(old_inputs[0].shape) # torch.Size([4, 240, 240, 155])
+                            # print(type(change_GT))#<class 'list'>
+                            # print(change_GT[0].shape)#torch.Size([3, 240, 240, 155])
+                            slice_data = old_inputs[0, :, :,:, slice_idx].cpu().numpy()  # C=4, hence using channel 2
+                            print(slice_data[0].shape)
+                            gt_slice = wt_channel[:, :, slice_idx] > 0.5
+                            pred_slice = wt_channel_pred[:, :, slice_idx] > 0.5
+                            title = f"{'WT'}_{axis}_s{slice_idx}_{round(current_dice_delta,4)}"
+                            plot_prediction(slice_data, gt_slice, pred_slice, './', title,True) 
+                            
             ind_scores[sub_id] = {'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4),'index': sub_index.item(), 'old in': membership_old, 'new in': membership_new,'d average':round(current_dice_delta,4), 'd tc':round(tc_delta,4),'d wt':round(wt_delta,4),'d et':round(et_delta,4), 'predicted volume delta': delta_delta, 'old volume gt': old_volume_gt, 'new volume gt': new_volume_gt, 'GT delta': gt_delta, 'old volume pred': old_volume_pred,'new volume pred': new_volume_pred, 'pred delta':pred_delta, 'marker_color': color}
             
             current_dice_GTGT = dice_metric_ind_GTGT.aggregate(reduction=None).item()

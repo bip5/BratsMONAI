@@ -11,15 +11,21 @@ seed,
 temporal_split,
 val_temporal,
 test_temporal,
-train_temporal
+train_temporal,
+xval,
+no_val,
+training_mode
 )
 from Input.config import root_dir as root_dir_actual
-from Input.localtransforms import val_transform
+from Input.localtransforms import train_transform, val_transform
 from torch.utils.data import Subset
 from monai.data import Dataset
 import pandas as pd
 import monai
 import random
+import torch
+import gzip
+from glob import glob
 
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
@@ -35,9 +41,12 @@ np.random.seed(seed)
 # A source: Nvidia HDGAN
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
+    
 
-# makes a list of all image paths inside a directory
+    
+
 def make_dataset(data_dir):
+    '''makes a list of all image paths inside BraTS 23 directory'''
     images = []
     masks = []
     im_temp = []
@@ -75,73 +84,95 @@ def time_list(root_dir):
             old.append((images[index-1], masks[index-1]))
     return old,new,old_index,new_index
 
-# Using 1250 samples since it's possible to use cross validation 
+
 indexes=np.random.choice(np.arange(max_samples),max_samples,replace=False)
-
-# fold=int(max_samples/5) # not being used right now so comented out
-
-_ , _ , old_index, new_index = time_list(root_dir_actual) # Check old and new samples by names and return indices
-
-time_samples = old_index + new_index # concatenating lists with +
-
-print('TIME SAMPLES', time_samples)
-
-indices_filter = np.isin(indexes, time_samples, invert=True) # True where the samples don't exist in indexes
-indexes = indexes[indices_filter] # getting non temporal indices, test: the value should be 1014
-
-assert len(indexes) == 1014 , 'Problem with non temporal indexes length'
-
-if temporal_split==0:
-    old_index_np= np.array(old_index)
-    test_old = np.random.choice(old_index_np, 75, replace=False) # select 75 subjects
-    test_indices = np.concatenate((test_old, test_old+1)) # select both new and old indices for those subjects
-    val_old = np.setdiff1d(old_index_np,test_old) # remove test indices from old temporal samples
-    val_indices_temporal = np.concatenate((val_old, val_old+1))
-    val_indices_non_temporal = np.random.choice(indexes, 14, replace=False)
-    train_indices = np.setdiff1d(indexes, val_indices_non_temporal)
-    val_indices = np.concatenate((val_indices_temporal, val_indices_non_temporal))
-
+if training_mode=='isles':
+    train_indices = indexes[:200]
+    val_indices=indexes[200:210]
+    test_indices=indexes[210:]
+elif training_mode=='atlas':
+    train_indices = indexes[:100]
+    val_indices=indexes[600:615]
+    test_indices=indexes[615:]
 else:
+    # fold=int(max_samples/5) # not being used right now so comented out
 
-    val_indices_non_temporal = np.random.choice(indexes, (100 - 2 * val_temporal),replace = False) # removing samples to place inside validation set validation set has 58 temporal samples
+    _ , _ , old_index, new_index = time_list(root_dir_actual) # Check old and new samples by names and return indices
 
-    filter_for_train = np.isin(indexes, val_indices_non_temporal, invert=True)
-    train_indices_pre = indexes[filter_for_train] # removing items from the non temporal indices
+    time_samples = old_index + new_index # concatenating lists with +
 
-    assert len(train_indices_pre ) == (1014-(100 - 2 * val_temporal)) , 'Problem with train_indices_pre length'
+    print('TIME SAMPLES', time_samples)
 
-    test_indices_non_temporal = np.random.choice(train_indices_pre, (150 - 2 * test_temporal), replace=False) # removing samples to place inside test set, test set has 58 temporal samples
+    indices_filter = np.isin(indexes, time_samples, invert=True) # True where the samples don't exist in indexes
+    indexes = indexes[indices_filter] # getting non temporal indices, test: the value should be 1014
 
-    filter2_for_train = np.isin(train_indices_pre, test_indices_non_temporal, invert=True)
-    train_indices_non_temporal = train_indices_pre[filter2_for_train]
+    # assert len(indexes) == 1014 , 'Problem with non temporal indexes length'
 
-    assert len(train_indices_non_temporal ) == len(train_indices_pre)-(150 - 2 * test_temporal) , 'Problem with train_indices_non_temporal length'
+    if temporal_split==0:
+        old_index_np= np.array(old_index)
+        test_old = np.random.choice(old_index_np, 75, replace=False) # select 75 subjects
+        test_indices = np.concatenate((test_old, test_old+1)) # select both new and old indices for those subjects
+        val_old = np.setdiff1d(old_index_np,test_old) # remove test indices from old temporal samples
+        val_indices_temporal = np.concatenate((val_old, val_old+1))
+        val_indices_non_temporal = np.random.choice(indexes, 14, replace=False)
+        train_indices = np.setdiff1d(indexes, val_indices_non_temporal)
+        val_indices = np.concatenate((val_indices_temporal, val_indices_non_temporal))
 
-    old_index_np = np.array(old_index, dtype=int)
+    else:
 
-    val_indices_old = np.random.choice(old_index_np, val_temporal, replace=False) # 29*2 +42=100 Getting old values from the indices to generate corresponding new indices
-    val_indices_new = val_indices_old + 1 # Getting new index values used + 1 - works because of the naming convention
-    val_indices_temporal = np.concatenate((val_indices_old, val_indices_new)) # joining the two 29*2=58
+        val_indices_non_temporal = np.random.choice(indexes, (100 - 2 * val_temporal),replace = False) # removing samples to place inside validation set validation set has 58 temporal samples
 
-    val_indices = np.concatenate((val_indices_temporal,val_indices_non_temporal)) # adding sets 42 + 58 more to make 100
+        filter_for_train = np.isin(indexes, val_indices_non_temporal, invert=True)
+        train_indices_pre = indexes[filter_for_train] # removing items from the non temporal indices
 
-    traintest_indices_filter = np.isin(old_index_np, val_indices, invert=True) # removing val indices from old index
+        # assert len(train_indices_pre ) == (1014-(100 - 2 * val_temporal)) , 'Problem with train_indices_pre length'
 
-    train_test_indices_old = old_index_np[traintest_indices_filter] # getting the train and  test indices
+        test_indices_non_temporal = np.random.choice(train_indices_pre, (150 - 2 * test_temporal), replace=False) # removing samples to place inside test set, test set has 58 temporal samples
 
-    train_indices_old = np.random.choice(train_test_indices_old, train_temporal, replace=False) 
-    train_indices_new = train_indices_old + 1
-    train_indices_temporal = np.concatenate((train_indices_old, train_indices_new))
-    train_indices = np.concatenate((train_indices_temporal, train_indices_non_temporal))
+        filter2_for_train = np.isin(train_indices_pre, test_indices_non_temporal, invert=True)
+        train_indices_non_temporal = train_indices_pre[filter2_for_train]
 
-    # filter to remove train indices from train and test old indices
-    test_indices_filter = np.isin(train_test_indices_old, train_indices_old, invert=True) 
-    test_indices_old = train_test_indices_old[test_indices_filter]
-    test_indices_new = test_indices_old + 1
-    test_indices_temporal = np.concatenate((test_indices_old,test_indices_new))
-    test_indices = np.concatenate((test_indices_non_temporal,test_indices_temporal))
+        # assert len(train_indices_non_temporal ) == len(train_indices_pre)-(150 - 2 * test_temporal) , 'Problem with train_indices_non_temporal length'
 
-assert len(train_indices ) == 1000 , 'Problem with train_indices length'
+        old_index_np = np.array(old_index, dtype=int)
+
+        val_indices_old = np.random.choice(old_index_np, val_temporal, replace=False) # 29*2 +42=100 Getting old values from the indices to generate corresponding new indices
+        val_indices_new = val_indices_old + 1 # Getting new index values used + 1 - works because of the naming convention
+        val_indices_temporal = np.concatenate((val_indices_old, val_indices_new)) # joining the two 29*2=58
+
+        val_indices = np.concatenate((val_indices_temporal,val_indices_non_temporal)) # adding sets 42 + 58 more to make 100
+
+        traintest_indices_filter = np.isin(old_index_np, val_indices, invert=True) # removing val indices from old index
+
+        train_test_indices_old = old_index_np[traintest_indices_filter] # getting the train and  test indices
+
+        train_indices_old = np.random.choice(train_test_indices_old, train_temporal, replace=False) 
+        train_indices_new = train_indices_old + 1
+        train_indices_temporal = np.concatenate((train_indices_old, train_indices_new))
+        train_indices = np.concatenate((train_indices_temporal, train_indices_non_temporal))
+
+        # filter to remove train indices from train and test old indices
+        test_indices_filter = np.isin(train_test_indices_old, train_indices_old, invert=True) 
+        test_indices_old = train_test_indices_old[test_indices_filter]
+        test_indices_new = test_indices_old + 1
+        test_indices_temporal = np.concatenate((test_indices_old,test_indices_new))
+        test_indices = np.concatenate((test_indices_non_temporal,test_indices_temporal))
+        if xval:     
+            
+            indexes=np.random.choice(np.arange(1251),max_samples,replace=False)
+            train_indices=indexes
+            for i in range(1,6):
+                starts=[0,250,500,750,1000]
+                ends = [250,500,750,1000,1251]
+                if i==int(fold_num):
+                    val_indices = train_indices[starts[i-1]:ends[i-1]]
+                    train_indices = np.delete(train_indices,np.arange(starts[i-1],ends[i-1]))
+
+    if no_val:
+        
+        indexes=np.random.choice(np.arange(1251),max_samples,replace=False)
+        train_indices=indexes
+# assert len(train_indices ) == 1000 , 'Problem with train_indices length'
 
 ####ONLY WORKS WHEN MAX SAMPLES==1250####
 # for i in range(1,6):
@@ -201,6 +232,34 @@ def make_ens_dataset(path):
                     im_temp=[]
     return images, masks
 
+
+
+def make_dataset_isles(data_dir):
+    '''makes a list of all image paths inside isles directory'''
+    all_files = []
+    images=[]
+    masks=[]
+    im_temp=[]
+    assert os.path.isdir(data_dir), '%s is not a valid directory' % data_dir        
+    for root, fol, fnames in os.walk(data_dir+'/rawdata'):
+        for f in fnames:                      
+            fpath = os.path.join(root, f)
+            if f.endswith('flair.nii.gz'): 
+                pass
+                
+            elif f.endswith('dwi.nii.gz'):
+                im_temp.append(fpath) 
+            elif f.endswith('adc.nii.gz'):
+                im_temp.append(fpath) 
+        if im_temp:
+            images.append(im_temp)                   
+        im_temp = []
+    masks= sorted(glob(f"{data_dir+'/derivatives'}/**/*.nii.gz",recursive=True))                        
+    return sorted(images), masks
+    
+
+
+    
 # def make_exp_dataset(path, sheet):
     # all_files = []
     # images = []
@@ -266,12 +325,12 @@ def make_exp_dataset(path, sheet):
 class AtlasDataset(Dataset):
     def __init__(self,data_dir,transform=None):
         
-        data=make_atlas_dataset(data_dir)
+        data = make_atlas_dataset(data_dir)
         
-        self.image_list=data[0]
+        self.image_list = data[0]
          
-        self.mask_list=data[1]
-        self.transform=transform
+        self.mask_list = data[1]
+        self.transform = transform
         
     def __len__(self):
 #         return len(os.listdir(self.mask_dir))
@@ -294,7 +353,7 @@ class AtlasDataset(Dataset):
             item_dict={"image":image,"mask": mask}
             
             item_dict=self.transform(item_dict)
-            item_dict['id'] = mask[-30:-11]
+            item_dict['id'] = mask[4:18]
             
             if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
                 raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
@@ -302,8 +361,38 @@ class AtlasDataset(Dataset):
             if not isinstance(item_dict['mask'], monai.data.meta_tensor.MetaTensor):
                 raise TypeError("The transformed 'mask' is not a MetaTensor. Please check your transforms.")
         
-        return item_dict     
-
+        return item_dict   
+        
+class Brats23valDataset(Dataset):
+    def __init__(self,data_dir,transform=None):
+        
+        data=[]#make_dataset(data_dir)[0]
+        extension=make_dataset('/scratch/a.bip5/BraTS/GLIValidationData')[0]
+        data.extend(extension) # extending data list)
+        self.image_list=data
+        
+        self.transform=transform
+        
+    def __len__(self):
+#         return len(os.listdir(self.mask_dir))
+        return len(self.image_list)#
+    
+    def __getitem__(self,idx):
+        # print(idx)
+       
+        image=self.image_list[idx]
+       
+            
+        item_dict={"image":image}
+        # print(item_dict)
+        
+        if self.transform:
+            item_dict={"image":image}
+            item_dict=self.transform(item_dict)
+            item_dict['id'] = image[0][-20:-11]
+        
+        return item_dict
+    
 class BratsInfusionDataset(Dataset):
     def __init__(self,data_dir,total_epochs=150,cool_off=50, transform=None):
         
@@ -332,22 +421,24 @@ class BratsInfusionDataset(Dataset):
     
         mask=self.mask_list[idx] 
         
-        
+        channels = list(range(4))
+        random.shuffle(channels)
+        channels.pop()
             
-        item_dict={"image":image,"mask":mask}
+        item_dict={"image":[image[x] for x in channels],"mask":mask}
         # print(item_dict)
         
         
         if self.transform:
             item_dict={"image":image,"mask": mask}
             
-            item_dict= val_transform(item_dict)
+            item_dict2 = val_transform(item_dict)
             
-            loaded_image = item_dict["image"]
-            loaded_mask = item_dict["mask"]
+            loaded_image = item_dict2["image"] # loads a list of 4 channels
+            loaded_mask = item_dict2["mask"]
             
         
-            eta = min(1, self.epoch_number / (self.total_epochs - self.cool_off))
+            eta = min(1, (self.epoch_number) / (self.total_epochs - self.cool_off))
             
             ignore_channel= random.randint(0,3)
             # Permute the remaining channels
@@ -356,26 +447,27 @@ class BratsInfusionDataset(Dataset):
             random.shuffle(channels)
             channels.append(ignore_channel)  # Ensure the ignored channel is at the end
             
-            mixed_image = torch.empty_like(loaded_image)
+            mixed_image = torch.empty_like(loaded_image) 
+          
             for i in range(3):
                 mixed_image[channels[i]] = (1 - eta) * loaded_mask[i] + eta * loaded_image[channels[i]]
             # Leave the ignored channel as is
             mixed_image[ignore_channel] = loaded_image[ignore_channel]
                 
-            item_dict = {"image": mixed_image, "mask": mask}
+            item_dict3 = {"image": mixed_image, "mask": loaded_mask}
             
-            item_dict=self.transform(item_dict)
+            item_dict4 = self.transform(item_dict3)
             
             
-            item_dict['id'] = mask[-30:-11]
+            item_dict4['id'] = mask[-30:-11]
             
-            if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
-                raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
+            # if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
+                # raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
 
             # if not isinstance(item_dict['mask'], monai.data.meta_tensor.MetaTensor):
                 # raise TypeError("The transformed 'mask' is not a MetaTensor. Please check your transforms.")
         
-        return item_dict        
+        return item_dict4    
            
 class BratsDataset(Dataset):
     def __init__(self,data_dir,transform=None):
@@ -418,7 +510,26 @@ class BratsDataset(Dataset):
         
         return item_dict
 
-    
+
+class IslesDataset(Dataset):
+    def __init__(self,data_dir,transform=None):            
+        self.image_list,self.mask_list = make_dataset_isles(data_dir)            
+        
+        self.transform=transform   
+        
+    def __len__(self):
+        return min(max_samples,len(self.mask_list))#        
+    def __getitem__(self,idx):              
+        image=self.image_list[idx]   
+        
+        mask=self.mask_list[idx]                 
+        item_dict={"image":image,"mask":mask}            
+        if self.transform:
+            item_dict={"image":image,"mask": mask}
+            item_dict['id'] = mask[14:27]
+            item_dict=self.transform(item_dict)               
+            
+        return item_dict    
 
     
 class BratsTimeDataset(Dataset):
@@ -457,6 +568,63 @@ class BratsTimeDataset(Dataset):
             item_dict=self.transform(item_dict)
             item_dict['id'] = mask[-30:-11]
             item_dict['index'] = self.data_index[idx]
+            
+            if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
+                raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
+
+            # if not isinstance(item_dict['mask'], monai.data.meta_tensor.MetaTensor):
+                # raise TypeError("The transformed 'mask' is not a MetaTensor. Please check your transforms.")
+        
+        return item_dict
+        
+def load_map(file_path):
+    '''Load a potentially compressed tensor'''
+    if file_path.endswith('.gz'):
+        with gzip.open(file_path, 'rb') as f:
+            return torch.load(f)
+    else:
+        return torch.load(file_path)
+
+class ClusterAugment(Dataset):
+    def __init__(self,data_dir,transform=None):
+        
+        data=make_dataset(data_dir)
+        
+        self.cluster_map_list = [os.path.join('/scratch/a.bip5/BraTS/cluster_maps',x) for x in sorted(os.listdir('/scratch/a.bip5/BraTS/cluster_maps'))]
+        self.image_list=data[0]
+         
+        self.mask_list=data[1]
+        self.transform=transform
+        
+    def __len__(self):
+#         return len(os.listdir(self.mask_dir))
+        return min(max_samples,len(self.mask_list))#
+    
+    def __getitem__(self,idx):
+        # print(idx)
+       
+        image=self.image_list[idx]
+       
+    
+        mask=self.mask_list[idx] 
+        
+        cluster_map = self.cluster_map_list[idx]
+        
+
+            
+        item_dict={"image":image,"mask":mask }
+        # print(item_dict)
+        
+        if self.transform:
+            item_dict={"image":image,"mask": mask }
+            item_dict['map'] = load_map(cluster_map)[0]
+            
+            item_dict=self.transform(item_dict)      
+           
+            item_dict['image'] = torch.cat((item_dict['image'],item_dict['map']),dim=0)
+            
+            
+            item_dict['id'] = mask[-30:-11]
             
             if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
                 raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
@@ -573,33 +741,3 @@ class ExpDatasetEval(Dataset):
         return item_dict2
 
         
-class Brats23valDataset(Dataset):
-    def __init__(self,data_dir,transform=None):
-        
-        data=make_dataset(data_dir)[0]
-        extension=make_dataset('/scratch/a.bip5/BraTS/GLIValidationData')[0]
-        data.extend(extension) # extending data list)
-        self.image_list=data
-        
-        self.transform=transform
-        
-    def __len__(self):
-#         return len(os.listdir(self.mask_dir))
-        return len(self.image_list)#
-    
-    def __getitem__(self,idx):
-        # print(idx)
-       
-        image=self.image_list[idx]
-       
-            
-        item_dict={"image":image}
-        # print(item_dict)
-        
-        if self.transform:
-            item_dict={"image":image}
-            item_dict=self.transform(item_dict)
-            item_dict['id'] = image[0][-20:-11]
-        
-        return item_dict
-    

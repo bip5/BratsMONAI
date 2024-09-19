@@ -9,17 +9,21 @@ import sys
 
 now=datetime.datetime.now().strftime('%Y-%m-%d_%H')
 source_path='/scratch/a.bip5/BraTS/Itemised Dice/Expert_eval_full_set/'#'/scratch/a.bip5/BraTS/Itemised Dice/ExpertModels/'
+
+#processing in a loop for a given folder so we can process more than one file in a single run
 for filename in os.listdir(source_path):
-    individual_scores_path=source_path+f'{filename}'
-    savename='MFP_'+individual_scores_path.split('/')[-1]
-    output_dir=os.path.join(os.path.join('/',*source_path.split('/')[:-1]),'output/')
+    if not 'xls' in filename:
+        continue
+    individual_scores_path = source_path + f'{filename}'    
+    output_dir = os.path.join(os.path.join('/',*source_path.split('/')[:-1]),'output/')
     print('output_dir', output_dir)
     os.makedirs(output_dir,exist_ok=True)
-    writer=pd.ExcelWriter(f'{output_dir}{savename}',engine='xlsxwriter')
-    plot_dir=source_path.split('/')[-1]    
+    savename = 'MFP_' + individual_scores_path.split('/')[-1]
+    writer = pd.ExcelWriter(f'{output_dir}{savename}',engine='xlsxwriter')
+    plot_dir = source_path.split('/')[-1]    
     new_dir = os.path.join('/scratch/a.bip5/BraTS/plots', f'{plot_dir}')
     os.makedirs(new_dir, exist_ok=True)
-    file=pd.ExcelFile(individual_scores_path)
+    file = pd.ExcelFile(individual_scores_path)
 
     sheets=file.sheet_names
     sheets=['Everything']+[x for x in sheets if 'Expert' in x]
@@ -42,10 +46,14 @@ for filename in os.listdir(source_path):
         # print(merged_df['Subject ID'][:10],merged_df['subject_id'][:10], ' SHAPPEEEEE') ##here to check before dropping subject_id column
         # print('SYS EXITING REMOVE LINE IF NOT NEEDED')
         # sys.exit()
-        # merged_df.fillna(0,inplace=True)
+        merged_df.fillna(0,inplace=True)
         columns_to_average = [
         'sagittal_profile_tc','frontal_profile_tc','axial_profile_tc','sagittal_profile_wt','frontal_profile_wt','axial_profile_wt','sagittal_profile_et','frontal_profile_et','axial_profile_et'
             ]
+        #we want to drop all the samples where one or more tumor category is missing to remove noise from later analysis     
+        for column in columns_to_average:
+            merged_df=merged_df[merged_df[column]!=0]
+            
         merged_df['average dprofile']=merged_df[columns_to_average].mean(axis=1)
         # for x in merged_df.columns:
             # print(x)
@@ -59,6 +67,7 @@ for filename in os.listdir(source_path):
         orig_c_p['max']=[]
         orig_c_p['min']=[]
         
+        # Below we're gathering information for the summary sheet in the output file
         for column in merged_df.columns[6:]:
             cm,pm=pearsonr(merged_df[column],merged_df['average'])#'SegResNetCV1_j7688198ep128'
             a=merged_df[column].mean()

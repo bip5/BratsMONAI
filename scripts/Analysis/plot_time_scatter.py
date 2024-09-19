@@ -36,17 +36,30 @@ for filename in filenames:
 
     plt.close()
     
-    save_path= os.path.join(plots_dir,f'deltaDice_{filename}.eps')
-    plt.figure()
     
-    plt.scatter(final_df['average_GTGT'],final_df['d average'],c=final_df['growth_marker'], alpha=0.5)
+    growth_df = final_df[final_df['growth_marker'] == 'red']
+    shrinkage_df = final_df[final_df['growth_marker'] == 'green']
+
+    plt.figure()
+
+    # Plotting each category separately to display legend
+    plt.scatter(growth_df['average_GTGT'], growth_df['d average'], color='red', alpha=0.5, label='Growth')
+    plt.scatter(shrinkage_df['average_GTGT'], shrinkage_df['d average'], color='green', alpha=0.5, label='Shrinkage')
+
     plt.xlabel('Dice score between the two Ground Truths')
-    plt.ylabel('Dice score for delta volume expert model segmentation')
-    plt.ylim(0.4,1)
-    plt.xlim(0,1)
+    plt.ylabel('Dice score for delta volume prediction')
+    plt.ylim(0.4, 1)
+    plt.xlim(0, 1)
     plt.grid(True)
     plt.tight_layout()
+
+    # Add the legend.
+    plt.legend()
+
+    # Save the figure.
+    save_path = os.path.join(plots_dir, f'deltaDice_{filename}.eps')
     plt.savefig(save_path)
+
 
     # p_value_oldnew =ttest_rel(final_df['average_oldSnewT'],final_df['average_GTGT'] )
 

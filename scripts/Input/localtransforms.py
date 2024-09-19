@@ -2,6 +2,7 @@ import sys
 sys.path.append('/scratch/a.bip5/BraTS/scripts/')
 from monai.transforms import (EnsureChannelFirstD, ToMetaTensorD,\
     ToTensorD,
+    CropForegroundd,
     ScaleIntensityD, SpacingD, OrientationD,\
     ResizeD, RandAffineD,
     Activations,
@@ -10,6 +11,7 @@ from monai.transforms import (EnsureChannelFirstD, ToMetaTensorD,\
     AsDiscreted,
     Compose,
     Invertd,
+    RandAffined,
     LoadImaged,
     RandBiasFieldD,
     RandRotateD,
@@ -23,9 +25,12 @@ from monai.transforms import (EnsureChannelFirstD, ToMetaTensorD,\
     RandShiftIntensityd,
     CenterSpatialCropd,
     SpatialPadd,
+    RemoveSmallObjectsd,
+    RandGaussianSmoothd,
     RandSpatialCropd,   
     EnsureTyped,
     EnsureType,
+    KeepLargestConnectedComponentd
 )
 from Input.config import roi
 import torch
@@ -257,6 +262,30 @@ class ConvertToSingleChannel(MapTransform):
 KEYS=("image","mask")
 print("Transforms not defined yet")
 
+train_transform_atlas = Compose(
+    [
+        # load 4 Nifti images and stack them together
+        LoadImaged(keys=["image","mask"],simple_keys=True),
+        EnsureChannelFirstD(keys="image"),
+        EnsureTyped(keys=["image", "mask"]),
+        
+        SpacingD(
+            keys=["image", "mask"],
+            pixdim=(1.0, 1.0, 1.0),
+            mode=("bilinear", "nearest"),
+        ),
+        OrientationD(keys=["image", "mask"], axcodes="RAS"),
+        RandSpatialCropd(keys=["image", "mask"], roi_size=roi, random_size=False),
+       
+        RandRotateD(keys=["image","mask"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),
+       
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
+        RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),    
+        
+    ]
+)
+
 train_transform = Compose(
     [
         # load 4 Nifti images and stack them together
@@ -278,6 +307,113 @@ train_transform = Compose(
         RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
         RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),    
         
+    ]
+)
+train_transform_CA = Compose(
+    [
+        # load 4 Nifti images and stack them together
+        LoadImaged(keys=["image","mask"],simple_keys=True),
+        EnsureChannelFirstD(keys="image"),
+        EnsureTyped(keys=["image", "mask"]),
+        ConvertToMultiChannelBasedOnBratsClassesd_val(keys="mask"),
+        SpacingD(
+            keys=["image", "mask"],
+            pixdim=(1.0, 1.0, 1.0),
+            mode=("bilinear", "nearest"),
+        ),
+        OrientationD(keys=["image", "mask"], axcodes="RAS"),
+        RandSpatialCropd(keys=["image", "mask","map"], roi_size=roi, random_size=False),
+       
+        RandRotateD(keys=["image","mask","map"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),
+       
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        RandScaleIntensityd(keys="image", factors=0.1, prob=0.1),
+        RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),    
+        
+    ]
+)
+
+train_transform_isles = Compose(
+    [
+        LoadImaged(keys=["image", "mask"]),
+        EnsureChannelFirstD(keys=["image","mask"]),
+        # AddChannelD(keys="mask"),
+        CropForegroundd(["image", "mask"], source_key="image"),
+        
+       
+        SpacingD(
+            keys=["image", "mask"],
+            pixdim=(1.0, 1.0, 1.0),
+            mode="bilinear",
+        ),   
+        OrientationD(keys=["image", "mask"],axcodes="RAS"),
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        RandSpatialCropd(
+        ["image", "mask"], roi_size=(192,192,128), random_size=False
+        ),            
+        RandAffined(
+        ["image", "mask"],
+        prob = 0.15,
+        spatial_size=(192,192,128), #instead of 64,64,64
+        rotate_range=[30 * np.pi / 180] * 3, 
+        scale_range=[0.3] * 3,
+        mode=("bilinear", "bilinear"),            
+        ),                      
+        RandRotateD(keys=["image","mask"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),  
+        RandFlipd(["image", "mask"], prob=0.5, spatial_axis=0),
+        RandFlipd(["image", "mask"], prob=0.5, spatial_axis=1),
+        RandFlipd(["image", "mask"], prob=0.5, spatial_axis=2),
+        RandGaussianNoised("image", prob=0.15, std=0.1),
+        RandGaussianSmoothd(
+        "image",
+        prob=0.15,
+        sigma_x=(0.5, 1.5),
+        sigma_y=(0.5, 1.5),
+        sigma_z=(0.5, 1.5),
+        ),       
+        
+        
+        RandScaleIntensityd(keys="image", factors=0.3, prob=0.15),
+        RandShiftIntensityd(keys="image", offsets=0.1, prob=0.15),
+        AsDiscreted("mask", threshold=0.5),
+        EnsureTyped(keys=["image", "mask"]),
+    ]
+)
+
+val_transform_atlas = Compose(
+    [
+        LoadImaged(keys=["image", "mask"]),
+        EnsureChannelFirstD(keys=["image","mask"]),
+        # AddChannelD(keys="mask"), 
+        SpacingD(
+            keys=["image", "mask"],
+            pixdim=(1.0, 1.0, 1.0),
+            mode="bilinear",
+        ),
+        OrientationD(keys=["image", "mask"],axcodes="RAS"),
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
+        # RandSpatialCropd(
+        # ["image", "mask"], roi_size=(192,192,128), random_size=False
+        # ),
+        EnsureTyped(keys=["image", "mask"]),
+    ]
+)
+val_transform_isles = Compose(
+    [
+        LoadImaged(keys=["image", "mask"]),
+        EnsureChannelFirstD(keys=["image","mask"]),
+        # AddChannelD(keys="mask"), 
+        SpacingD(
+            keys=["image", "mask"],
+            pixdim=(1.0, 1.0, 1.0),
+            mode="bilinear",
+        ),
+        OrientationD(keys=["image", "mask"],axcodes="RAS"),
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
+        # RandSpatialCropd(
+        # ["image", "mask"], roi_size=(192,192,128), random_size=False
+        # ),
+        EnsureTyped(keys=["image", "mask"]),
     ]
 )
 
@@ -461,10 +597,14 @@ post_trans = Compose(
         # ), 
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
-        ConvertToSingleChannel(keys='pred'),
-        ConvertToMultiChannelBasedOnBratsClassesd_val(keys="pred"),
+        
+        # KeepLargestConnectedComponentd(keys="pred",applied_labels=[0,1,2],independent=True,connectivity=3,num_components=2),
+        # RemoveSmallObjectsd(keys="pred",min_size=64, connectivity=1, independent_channels=True, by_measure=False, pixdim=None)
+        # ConvertToSingleChannel(keys='pred'),
+        # ConvertToMultiChannelBasedOnBratsClassesd_val(keys="pred"),
     ]
 )
+          
 
 test_transforms0 = Compose(
     [
@@ -494,6 +634,24 @@ test_transforms1 = Compose(
     ]
     )
     
+transformer_transform = Compose(
+[
+    LoadImaged(keys=["image"]),
+    EnsureChannelFirstD(keys=["image"]), 
+    SpacingD(
+        keys=["image"],
+        pixdim=(1.0, 1.0, 1.0),
+        mode=("bilinear"),
+    ),
+    CenterSpatialCropd(keys=["image"], roi_size=roi),
+    OrientationD(keys=["image"], axcodes="RAS"),
+    
+    NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+    # ToTensorD(keys=["image"], dtype=torch.float),
+    EnsureTyped(keys=["image"]),
+]
+)
+    
 post_trans_test = Compose(
     [           
         
@@ -511,7 +669,11 @@ post_trans_test = Compose(
         ),
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
-        ConvertToSingleChannel(keys='pred')
+        KeepLargestConnectedComponentd(keys="pred",applied_labels=[0,1,2],independent=True,connectivity=3,num_components=1),
+        RemoveSmallObjectsd(keys="pred",min_size=100, connectivity=3, independent_channels=True, by_measure=False, pixdim=None),
+        ConvertToSingleChannel(keys='pred'),
+        
+        
     ]
 )
 
