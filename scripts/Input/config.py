@@ -159,12 +159,12 @@ elif mode_index==20:
     load_save = 0
     load_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/2023-05-30_152343SegResNet'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
-    model_name = 'SegResNetDS'
+    model_name = 'SegResNet'
     training_mode = 'atlas'
     max_samples = 655
     roi = (192,192,144)
     total_epochs = 300
-    init_filter_number= 20
+    init_filter_number= 32
     in_channels = 1
     out_channels = 1
 else: 
