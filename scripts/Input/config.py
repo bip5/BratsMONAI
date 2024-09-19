@@ -159,7 +159,7 @@ elif mode_index==20:
     load_save = 0
     load_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/2023-05-30_152343SegResNet'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
-    model_name = 'SegResNet'
+    model_name = 'SegResNetDS'
     training_mode = 'atlas'
     max_samples = 655
     roi = (192,192,144)
