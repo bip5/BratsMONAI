@@ -48,7 +48,9 @@ def test_validate_with_identical_inputs(mock_val_loader,mock_globals):
     
     # custom inference to return idential outputs
     def custom_inference(val_data):
-        return [val_data["mask"],val_data["mask"]]
+        return [val_data["mask"].clone().detach(),val_data["mask"]]
+    
+  
      
     _,best_metric,_,metric = validate(mock_val_loader, 0,0,0,custom_inference=custom_inference)
     
