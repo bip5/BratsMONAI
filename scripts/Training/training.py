@@ -324,6 +324,7 @@ if load_save==1:
     else: 
         try:
             model,optimiser,scaler,lr_scheduler,start_epoch = model_loader(load_path,train=True, optimiser=optimiser,scaler=scaler,lr_scheduler=lr_scheduler)
+            print('LOADED STATE SUCCESSFULLY')
         except:
             model = model_loader(load_path,train=True)
         
@@ -434,142 +435,7 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
     
     return save_name, best_metric, best_metric_epoch, metric
 
-# def validate(val_loader,epoch,best_metric,best_metric_epoch,sheet_name=None,save_name=None):
-    
-    # model.eval()
-    # alt_metrics=[]
-    # with torch.no_grad():
-        # for val_i, val_data in enumerate(val_loader):
-            # if minival:
-                # if val_i<epoch+1:
-                    # val_flag=True
-                # else:
-                    # val_flag=False
-            # else:
-                # val_flag = True # only set the flag false if minival
-            
-            # if val_flag:
-                # val_inputs = val_data["image"].to(device)
-       
-                # val_masks = val_data["mask"].to(device)
-                
-                
-               
-                
-                # val_data["pred"] = val_data["mask"].clone().to(device)#inference(val_inputs,model)
-                # print(len(val_masks))
-               
-                
-                # val_data = [post_trans(i) for i in decollate_batch(val_data)]
-                # val_outputs, val_masks = from_engine(["pred", "mask"])(val_data)
-                # print(torch.sum(torch.nonzero(val_outputs[0])))
-                # print(torch.sum(torch.nonzero(val_masks[0])))
-                # print(torch.unique(val_masks[0]))
-                # print(torch.unique(val_outputs[0]))
-                
-                # # for idx, y in enumerate(val_masks):
-                    # # val_masks[idx] = (y > 0.5).int()
-                
-                
-                # val_outputs = [tensor.to(device) for tensor in val_outputs]
-                # val_masks = [tensor.to(device) for tensor in val_masks] 
-                
-                
-                # dice_metric(y_pred=val_outputs, y=val_masks)
-                # dice_metric_batch(y_pred=val_outputs, y=val_masks)
-             
-                # if loss_type == 'EdgyDice':            
-                    # alt_metric = LesionWiseDice(val_outputs,val_masks)
-                    # alt_metrics.append(alt_metric)
 
-        # if loss_type == 'EdgyDice':            
-            # metric = np.mean(alt_metrics)
-        # else:
-            # print('normal dice metric')
-            # metric = dice_metric.aggregate().item()
-        
-        # modes= ['isles','atlas']
-        # if training_mode not in modes:      
-            # # metric_values.append(metric)
-            # metric_batch = dice_metric_batch.aggregate()
-            # metric_tc = metric_batch[0].item()
-            # # metric_values_tc.append(metric_tc)
-            # metric_wt = metric_batch[1].item()
-            # # metric_values_wt.append(metric_wt)
-            # metric_et = metric_batch[2].item()
-            # # metric_values_et.append(metric_et)
-        # dice_metric.reset()
-        # dice_metric_batch.reset()
-
-        # if metric > best_metric:
-            # # saved_models_count+=1
-            
-        
-            # best_metric = metric
-            # best_metric_epoch = epoch + 1
-            # # best_metrics_epochs_and_time[0].append(best_metric)
-            # # best_metrics_epochs_and_time[1].append(best_metric_epoch)
-            # # best_metrics_epochs_and_time[2].append(time.time() - total_start)
-            # state = {
-                        # 'epoch': epoch + 1,
-                        # 'state_dict': model.state_dict(),
-                        # 'optimizer': optimiser.state_dict(),
-                        # 'scaler': scaler.state_dict(),
-                        # 'scheduler': lr_scheduler.state_dict(),
-                    # }
-            # if training_mode=='CV_fold':   
-                # if checkpoint_snaps:
-                    # save_name=model_name+"CV"+str(fold_num)+'_j'+str(job_id)+'ep'+str(epoch+1)+'_ts'+str(temporal_split)
-                # else:
-                    # save_name=model_name+"CV"+str(fold_num)+'_j'+str(job_id)+'_ts'+str(temporal_split)
-                
-                # saved_model=os.path.join(save_dir,save_name)
-                # print(saved_model)
-                # torch.save(
-                    # state,
-                    # saved_model
-                # )
-            
-            # elif sheet_name is not None:  
-                
-                # save_name=sheet_name+'_'+str(load_save)+'_j'+str(job_id)
-                # if checkpoint_snaps:
-                    # save_name= save_name+'_e'+str(best_metric_epoch)
-                # saved_model=os.path.join(save_dir, save_name)
-                # torch.save(
-                    # state,
-                   # saved_model,
-                    # )
-                # print(f'A NEW MASTER Is BORN named "{save_name}" ')
-                    
-                    
-            # else:
-                # print('NO CV or expert training sheet name might be none',sheet_name)
-                # save_name=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)
-                # saved_model=os.path.join(save_dir, save_name)
-                # torch.save(state,saved_model)
-            
-            
-            # print("saved new best metric model")
-            # # last_model,previous_best_model=saved_model,last_model
-            # best_dice_score=metric
-            # # model_performance_dict[saved_model] = metric
-            # # patience_counter=0
-        
-        # if training_mode in modes:
-            # print(
-            # f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"            
-            # f"\nbest mean dice: {best_metric:.4f}"
-            # f" at epoch: {best_metric_epoch}"
-            # )
-        # else:
-            # print(
-                # f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
-                # f" tc: {metric_tc:.4f} wt: {metric_wt:.4f} et: {metric_et:.4f}"
-                # f"\nbest mean dice: {best_metric:.4f}"
-                # f" at epoch: {best_metric_epoch}"
-            # )
-    # return save_name,best_metric,best_metric_epoch,metric
     
 def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model,sheet_name=None,once=once,**kwargs):
     last_model=None
@@ -875,29 +741,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         best_metrics.add(best_metric)
                         
             
-            # if binsemble:
-                
-                # print('TRAINING BINSEMBLE \n \n \n \n \n')
-                # if patience_counter>freeze_patience:
-                    # models_to_average = [model_path for model_path, score in model_performance_dict.items() if abs(score - best_dice_score) <= 0.01]
-                    # if saved_models_count>last_saved_models_count:
-                        # if len(models_to_average) > 1:  # or any other threshold
-                            # averaged_weights = None
-                            # for model_path in models_to_average:
-                                # model_weights = torch.load(model_path)
-                                # if averaged_weights is None:
-                                    # averaged_weights = {name: torch.zeros_like(param) for name, param in model_weights.items()}
-                                # for name, param in model_weights.items():
-                                    # averaged_weights[name] += param
-                            # averaged_weights = {name: param/len(models_to_average) for name, param in averaged_weights.items()}
-                            # model.load_state_dict(averaged_weights)
-                            # print(f"Averaged weights of {len(models_to_average)} models.")
-                            # last_saved_models_count=saved_models_count
-                    # else:
-                        # print("Insufficient models to average. Consider saving initial models for averaging.")
-                # else:
-                    # patience_counter+=1
-            
+                  
                  
         print(f"time consumption of epoch {epoch + 1} is: {(time.time() - epoch_start):.4f}")
     
