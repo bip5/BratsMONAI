@@ -347,11 +347,11 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
         val_inputs = val_data["image"].to(device)
         val_masks = val_data["mask"].to(device)
         
-        val_data["pred"] = inference(val_inputs, model)
+        val_data["pred"] = val_data["mask"].clone().detach()#inference(val_inputs, model)
         
-        val_data = [post_trans(i) for i in decollate_batch(val_data)]
+        # val_data = [post_trans(i) for i in decollate_batch(val_data)]
         val_outputs, val_masks = from_engine(["pred", "mask"])(val_data)
-        val_outputs= val_data["mask"].clone().detach()
+        
         return val_outputs, val_masks
     
     model.eval()
