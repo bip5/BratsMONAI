@@ -157,20 +157,20 @@ elif mode_index==19:
     training_samples=200
 elif mode_index==20:
     
-    load_save = 0
-    load_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/2023-05-30_152343SegResNet'  
+    load_save = 1
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7949759/2024-09-20SegResNet_j7949759_ts0_LL'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
-    model_name = 'transformer'
-    batch_size=1
+    model_name = 'SegResNet'
+    batch_size=4
     training_mode = 'atlas'
     max_samples = 655
     
-    roi = (128,128,128)#(192,192,144)
+    roi = (192,192,144)#(128,128,128)#
     total_epochs = 300
     init_filter_number= 32
     in_channels = 1
     out_channels = 1
-    training_samples=20
+    training_samples=600
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
     

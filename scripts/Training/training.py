@@ -266,7 +266,28 @@ torch.manual_seed(seed)
 # model=DistributedDataParallel(module=model, device_ids=[device],find_unused_parameters=False)
 
     
+
+
+if training_mode =='isles':
+    weights = torch.tensor([1.0, 0.5, 0.25,0], requires_grad=True).to(device) # example weights
+    ds_wt=weights.detach().requires_grad_()
+    optimiser = torch.optim.AdamW([{'params': model.parameters()}, {'params': ds_wt}], lr, weight_decay=1e-5)  
+elif training_mode=='atlas':
+    optimiser = torch.optim.AdamW(model.parameters(), lr, weight_decay=1e-5)  
+else:    
+    optimiser =torch.optim.Adam(model.parameters(), lr, weight_decay=1e-5)
+
+scaler = torch.cuda.amp.GradScaler()
+print("Model defined and passed to GPU")
+# enable cuDNN benchmark
+torch.backends.cudnn.benchmark = True
+
+
+
+lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, T_0=T_max) #torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, mode='min', factor=0.5, patience=2, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=False)#torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, T_0=T_max) 
+start_epoch=0
 if load_save==1:
+    
     if training_mode=='CustomActivation':
         saved_state_dict = torch.load(load_path)
         new_state_dict = model.state_dict()
@@ -301,7 +322,10 @@ if load_save==1:
             model = model_loader_ind(model)
     
     else: 
-        model = model_loader(load_path,train=True)
+        try:
+            model,optimiser,scaler,lr_scheduler,start_epoch = model_loader(load_path,train=True)
+        except:
+            model = model_loader(load_path,train=True)
         
         print("loaded saved model ", load_path)
         if PRUNE_PERCENTAGE is not None:
@@ -321,26 +345,6 @@ else:
         model = ClusterBlend(model).to(device)
     elif training_mode=='PixelLayer':
         model = PixelLayer(model).to(device)
-
-if training_mode =='isles':
-    weights = torch.tensor([1.0, 0.5, 0.25,0], requires_grad=True).to(device) # example weights
-    ds_wt=weights.detach().requires_grad_()
-    optimiser = torch.optim.AdamW([{'params': model.parameters()}, {'params': ds_wt}], lr, weight_decay=1e-5)  
-elif training_mode=='atlas':
-    optimiser = torch.optim.AdamW(model.parameters(), lr, weight_decay=1e-5)  
-else:    
-    optimiser =torch.optim.Adam(model.parameters(), lr, weight_decay=1e-5)
-
-scaler = torch.cuda.amp.GradScaler()
-print("Model defined and passed to GPU")
-# enable cuDNN benchmark
-torch.backends.cudnn.benchmark = True
-
-
-
-lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, T_0=T_max) #torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, mode='min', factor=0.5, patience=2, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=False)#torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, T_0=T_max) 
-
-
     
 def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None, save_name=None, custom_inference=None):
     def default_inference(val_data):
@@ -624,7 +628,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     train_dice_scores = [] # 1- epoch loss
     val_scores = []
     
-    for epoch in range(total_epochs):
+    for epoch in range(start_epoch,total_epochs):
         indices = list(range(1000))
         np.random.shuffle(indices)
         if use_sampler:

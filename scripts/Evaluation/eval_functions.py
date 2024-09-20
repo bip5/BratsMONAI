@@ -75,6 +75,22 @@ def model_loader(modelweight_path,model_id=model_name,train=False,optimiser=None
     # Load the state dict from the file
     checkpoint = torch.load(modelweight_path)
     
+    def wrap_model(state_dict,model):
+        # Check if the state dict contains keys prefixed with 'module.'
+        # This indicates that the model was saved with DataParallel
+        is_dataparallel = any(key.startswith('module.') for key in state_dict.keys())
+
+        if is_dataparallel:
+            # Wrap the model with DataParallel before loading the state dict
+            model = torch.nn.DataParallel(model)
+            model.load_state_dict(state_dict, strict=True)
+        else:
+            # If there's no 'module.' prefix, load the state dict as is
+            # This also handles the case where the model needs to be wrapped but the saved model wasn't
+            # If necessary, you can modify this part to adjust the keys in state_dict
+            model.load_state_dict(state_dict, strict=True)
+        return model
+        
     if 'state_dict' in checkpoint:
         
         # Restore the model state_dict
@@ -93,24 +109,14 @@ def model_loader(modelweight_path,model_id=model_name,train=False,optimiser=None
             start_epoch = checkpoint['epoch']
 
             print(f"Model, optimizer, scaler, and scheduler states have been restored from epoch {start_epoch}")
-    else:
-        state_dict = checkpoint
-    
-    # Check if the state dict contains keys prefixed with 'module.'
-    # This indicates that the model was saved with DataParallel
-    is_dataparallel = any(key.startswith('module.') for key in state_dict.keys())
+            
+            model = wrap_model(state_dict, model)
+            
+            return model,optimiser,scaler,lr_scheduler,start_epoch
+    else:        
+        model = wrap_model(checkpoint,model)
 
-    if is_dataparallel:
-        # Wrap the model with DataParallel before loading the state dict
-        model = torch.nn.DataParallel(model)
-        model.load_state_dict(state_dict, strict=True)
-    else:
-        # If there's no 'module.' prefix, load the state dict as is
-        # This also handles the case where the model needs to be wrapped but the saved model wasn't
-        # If necessary, you can modify this part to adjust the keys in state_dict
-        model.load_state_dict(state_dict, strict=True)
-
-    return model#,optimiser,scaler,lr_scheduler,start_epoch
+    return model
     
 def model_loader_ind(modelweight_path,model,train=False,optimiser=None,scaler=None,lr_scheduler=None,start_epoch=None):
 
