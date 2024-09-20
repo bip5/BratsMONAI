@@ -323,6 +323,7 @@ if load_save==1:
     
     else: 
         try:
+            optimiser.zero_grad()
             model,optimiser,scaler,lr_scheduler,start_epoch = model_loader(load_path,train=True, optimiser=optimiser,scaler=scaler,lr_scheduler=lr_scheduler)
             print('LOADED STATE SUCCESSFULLY')
         except:
