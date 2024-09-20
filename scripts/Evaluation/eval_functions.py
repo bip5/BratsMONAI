@@ -96,6 +96,7 @@ def model_loader(modelweight_path,model_id=model_name,train=False,optimiser=None
         # Restore the model state_dict
         state_dict = checkpoint['state_dict']
         if train:
+            optimiser.zero_grad()
             # Restore the optimizer state_dict
             optimiser.load_state_dict(checkpoint['optimizer'])
 
