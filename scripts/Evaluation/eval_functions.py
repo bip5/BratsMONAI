@@ -99,7 +99,7 @@ def model_loader(modelweight_path,model_id=model_name,train=False,optimiser=None
            
             # Restore the optimizer state_dict
             optimiser.load_state_dict(checkpoint['optimizer'])
-
+            optimiser.zero_grad()
             # Restore the scaler state_dict (if you are using automatic mixed precision)
             scaler.load_state_dict(checkpoint['scaler'])
 
