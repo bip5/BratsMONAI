@@ -317,7 +317,7 @@ if load_save==1:
     else: 
         try:
             
-            model,optimiser,scaler,lr_scheduler,start_epoch,loss = model_loader(load_path,train=True,scaler=scaler,lr_scheduler=lr_scheduler)
+            model,optimiser,scaler,lr_scheduler,start_epoch = model_loader(load_path,train=True,scaler=scaler,lr_scheduler=lr_scheduler)
            
             print('LOADED STATE SUCCESSFULLY')
         except:
