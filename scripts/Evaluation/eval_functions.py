@@ -67,7 +67,7 @@ def inference(input,model):
         return _compute(input,model)
         
 
-def model_loader(modelweight_path,model_id=model_name,scaler,train=False,lr_scheduler=None,start_epoch=None):
+def model_loader(modelweight_path,scaler,model_id=model_name,train=False,lr_scheduler=None,start_epoch=None):
 
     from Training.network import create_model #should hopefully solve the issue
     # Create the model instance
