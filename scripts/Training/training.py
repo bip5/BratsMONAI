@@ -76,7 +76,7 @@ from Evaluation.eval_functions import model_loader, model_loader_ind
 from Evaluation.evaluation import (
 inference,
 )
-from training.optimiser import get_optimiser
+from Training.optimiser import get_optimiser
 
 from Evaluation.evaluation import (
 dice_metric,
