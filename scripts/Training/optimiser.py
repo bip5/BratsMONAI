@@ -7,6 +7,7 @@ from network import model
 from Input.config import lr,training_mode
 
 optimiser = torch.optim.Adam(model.parameters(), lr, weight_decay=1e-5)
+device = torch.device('cuda:0')
 
 def get_optimiser(model):
     if training_mode =='isles':
