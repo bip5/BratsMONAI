@@ -75,9 +75,9 @@ from Training.pixelLayer import PixelLayer
 from Evaluation.eval_functions import model_loader, model_loader_ind
 from Evaluation.evaluation import (
 inference,
-
-from training.optimiser import get_optimiser
 )
+from training.optimiser import get_optimiser
+
 from Evaluation.evaluation import (
 dice_metric,
 dice_metric_batch,
@@ -317,7 +317,7 @@ if load_save==1:
     else: 
         try:
             
-            model,optimiser,scaler,lr_scheduler,start_epoch,loss = model_loader(load_path,train=True, optimiser=optimiser,scaler=scaler,lr_scheduler=lr_scheduler)
+            model,optimiser,scaler,lr_scheduler,start_epoch,loss = model_loader(load_path,train=True,scaler=scaler,lr_scheduler=lr_scheduler)
            
             print('LOADED STATE SUCCESSFULLY')
         except:
