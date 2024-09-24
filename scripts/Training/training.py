@@ -512,7 +512,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         epoch_start = time.time()
         print("-" * 10)
         print(f"epoch {epoch + 1}/{total_epochs}")
-        model.train()
+        
         epoch_loss = 0
         step = 0
         
@@ -590,7 +590,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         
         
         
-        
+        model.train()
         for ix ,batch_data in enumerate(train_loader): 
             # if ix==13:
                 # print('next epoch please')

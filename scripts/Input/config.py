@@ -146,12 +146,13 @@ elif mode_index==19:
     load_save = 0
     load_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/2023-05-30_152343SegResNet'  
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
-    model_name = 'SegResNet'
+    model_name = 'SegResNetDS'
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
     total_epochs = 1000
     init_filter_number= 32
+    batch_size=2
     in_channels = 2
     out_channels = 1
     training_samples=200
