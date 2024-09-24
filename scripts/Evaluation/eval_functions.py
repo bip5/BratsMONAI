@@ -96,10 +96,10 @@ def model_loader(modelweight_path,model_id=model_name,train=False,optimiser=None
         # Restore the model state_dict
         state_dict = checkpoint['state_dict']
         if train:
-           
+            model = wrap_model(state_dict, model)
             # Restore the optimizer state_dict
             optimiser.load_state_dict(checkpoint['optimizer'])
-            optimiser.zero_grad()
+
             # Restore the scaler state_dict (if you are using automatic mixed precision)
             scaler.load_state_dict(checkpoint['scaler'])
 
@@ -108,10 +108,11 @@ def model_loader(modelweight_path,model_id=model_name,train=False,optimiser=None
 
             # Optionally, restore the epoch
             start_epoch = checkpoint['epoch']
+            # loss = checkpoint['loss']
 
             print(f"Model, optimizer, scaler, and scheduler states have been restored from epoch {start_epoch}")
             
-            model = wrap_model(state_dict, model)
+            
             
             return model,optimiser,scaler,lr_scheduler,start_epoch
     else:        
