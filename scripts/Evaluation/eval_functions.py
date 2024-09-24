@@ -21,6 +21,7 @@ import copy
 from datetime import datetime
 import cv2
 from Training.dropout import dropout_network
+from Training.optimiser import get_optimiser
 from monai.transforms import CenterSpatialCrop,SpatialPad,CropForeground,ScaleIntensity,AdjustContrast,Identity
 from BraTS2023Metrics.metrics import get_LesionWiseResults as lesion_wise
 import nibabel as nib
@@ -66,7 +67,7 @@ def inference(input,model):
         return _compute(input,model)
         
 
-def model_loader(modelweight_path,model_id=model_name,train=False,optimiser=None,scaler=None,lr_scheduler=None,start_epoch=None):
+def model_loader(modelweight_path,model_id=model_name,train=False,scaler=None,lr_scheduler=None,start_epoch=None):
 
     from Training.network import create_model #should hopefully solve the issue
     # Create the model instance
@@ -97,6 +98,8 @@ def model_loader(modelweight_path,model_id=model_name,train=False,optimiser=None
         state_dict = checkpoint['state_dict']
         if train:
             model = wrap_model(state_dict, model)
+            
+            optimiser=get_optimiser(model)
             # Restore the optimizer state_dict
             optimiser.load_state_dict(checkpoint['optimizer'])
 

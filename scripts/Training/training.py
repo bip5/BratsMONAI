@@ -76,6 +76,7 @@ from Evaluation.eval_functions import model_loader, model_loader_ind
 from Evaluation.evaluation import (
 inference,
 
+from training.optimiser import get_optimiser
 )
 from Evaluation.evaluation import (
 dice_metric,
@@ -267,15 +268,7 @@ torch.manual_seed(seed)
 
     
 
-
-if training_mode =='isles':
-    weights = torch.tensor([1.0, 0.5, 0.25,0], requires_grad=True).to(device) # example weights
-    ds_wt=weights.detach().requires_grad_()
-    optimiser = torch.optim.AdamW([{'params': model.parameters()}, {'params': ds_wt}], lr, weight_decay=1e-5)  
-elif training_mode=='atlas':
-    optimiser = torch.optim.AdamW(model.parameters(), lr, weight_decay=1e-5)  
-else:    
-    optimiser =torch.optim.Adam(model.parameters(), lr, weight_decay=1e-5)
+optimiser = get_optimiser(model)
 
 scaler = torch.cuda.amp.GradScaler()
 print("Model defined and passed to GPU")
