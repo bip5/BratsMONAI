@@ -156,7 +156,7 @@ elif mode_index==19:
     in_channels = 2
     out_channels = 1
     training_samples=200
-    lr = 0.0001
+    lr = 0.0002
 elif mode_index==20:
     
     load_save = 1
