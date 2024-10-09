@@ -155,7 +155,7 @@ elif mode_index==19:
     batch_size=2
     in_channels = 2
     out_channels = 1
-    training_samples=200
+    training_samples=230
     lr = 0.0002
 elif mode_index==20:
     
