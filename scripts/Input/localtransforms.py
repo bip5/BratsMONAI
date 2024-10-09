@@ -363,10 +363,10 @@ train_transform_isles = Compose(
         RandFlipd(["image", "mask"], prob=0.5, spatial_axis=0),
         RandFlipd(["image", "mask"], prob=0.5, spatial_axis=1),
         RandFlipd(["image", "mask"], prob=0.5, spatial_axis=2),
-        RandGaussianNoised("image", prob=0.15, std=0.05),
+        RandGaussianNoised("image", prob=0.5, std=0.05),
         RandGaussianSmoothd(
         "image",
-        prob=0.15,
+        prob=0.5,
         sigma_x=(0.9, 1.1),
         sigma_y=(0.9, 1.1),
         sigma_z=(0.9, 1.1),
