@@ -158,6 +158,7 @@ elif mode_index==19:
     training_samples=230
     lr = 0.0002
     activation = 'RELU'
+    loss_type = 'DiceFocal'
 elif mode_index==20:
     
     load_save = 1
