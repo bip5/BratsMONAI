@@ -73,9 +73,7 @@ from Training.running_log import log_run_details
 from Training.clusterBlend import ClusterBlend
 from Training.pixelLayer import PixelLayer
 from Evaluation.eval_functions import model_loader, model_loader_ind
-from Evaluation.evaluation import (
-inference,
-)
+
 from Training.optimiser import get_optimiser
 
 from Evaluation.evaluation import (
