@@ -159,6 +159,7 @@ elif mode_index==19:
     lr = 0.0002
     activation = 'RELU'
     loss_type = 'DiceFocal'
+    seed = 7
 elif mode_index==20:
     
     load_save = 1
