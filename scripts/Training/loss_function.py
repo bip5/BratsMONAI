@@ -100,7 +100,7 @@ elif loss_type == 'EdgyDice':
     loss_function = edgy_dice_loss
 elif loss_type == 'InvDice': 
     loss_function = inv_dice_loss
-elif loss_type='DiceFocal':
+elif loss_type=='DiceFocal':
     loss_function = DiceFocalLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=False, to_onehot_y=False, sigmoid=False)
 else:
     loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=False, to_onehot_y=False, sigmoid=False)
