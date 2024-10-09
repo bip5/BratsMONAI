@@ -58,7 +58,7 @@ training_samples=1000
 
 
 
-mode_index = 20
+mode_index = 19
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
@@ -159,7 +159,7 @@ elif mode_index==19:
     lr = 0.0002
     activation = 'RELU'
     loss_type = 'DiceFocal'
-    seed = 7
+    seed = 8
 elif mode_index==20:
     
     load_save = 1
