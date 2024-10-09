@@ -176,6 +176,7 @@ elif mode_index==20:
     in_channels = 1
     out_channels = 1
     training_samples=600
+    seed = 8
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
     
