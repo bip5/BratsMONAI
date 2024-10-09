@@ -157,6 +157,7 @@ elif mode_index==19:
     out_channels = 1
     training_samples=230
     lr = 0.0002
+    activation = 'PRELU'
 elif mode_index==20:
     
     load_save = 1
