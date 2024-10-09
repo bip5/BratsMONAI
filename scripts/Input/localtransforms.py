@@ -353,7 +353,7 @@ train_transform_isles = Compose(
         ),            
         RandAffined(
         ["image", "mask"],
-        prob = 0.15,
+        prob = 0.5,
         spatial_size=(192,192,128), #instead of 64,64,64
         rotate_range=[30 * np.pi / 180] * 3, 
         scale_range=[0.3] * 3,
