@@ -160,7 +160,7 @@ elif mode_index==19:
     activation = 'RELU'
     loss_type = 'DiceFocal'
     seed = 8
-elif mode_index == 20:
+elif mode_index== 20:
     
     load_save = 0
     load_path = '/scratch/a.bip5/BraTS/weights/job_7949759/2024-09-20SegResNet_j7949759_ts0_LL'  
@@ -176,7 +176,7 @@ elif mode_index == 20:
     in_channels = 1
     out_channels = 1
     training_samples=600
-    seed = 1
+    seed = 11
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
     
