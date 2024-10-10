@@ -349,12 +349,12 @@ train_transform_isles = Compose(
         OrientationD(keys=["image", "mask"],axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
         RandSpatialCropd(
-        ["image", "mask"], roi_size=(192,192,128), random_size=False
+        ["image", "mask"], roi_size = roi, random_size=False
         ),            
         RandAffined(
         ["image", "mask"],
         prob = 0.5,
-        spatial_size=(192,192,128), #instead of 64,64,64
+        spatial_size= roi, #instead of 64,64,64
         rotate_range=[30 * np.pi / 180] * 3, 
         scale_range=[0.3] * 3,
         mode=("bilinear", "bilinear"),            
