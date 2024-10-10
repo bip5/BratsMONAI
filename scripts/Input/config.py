@@ -169,7 +169,7 @@ elif mode_index==20:
     batch_size=4
     training_mode = 'atlas'
     max_samples = 655
-    loss_type = 'dice'#'DiceFocal'
+    loss_type = 'DiceFocal'#'dice'#
     roi = (192,192,144)#(128,128,128)#
     total_epochs = 100
     init_filter_number= 32
