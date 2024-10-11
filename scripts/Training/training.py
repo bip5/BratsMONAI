@@ -112,6 +112,7 @@ import gc
 from BraTS2023Metrics.metrics import get_LesionWiseResults as lesion_wise
 from BraTS2023Metrics.metrics import LesionWiseDice
 import matplotlib.pyplot as plt
+from pathlib import Path
 # import psutil
 # import threading
 
@@ -137,7 +138,11 @@ config_dict=dict()
 job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
 config_dict['job_id']=job_id
 
-config_path = '../Input/config.py'
+current_file = Path(__file__).resolve() # This gets the root path two directories up
+
+# Join with new path
+config_path = current_file.parents[1] / 'Input' / 'config.py'
+
 with open(config_path, 'r') as config_file:
     script_content = config_file.read()
 print("\n\n------ Config Content ------\n")
