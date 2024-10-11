@@ -392,9 +392,9 @@ val_transform_atlas = Compose(
         ),
         OrientationD(keys=["image", "mask"],axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
-        # RandSpatialCropd(
-        # ["image", "mask"], roi_size=(192,192,128), random_size=False
-        # ),
+        RandSpatialCropd(
+        ["image", "mask"], roi_size=(192,192,128), random_size=False
+        ),
         EnsureTyped(keys=["image", "mask"]),
     ]
 )
