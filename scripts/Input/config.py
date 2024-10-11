@@ -175,6 +175,7 @@ elif mode_index==20:
     init_filter_number= 32
     in_channels = 1
     out_channels = 1
+    inf_overlap = 0.8
     training_samples=600
     seed = 111
 else: 
