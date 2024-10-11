@@ -165,7 +165,7 @@ elif mode_index==20:
     load_save = 0
     load_path = '/scratch/a.bip5/BraTS/weights/job_7949759/2024-09-20SegResNet_j7949759_ts0_LL'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
-    model_name = 'SegResNet'
+    model_name = 'SegResNetDS'
     batch_size=4
     training_mode = 'atlas'
     max_samples = 655
