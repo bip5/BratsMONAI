@@ -353,28 +353,28 @@ train_transform_isles = Compose(
         ),            
         RandAffined(
         ["image", "mask"],
-        prob = 0.2,
+        prob = 0.1,
         spatial_size= roi, #instead of 64,64,64
         rotate_range=[30 * np.pi / 180] * 3, 
         scale_range=[0.3] * 3,
         mode=("bilinear", "bilinear"),            
         ),                      
         RandRotateD(keys=["image","mask"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.5),  
-        RandFlipd(["image", "mask"], prob=0.2, spatial_axis=0),
-        RandFlipd(["image", "mask"], prob=0.2, spatial_axis=1),
-        RandFlipd(["image", "mask"], prob=0.2, spatial_axis=2),
-        RandGaussianNoised("image", prob=0.2, std=0.05),
+        RandFlipd(["image", "mask"], prob=0.1, spatial_axis=0),
+        RandFlipd(["image", "mask"], prob=0.1, spatial_axis=1),
+        RandFlipd(["image", "mask"], prob=0.1, spatial_axis=2),
+        RandGaussianNoised("image", prob=0.1, std=0.05),
         RandGaussianSmoothd(
         "image",
-        prob=0.2,
+        prob=0.1,
         sigma_x=(0.9, 1.1),
         sigma_y=(0.9, 1.1),
         sigma_z=(0.9, 1.1),
         ),       
         
         
-        RandScaleIntensityd(keys="image", factors=0.3, prob=0.15),
-        RandShiftIntensityd(keys="image", offsets=0.1, prob=0.15),
+        RandScaleIntensityd(keys="image", factors=0.3, prob=0.1),
+        RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),
         AsDiscreted("mask", threshold=0.5),
         EnsureTyped(keys=["image", "mask"]),
     ]

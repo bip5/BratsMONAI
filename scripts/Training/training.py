@@ -139,10 +139,10 @@ config_dict['job_id']=job_id
 
 config_path = '../Input/config.py'
 with open(config_path, 'r') as config_file:
-               script_content = config_file.read()
-    print("\n\n------ Config Content ------\n")
-    print(script_content)
-    print("\n---------------------------\n")
+    script_content = config_file.read()
+print("\n\n------ Config Content ------\n")
+print(script_content)
+print("\n---------------------------\n")
 
 os.environ['PYTHONHASHSEED']=str(seed)
 torch.backends.cudnn.deterministic = True
