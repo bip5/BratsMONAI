@@ -677,3 +677,31 @@ post_trans_test = Compose(
     ]
 )
 
+class DynamicProbabilityTransform:
+    def __init__(self, transform, base_prob=0.1):
+        self.transform = transform
+        self.base_prob = base_prob
+        self.current_prob = base_prob
+
+    def set_probability(self, epoch, max_epochs):
+        # Example linear scaling of probability
+        self.current_prob = self.base_prob + ((1.0 - self.base_prob) * (epoch / max_epochs))
+
+    def __call__(self, x):
+        if random.random() < self.current_prob:
+            return self.transform(x)
+        return x
+
+# Ad-hoc transform update in the training loop
+def update_transforms_for_epoch(x_transform, epoch, max_epochs):
+    transform_list = []
+    
+    for transform in x_transform:
+        dynamic_transform = DynamicProbabilityTransform(transform, base_prob=0.1)
+        dynamic_transform.set_probability(epoch, max_epochs)  # Adjust probability based on epoch
+        transform_list.append(dynamic_transform)
+    
+    # Rebuild the compose transform pipeline with updated probabilities
+    x_transform = transforms.Compose(transform_list)
+    
+    return x_transform

@@ -16,7 +16,8 @@ val_transform_PA,
 val_transform_Flipper,
 post_trans,
 train_transform_atlas,
-val_transform_atlas
+val_transform_atlas,
+update_transforms_for_epoch,
 )
 
 from Training.prun import prune_network
@@ -135,12 +136,13 @@ namespace = locals().copy()
 config_dict=dict()
 job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
 config_dict['job_id']=job_id
-for name, value in sorted(namespace.items()):
-    if not name.startswith("__"):
-        if type(value) in [str,int,float,bool]:
-            print(f"{name}: {value}")
-            config_dict[f"{name}"]=value
-        
+
+config_path = '../Input/config.py'
+with open(config_path, 'r') as config_file:
+               script_content = config_file.read()
+    print("\n\n------ Config Content ------\n")
+    print(script_content)
+    print("\n---------------------------\n")
 
 os.environ['PYTHONHASHSEED']=str(seed)
 torch.backends.cudnn.deterministic = True
@@ -793,6 +795,7 @@ if __name__=="__main__":
         train_dataset = Subset(full_train, train_indices)
         val_dataset = Subset(full_val, val_indices)
         trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
+        
     elif training_mode=='ClusterBlend': 
        
         full_dataset_train = ClusterAugment(root_dir, transform=train_transform_CA)
