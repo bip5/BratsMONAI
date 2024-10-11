@@ -788,7 +788,7 @@ if __name__=="__main__":
         val_dataset = Subset(full_dataset_val, val_indices)
         trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
     elif training_mode=='isles':  
-        full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform=val_transform_atlas ) 
+        full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles ) 
         full_val = IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform=val_transform_isles )
         train_dataset = Subset(full_train, train_indices)
         val_dataset = Subset(full_val, val_indices)
