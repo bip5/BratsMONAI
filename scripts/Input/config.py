@@ -143,8 +143,8 @@ elif mode_index==18:
     model_name='PixelLayer'
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
-    load_save = 0
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7951821/2024-09-25SegResNetDS_j7951821_ts0_LL'  
+    load_save = 1
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7951821/2024-10-11SegResNetDS_j7951821_ts0_LL'  
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
     training_mode = 'isles'
