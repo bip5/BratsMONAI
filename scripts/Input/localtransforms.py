@@ -705,6 +705,6 @@ def update_transforms_for_epoch(x_transform, epoch, max_epochs):
             transform_list.append(dynamic_transform)
     
     # Rebuild the compose transform pipeline with updated probabilities
-    x_transform = transforms.Compose(transform_list)
+    x_transform = Compose(transform_list)
     
     return x_transform
