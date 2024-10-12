@@ -364,7 +364,7 @@ isles_list=[
         RandFlipd(["image", "mask"], prob=0.3, spatial_axis=0),
         RandFlipd(["image", "mask"], prob=0.3, spatial_axis=1),
         RandFlipd(["image", "mask"], prob=0.3, spatial_axis=2),
-        RandGaussianNoised("image", prob=1, std=0.5),
+        RandGaussianNoised("image", prob=1, std=1),
         RandGaussianSmoothd(
         "image",
         prob=0.3,
@@ -685,7 +685,7 @@ class DynamicProbabilityTransform:
 
     def set_probability(self, epoch, max_epochs):
         # Example linear scaling of probability
-        self.current_prob = self.base_prob + ((1.0 - self.base_prob) * (epoch / max_epochs))
+        self.current_prob = self.base_prob + ((1.0 - self.base_prob) #* (epoch / max_epochs))
 
     def __call__(self, x):
         if random.random() < self.current_prob:
