@@ -500,7 +500,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     
         if training_mode=='isles':
            train_dataset.transform = update_transforms_for_epoch(isles_list,epoch,total_epochs)
-            
+           train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
         indices = list(range(1000))
         np.random.shuffle(indices)
         if use_sampler:
