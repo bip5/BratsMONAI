@@ -333,8 +333,7 @@ train_transform_CA = Compose(
     ]
 )
 
-train_transform_isles = Compose(
-    [
+isles_list=[
         LoadImaged(keys=["image", "mask"]),
         EnsureChannelFirstD(keys=["image","mask"]),
         # AddChannelD(keys="mask"),
@@ -377,6 +376,8 @@ train_transform_isles = Compose(
         RandShiftIntensityd(keys="image", offsets=0.1, prob=0.3),
        
     ]
+train_transform_isles = Compose(
+    isles_list
 )
 
 val_transform_atlas = Compose(

@@ -18,6 +18,7 @@ post_trans,
 train_transform_atlas,
 val_transform_atlas,
 update_transforms_for_epoch,
+isles_list
 )
 
 from Training.prun import prune_network
@@ -498,7 +499,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     for epoch in range(start_epoch,total_epochs):
     
         if training_mode=='isles':
-           train_dataset.transform = update_transforms_for_epoch(train_transform_isles,epoch,total_epochs)
+           train_dataset.transform = update_transforms_for_epoch(isles_list,epoch,total_epochs)
             
         indices = list(range(1000))
         np.random.shuffle(indices)
