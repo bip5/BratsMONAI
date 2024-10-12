@@ -65,7 +65,8 @@ no_val,
 checkpoint_snaps,
 load_base,
 base_path,
-in_channels
+in_channels,
+incremental_transform,
 )
 
 from Training.loss_function import loss_function,edgy_dice_loss
@@ -495,6 +496,10 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     val_scores = []
     
     for epoch in range(start_epoch,total_epochs):
+    
+        if training_mode=='isles':
+           train_dataset.transform = update_transforms_for_epoch(train_transform_isles,epoch,max_epochs)
+            
         indices = list(range(1000))
         np.random.shuffle(indices)
         if use_sampler:

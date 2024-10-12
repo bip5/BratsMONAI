@@ -40,6 +40,7 @@ xval=False
 checkpoint_snaps=False
 load_base = False # here to avoid import errors
 base_path = None # here to avoid import errors
+incremental_transform = True
 activation= 'RELU'# 'hardswish' #  # here to avoid import errors
 in_channels=4
 out_channels=3
