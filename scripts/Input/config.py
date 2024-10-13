@@ -156,7 +156,7 @@ elif mode_index==19:
     batch_size=2
     in_channels = 2
     out_channels = 1
-    training_samples=230
+    training_samples=50
     lr = 0.0002
     activation = 'RELU'
     loss_type = 'DiceFocal'
