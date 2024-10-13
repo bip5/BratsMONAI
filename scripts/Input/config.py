@@ -153,7 +153,7 @@ elif mode_index==19:
     roi = (192,192,128)
     total_epochs = 100
     init_filter_number= 32
-    batch_size=2
+    batch_size=1
     in_channels = 2
     out_channels = 1
     training_samples=20
