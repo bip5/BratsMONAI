@@ -365,7 +365,7 @@ isles_list=[
         RandFlipd(["image", "mask"], prob=0.3, spatial_axis=0),
         RandFlipd(["image", "mask"], prob=0.3, spatial_axis=1),
         RandFlipd(["image", "mask"], prob=0.3, spatial_axis=2),
-        RandGaussianNoised("image", prob=1, std=1),
+        RandGaussianNoised("image", prob=0.3, std=0.1),
         RandGaussianSmoothd(
         "image",
         prob=0.3,
