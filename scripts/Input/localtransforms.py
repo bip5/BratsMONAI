@@ -32,6 +32,7 @@ from monai.transforms import (EnsureChannelFirstD, ToMetaTensorD,\
     EnsureType,
     KeepLargestConnectedComponentd
 )
+import random
 from Input.config import roi
 import torch
 import numpy as np
@@ -700,7 +701,7 @@ def update_transforms_for_epoch(x_transform, epoch, max_epochs):
         if i<9:
              transform_list.append(transform)
         else:
-            dynamic_transform = DynamicProbabilityTransform(transform, base_prob=0.1)
+            dynamic_transform = DynamicProbabilityTransform(transform, base_prob=0.0)
             dynamic_transform.set_probability(epoch, max_epochs)  # Adjust probability based on epoch
             transform_list.append(dynamic_transform)
     
