@@ -501,7 +501,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         if training_mode=='isles':
            print('ISLES MODE CONFIRMED')
            full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
-            train_dataset = Subset(full_train, train_indices)   
+           train_dataset = Subset(full_train, train_indices)   
            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
         indices = list(range(1000))
         np.random.shuffle(indices)
