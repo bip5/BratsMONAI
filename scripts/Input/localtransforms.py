@@ -689,6 +689,7 @@ class DynamicProbabilityTransform:
         self.current_prob = self.base_prob + ((1.0 - self.base_prob) )#* (epoch / max_epochs))
 
     def __call__(self, x):
+        print('called')
         if random.random() < self.current_prob:
             return self.transform(x)
         return x
@@ -707,5 +708,5 @@ def update_transforms_for_epoch(x_transform, epoch, max_epochs):
     
     # Rebuild the compose transform pipeline with updated probabilities
     x_transform = Compose(transform_list)
-    
+    print('new transform')
     return x_transform
