@@ -28,13 +28,15 @@ import torch
 import gzip
 from glob import glob
 
+np.random.seed(seed)
+
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
     '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP', '.tiff', '.npy', '.gz'
 ]
 
 
-np.random.seed(seed)
+
 
 
 
