@@ -686,12 +686,10 @@ class DynamicProbabilityTransform:
 
     def set_probability(self, epoch, max_epochs):
         # Example linear scaling of probability
-        self.current_prob = self.base_prob + ((1.0 - self.base_prob) )#* (epoch / max_epochs))
+        self.current_prob = self.base_prob + ((1.0 - self.base_prob) * (epoch / max_epochs))
 
     def __call__(self, x):  
         rn= random.random()
-        assert rn<1.1
-        print(self.current_prob)
         if rn < self.current_prob:
             return self.transform(x)
         return x
