@@ -497,11 +497,11 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     best_met_old=0
     train_dice_scores = [] # 1- epoch loss
     val_scores = []
-    
+    new_samples= len(train_indices)
     for epoch in range(start_epoch,total_epochs):
     
         if training_mode=='isles':
-        
+            print_ids=0
            if epoch==best_metric_epoch:
                print('AUGMENTATION UPDATE')
                train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
@@ -509,15 +509,17 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
                train_dataset = Subset(full_train, train_indices)   
                train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
-           elif (epoch-best_metric_epoch)%5==0:
+           elif (epoch-best_metric_epoch)%10==0:
                 if training_samples<230:
-                    new_samples = len(train_indices)+10
+                    
+                    new_samples = new_samples+10
                     new_indices=indexes[:new_samples]
                     print(new_indices)
                     full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
                     train_dataset = Subset(full_train, new_indices)   
                     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers ) 
                     print('INTRODUCED NEW SAMPLES')
+                    print_ids=1
                     
                 
         indices = list(range(1000))
@@ -619,6 +621,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 # print('next epoch please')
                 # break
             # print(ix, 'just printing to see what up')
+            if print_ids:
+                print(batch_data['id'])
             if epoch==0:
                 if 'map_dict' in kwargs:
                     map_dict=kwargs['map_dict']
