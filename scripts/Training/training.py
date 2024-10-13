@@ -510,8 +510,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
            if (epoch-best_metric_epoch)%10==0:
                 if training_samples<230:
-                    training_samples = len(train_indices)+10
-                    new_indices=indexes[:training_samples]
+                    new_samples = len(train_indices)+10
+                    new_indices=indexes[:new_samples]
                     full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
                     train_dataset = Subset(full_train, new_indices)   
                     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers ) 
