@@ -499,7 +499,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     for epoch in range(start_epoch,total_epochs):
     
         if training_mode=='isles':
-           if epoch>19:
+           if (epoch+1)%10==0:
                print('ISLES MODE CONFIRMED')
                train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
 
