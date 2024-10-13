@@ -501,7 +501,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         if training_mode=='isles':
            print('ISLES MODE CONFIRMED')
            train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
-           train_transform_isles=
+
            full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
            train_dataset = Subset(full_train, train_indices)   
            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
