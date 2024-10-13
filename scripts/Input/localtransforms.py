@@ -690,7 +690,8 @@ class DynamicProbabilityTransform:
 
     def __call__(self, x):  
         rn= random.random()
-        print(rn)
+        assert rn<1.1
+        print(self.current_prob)
         if rn < self.current_prob:
             return self.transform(x)
         return x
