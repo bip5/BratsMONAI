@@ -500,7 +500,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     
         if training_mode=='isles':
            print(epoch,best_metric_epoch)
-           if epoch==best_metric_epoch:
+           if (epoch+1)%10==0: #best_metric_epoch:
                print('AUGMENTATION UPDATE')
                train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
 
