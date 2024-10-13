@@ -172,7 +172,7 @@ elif mode_index==20:
     max_samples = 655
     loss_type = 'DiceFocal'#'dice'#
     roi = (192,192,144)#(128,128,128)#
-    total_epochs = 100
+    total_epochs = 1000
     init_filter_number= 32
     in_channels = 1
     out_channels = 1
