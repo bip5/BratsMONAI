@@ -68,6 +68,7 @@ load_base,
 base_path,
 in_channels,
 incremental_transform,
+training_samples
 )
 
 from Training.loss_function import loss_function,edgy_dice_loss
@@ -515,6 +516,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
                     train_dataset = Subset(full_train, new_indices)   
                     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers ) 
+                    print('INTRODUCED NEW SAMPLES')
                     
                 
         indices = list(range(1000))
