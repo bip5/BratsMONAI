@@ -151,7 +151,7 @@ elif mode_index==19:
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 100
+    total_epochs = 1000
     init_filter_number= 32
     batch_size=1
     in_channels = 2
