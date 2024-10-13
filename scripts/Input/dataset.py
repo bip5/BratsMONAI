@@ -531,7 +531,7 @@ class IslesDataset(Dataset):
         item_dict={"image":image,"mask":mask}            
         if self.transform:
             item_dict={"image":image,"mask": mask}
-            item_dict['id'] = mask[14:27]
+            item_dict['id'] = mask.split('/')[-1]
             item_dict=self.transform(item_dict)               
             
         return item_dict    

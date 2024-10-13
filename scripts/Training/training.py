@@ -510,7 +510,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                train_dataset = Subset(full_train, train_indices)   
                train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
            elif (epoch-best_metric_epoch)%10==0:
-                if training_samples<230:
+                if new_samples<230:
                     
                     new_samples = new_samples+10
                     new_indices=indexes[:new_samples]
