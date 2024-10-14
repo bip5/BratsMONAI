@@ -59,7 +59,7 @@ training_samples=1000
 
 
 
-mode_index = 19
+mode_index = 20
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
@@ -181,6 +181,7 @@ elif mode_index==20:
     inf_overlap = 0.7
     training_samples=10
     seed = 111
+    incremental_transform=True
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
     
