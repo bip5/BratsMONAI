@@ -499,10 +499,10 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     val_scores = []
     new_samples= len(train_indices)
     for epoch in range(start_epoch,total_epochs):
-    
+        print_ids=0
         if incremental_transform:
             if training_mode=='isles':
-               print_ids=0
+               
                if epoch==best_metric_epoch:
                    print('AUGMENTATION UPDATE')
                    train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
