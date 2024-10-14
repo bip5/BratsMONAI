@@ -354,8 +354,8 @@ isles_list = [
     EnsureTyped(keys=["image", "mask"]),
     RandAffined(
         keys=["image", "mask"],
-        prob=0.5,
-        rotate_range=(np.pi/6, np.pi/6, np.pi/6),
+        prob=0.3,
+        rotate_range=(np.pi/12, np.pi/12, np.pi/12),
         scale_range=(0.1, 0.1, 0.1),
         mode=("bilinear", "nearest"),
         padding_mode="border",
