@@ -156,7 +156,7 @@ elif mode_index==19:
     batch_size=1
     in_channels = 2
     out_channels = 1
-    training_samples=10
+    training_samples=230
     inf_overlap = 0.7
     lr = 0.0002
     activation = 'RELU'
@@ -174,12 +174,12 @@ elif mode_index==20:
     max_samples = 655
     loss_type = 'DiceFocal'#'dice'#
     roi = (192,192,144)#(128,128,128)#
-    total_epochs = 1000
+    total_epochs = 300
     init_filter_number= 32
     in_channels = 1
     out_channels = 1
     inf_overlap = 0.7
-    training_samples=600
+    training_samples=10
     seed = 111
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')

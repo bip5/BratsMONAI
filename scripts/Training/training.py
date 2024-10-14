@@ -521,6 +521,26 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers ) 
                         print('INTRODUCED NEW SAMPLES')
                         print_ids=1
+                        
+            if training_mode=='atlas':
+               if epoch==best_metric_epoch:
+                   print('AUGMENTATION UPDATE')
+                   train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
+
+                   full_train=AtlasDataset(root_dir ,transform= train_transform_isles )
+                   train_dataset = Subset(full_train, train_indices)   
+                   train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
+               elif (epoch-best_metric_epoch)%5==0:
+                    if new_samples<600:
+                        
+                        new_samples = new_samples+10
+                        new_indices=indexes[:new_samples]
+                        print(new_indices)
+                        full_train=AtlasDataset(root_dir ,transform= train_transform_isles )
+                        train_dataset = Subset(full_train, new_indices)   
+                        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers ) 
+                        print('INTRODUCED NEW SAMPLES')
+                        print_ids=1
                     
                 
         indices = list(range(1000))
@@ -824,9 +844,9 @@ if __name__=="__main__":
         val_dataset = Subset(full_dataset_val, val_indices)
         trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
     elif training_mode=='isles':  
-        full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
+        full_train=IslesDataset(root_dir ,transform= train_transform_isles )
         train_dataset = Subset(full_train, train_indices)        
-        full_val = IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform=val_transform_isles )
+        full_val = IslesDataset(root_dir ,transform=val_transform_isles )
         
         val_dataset = Subset(full_val, val_indices)
         trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
