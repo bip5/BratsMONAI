@@ -358,8 +358,7 @@ class AtlasDataset(Dataset):
             item_dict={"image":image,"mask": mask}
             
             item_dict=self.transform(item_dict)
-            item_dict['id'] = mask[4:18]
-            
+            item_dict['id'] = mask.split('/')[-1]         
             if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
                 raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
 

@@ -179,9 +179,9 @@ elif mode_index==20:
     in_channels = 1
     out_channels = 1
     inf_overlap = 0.7
-    training_samples=600
+    training_samples=10
     seed = 111
-    incremental_transform=False
+    incremental_transform=True
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
     
