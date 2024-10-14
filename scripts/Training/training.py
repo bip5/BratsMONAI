@@ -515,9 +515,9 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         print_ids=1
                     else:
                         print('AUGMENTATION UPDATE')
-                        train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
+                        updated_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
 
-                        full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
+                        full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
                         train_dataset = Subset(full_train, train_indices)   
                         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
                    
@@ -546,9 +546,9 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         print_ids=1
                     else:
                         print('AUGMENTATION UPDATE')
-                        train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
+                        updated_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
 
-                        full_train=AtlasDataset(root_dir ,transform= train_transform_isles )
+                        full_train=AtlasDataset(root_dir ,transform= updated_transform_isles )
                         train_dataset = Subset(full_train, train_indices)   
                         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
                     
