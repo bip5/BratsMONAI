@@ -59,7 +59,7 @@ training_samples=1000
 
 
 
-mode_index = 19
+mode_index = 20
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
@@ -151,18 +151,18 @@ elif mode_index==19:
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 1000
+    total_epochs = 300
     init_filter_number= 32
     batch_size=1
     in_channels = 2
-    out_channels = 1
-    training_samples=230
+    out_channels = 1    
     inf_overlap = 0.7
     lr = 0.0002
     activation = 'RELU'
     loss_type = 'DiceFocal'
     seed = 8
     incremental_transform=False
+    training_samples=10 if incremental_transform else 230 
 elif mode_index==20:
     
     load_save = 0
@@ -178,10 +178,10 @@ elif mode_index==20:
     init_filter_number= 32
     in_channels = 1
     out_channels = 1
-    inf_overlap = 0.7
-    training_samples=10
+    inf_overlap = 0.7    
     seed = 111
-    incremental_transform=True
+    incremental_transform=False
+    training_samples=10 if incremental_transform else 600 
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
     
