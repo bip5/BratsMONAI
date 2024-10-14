@@ -59,7 +59,7 @@ training_samples=1000
 
 
 
-mode_index = 20
+mode_index = 19
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
@@ -161,7 +161,7 @@ elif mode_index==19:
     activation = 'RELU'
     loss_type = 'DiceFocal'
     seed = 8
-    incremental_transform=False
+    incremental_transform = True
     training_samples=10 if incremental_transform else 230 
 elif mode_index==20:
     
@@ -180,7 +180,7 @@ elif mode_index==20:
     out_channels = 1
     inf_overlap = 0.7    
     seed = 111
-    incremental_transform=False
+    incremental_transform = True
     training_samples=10 if incremental_transform else 600 
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
