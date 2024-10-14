@@ -156,13 +156,13 @@ elif mode_index==19:
     batch_size=1
     in_channels = 2
     out_channels = 1
-    training_samples=230
+    training_samples=10
     inf_overlap = 0.7
     lr = 0.0002
     activation = 'RELU'
     loss_type = 'DiceFocal'
     seed = 8
-    incremental_transform=False
+    incremental_transform=True
 elif mode_index==20:
     
     load_save = 0
