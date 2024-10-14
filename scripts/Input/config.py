@@ -157,10 +157,12 @@ elif mode_index==19:
     in_channels = 2
     out_channels = 1
     training_samples=10
+    inf_overlap = 0.7
     lr = 0.0002
     activation = 'RELU'
     loss_type = 'DiceFocal'
     seed = 8
+    incremental_transform=False
 elif mode_index==20:
     
     load_save = 0
@@ -176,7 +178,7 @@ elif mode_index==20:
     init_filter_number= 32
     in_channels = 1
     out_channels = 1
-    inf_overlap = 0.8
+    inf_overlap = 0.7
     training_samples=600
     seed = 111
 else: 

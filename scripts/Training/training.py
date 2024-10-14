@@ -661,7 +661,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 elif model_name == 'SegResNetDS':
                     # outputs = model(inputs)
                     losses = []
-                    weights = torch.tensor([1.0, 0.5, 0.25,0], requires_grad=True).to(device)
+                    weights = torch.tensor([1.0, 0.5, 0.25,0.125], requires_grad=True).to(device)
                     for i, output in enumerate(outputs):
                         # torch.Size([4, 1, 192, 192, 128]) output.shape
                         # torch.Size([4, 1, 96, 96, 64]) output.shape

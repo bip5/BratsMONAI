@@ -334,49 +334,53 @@ train_transform_CA = Compose(
     ]
 )
 
-isles_list=[
-        LoadImaged(keys=["image", "mask"]),
-        EnsureChannelFirstD(keys=["image","mask"]),
-        # AddChannelD(keys="mask"),
-        CropForegroundd(["image", "mask"], source_key="image"),
-        
-       
-        SpacingD(
-            keys=["image", "mask"],
-            pixdim=(1.0, 1.0, 1.0),
-            mode="bilinear",
-        ),   
-        OrientationD(keys=["image", "mask"],axcodes="RAS"),
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-        RandSpatialCropd(
-        ["image", "mask"], roi_size = roi, random_size=False
-        ),     
-        AsDiscreted("mask", threshold=0.5),
-        EnsureTyped(keys=["image", "mask"]),        
-        RandAffined(
-        ["image", "mask"],
-        prob = 0.3,
-        spatial_size= roi, #instead of 64,64,64
-        rotate_range=[30 * np.pi / 180] * 3, 
-        scale_range=[0.3] * 3,
-        mode=("bilinear", "bilinear"),            
-        ),                      
-        RandRotateD(keys=["image","mask"],range_x=0.1,range_y=0.1, range_z=0.1,prob=0.3),  
-        RandFlipd(["image", "mask"], prob=0.3, spatial_axis=0),
-        RandFlipd(["image", "mask"], prob=0.3, spatial_axis=1),
-        RandFlipd(["image", "mask"], prob=0.3, spatial_axis=2),
-        RandGaussianNoised("image", prob=0.3, std=0.1),
-        RandGaussianSmoothd(
-        "image",
+isles_list = [
+    LoadImaged(keys=["image", "mask"]),
+    EnsureChannelFirstD(keys=["image", "mask"]),
+    CropForegroundd(keys=["image", "mask"], source_key="image"),
+    SpacingD(
+        keys=["image", "mask"],
+        pixdim=(1.0, 1.0, 1.0),
+        mode=("bilinear", "nearest"),
+    ),
+    OrientationD(keys=["image", "mask"], axcodes="RAS"),
+    NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+    RandSpatialCropd(
+        keys=["image", "mask"],
+        roi_size=roi,
+        random_size=False
+    ),
+    AsDiscreted(keys="mask", threshold=0.5),
+    EnsureTyped(keys=["image", "mask"]),
+    RandAffined(
+        keys=["image", "mask"],
+        prob=0.5,
+        rotate_range=(np.pi/6, np.pi/6, np.pi/6),
+        scale_range=(0.1, 0.1, 0.1),
+        mode=("bilinear", "nearest"),
+        padding_mode="border",
+    ),
+    RandRotateD(
+        keys=["image", "mask"],
+        range_x=np.pi/12,
+        range_y=np.pi/12,
+        range_z=np.pi/12,
         prob=0.3,
-        sigma_x=(0.9, 1.1),
-        sigma_y=(0.9, 1.1),
-        sigma_z=(0.9, 1.1),
-        ),                      
-        RandScaleIntensityd(keys="image", factors=0.3, prob=0.3),
-        RandShiftIntensityd(keys="image", offsets=0.1, prob=0.3),
-       
-    ]
+        mode=("bilinear", "nearest"),
+        padding_mode="border",
+    ),
+    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=0.2),
+    RandGaussianNoised(keys="image", prob=0.3, mean=0.0, std=0.1),
+    RandGaussianSmoothd(
+        keys="image",
+        prob=0.3,
+        sigma_x=(0.5, 1.5),
+        sigma_y=(0.5, 1.5),
+        sigma_z=(0.5, 1.5),
+    ),
+    RandScaleIntensityd(keys="image", factors=0.3, prob=0.3),
+    RandShiftIntensityd(keys="image", offsets=0.1, prob=0.3),
+]
 train_transform_isles = Compose(
     isles_list
 )
