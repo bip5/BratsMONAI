@@ -91,10 +91,11 @@ def time_list(root_dir):
 indexes=np.random.choice(np.arange(max_samples),max_samples,replace=False)
 if training_mode=='isles':
     train_indices = indexes[:training_samples]
-    val_end=training_samples+10
-    test_end=val_end+10
-    val_indices=indexes[training_samples:val_end]
-    test_indices=indexes[val_end:test_end]
+    val_start= max_samples- 20
+    test_start= max_samples- 10
+    
+    val_indices=indexes[val_start:test_start]
+    test_indices=indexes[test_start:max_samples]
 elif training_mode=='atlas':
     train_indices = indexes[:training_samples]
     val_indices=indexes[600:615]
