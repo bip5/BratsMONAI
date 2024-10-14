@@ -500,26 +500,27 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     new_samples= len(train_indices)
     for epoch in range(start_epoch,total_epochs):
     
-        if training_mode=='isles':
-           print_ids=0
-           if epoch==best_metric_epoch:
-               print('AUGMENTATION UPDATE')
-               train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
+        if incremental_transform:
+            if training_mode=='isles':
+               print_ids=0
+               if epoch==best_metric_epoch:
+                   print('AUGMENTATION UPDATE')
+                   train_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
 
-               full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
-               train_dataset = Subset(full_train, train_indices)   
-               train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
-           elif (epoch-best_metric_epoch)%10==0:
-                if new_samples<230:
-                    
-                    new_samples = new_samples+10
-                    new_indices=indexes[:new_samples]
-                    print(new_indices)
-                    full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
-                    train_dataset = Subset(full_train, new_indices)   
-                    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers ) 
-                    print('INTRODUCED NEW SAMPLES')
-                    print_ids=1
+                   full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
+                   train_dataset = Subset(full_train, train_indices)   
+                   train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
+               elif (epoch-best_metric_epoch)%10==0:
+                    if new_samples<230:
+                        
+                        new_samples = new_samples+10
+                        new_indices=indexes[:new_samples]
+                        print(new_indices)
+                        full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
+                        train_dataset = Subset(full_train, new_indices)   
+                        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers ) 
+                        print('INTRODUCED NEW SAMPLES')
+                        print_ids=1
                     
                 
         indices = list(range(1000))
