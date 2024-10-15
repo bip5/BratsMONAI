@@ -584,8 +584,8 @@ val_transform_isles = Compose(
         ),
         OrientationD(keys=["image", "mask"],axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
-        RandSpatialCropd(
-        ["image"], roi_size=roi, random_size=False
+        CenterSpatialCropd(
+        ["image","mask"], roi_size=roi, random_size=False
         ),
         EnsureTyped(keys=["image", "mask"]),
     ]
