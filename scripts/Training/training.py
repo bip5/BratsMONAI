@@ -860,7 +860,7 @@ if __name__=="__main__":
     elif training_mode=='atlas':     
         
         full_dataset_train = AtlasDataset(root_dir, transform = train_transform_isles)
-        full_dataset_val = AtlasDataset(root_dir, transform=val_transform_isles)
+        full_dataset_val = AtlasDataset(root_dir, transform=train_transform_isles)
         # print(" cross val data set, CV_flag=1") # this is printed   
         train_dataset =Subset(full_dataset_train, train_indices)
         val_dataset = Subset(full_dataset_val, val_indices)
@@ -868,7 +868,7 @@ if __name__=="__main__":
     elif training_mode=='isles':  
         full_train=IslesDataset(root_dir ,transform= train_transform_isles )
         train_dataset = Subset(full_train, train_indices)        
-        full_val = IslesDataset(root_dir ,transform=val_transform_isles )
+        full_val = IslesDataset(root_dir ,transform=train_transform_isles )
         
         val_dataset = Subset(full_val, val_indices)
         trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
