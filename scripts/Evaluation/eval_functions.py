@@ -54,7 +54,7 @@ def inference(input,model):
         
         return sliding_window_inference(
             inputs=input,
-            mode="gaussian"
+            mode="gaussian",
             roi_size=roi,
             sw_batch_size=1,
             predictor=model,
