@@ -144,8 +144,8 @@ elif mode_index==18:
     model_name='PixelLayer'
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
-    load_save = 0
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7951821/2024-10-11SegResNetDS_j7951821_ts0_LL'  
+    load_save = 1
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7952415/2024-10-15SegResNetDS_j7952415_ts0_LL'  
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
     training_mode = 'isles'
@@ -161,12 +161,12 @@ elif mode_index==19:
     activation = 'RELU'
     loss_type = 'DiceFocal'
     seed = 8
-    incremental_transform = True
+    incremental_transform = False
     training_samples= 30 if incremental_transform else 230 
 elif mode_index==20:
     
-    load_save = 0
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7951811/2024-10-11SegResNetDS_j7951811_ts0_LL'  
+    load_save = 1
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7952414/2024-10-15SegResNetDS_j7952414_ts0_LL'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
     model_name = 'SegResNetDS'
     batch_size=4
@@ -180,7 +180,7 @@ elif mode_index==20:
     out_channels = 1
     inf_overlap = 0.7    
     seed = 111
-    incremental_transform = True
+    incremental_transform = False
     training_samples= 100 if incremental_transform else 600 
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
