@@ -587,19 +587,33 @@ val_transform = Compose(
 # )
 device=torch.device("cuda:0")
 ##invertd is only necessary if val_transform only works on image or when submitting to external dataset
+def return_invert(input_transform):
+    invert = Invertd(
+            keys="pred",
+            transform=input_transform,
+            orig_keys="image",
+            meta_keys="pred_meta_dict",
+            orig_meta_keys="image_meta_dict",
+            meta_key_postfix="meta_dict",
+            nearest_interp=False,
+            to_tensor=True,
+            device="cpu",
+        )
+    return invert
+    
 post_trans = Compose(
     [        
-        # Invertd(
-            # keys="pred",
-            # transform=val_transform,
-            # orig_keys="image",
-            # meta_keys="pred_meta_dict",
-            # orig_meta_keys="image_meta_dict",
-            # meta_key_postfix="meta_dict",
-            # nearest_interp=False,
-            # to_tensor=True,
-            # device="cpu",
-        # ), 
+        Invertd(
+            keys="pred",
+            transform=val_transform_isles,
+            orig_keys="image",
+            meta_keys="pred_meta_dict",
+            orig_meta_keys="image_meta_dict",
+            meta_key_postfix="meta_dict",
+            nearest_interp=False,
+            to_tensor=True,
+            device="cpu",
+        ), 
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
         
