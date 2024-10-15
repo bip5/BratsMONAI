@@ -166,7 +166,7 @@ elif mode_index==19:
 elif mode_index==20:
     
     load_save = 1
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7952414/2024-10-15SegResNetDS_j7952414_ts0_LL'  
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7952414/2024-10-15SegResNetDS_j7952414_ts0'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
     model_name = 'SegResNetDS'
     batch_size=4
