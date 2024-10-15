@@ -178,7 +178,7 @@ elif mode_index==20:
     init_filter_number= 32
     in_channels = 1
     out_channels = 1
-    inf_overlap = 0.7    
+    inf_overlap = 0.8   
     seed = 111
     incremental_transform = True
     training_samples= 100 if incremental_transform else 600 
