@@ -173,7 +173,7 @@ elif mode_index==20:
     training_mode = 'atlas'
     max_samples = 655
     loss_type = 'DiceFocal'#'dice'#
-    roi = (192,192,144)#(64,64,64)#(128,128,128)#
+    roi = (128,128,128)#(192,192,144)#(64,64,64)#
     total_epochs = 300
     init_filter_number= 32
     in_channels = 1
