@@ -415,9 +415,9 @@ val_transform_isles = Compose(
         ),
         OrientationD(keys=["image", "mask"],axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
-        # RandSpatialCropd(
-        # ["image", "mask"], roi_size=(192,192,128), random_size=False
-        # ),
+        RandSpatialCropd(
+        ["image"], roi_size=roi, random_size=False
+        ),
         EnsureTyped(keys=["image", "mask"]),
     ]
 )
@@ -604,10 +604,10 @@ def return_invert(input_transform):
 post_trans = Compose(
     [        
         Invertd(
-            keys="pred",
+            keys=["pred"],
             transform=val_transform_isles,
             orig_keys="image",
-            meta_keys="pred_meta_dict",
+            meta_keys=["pred_meta_dict"],
             orig_meta_keys="image_meta_dict",
             meta_key_postfix="meta_dict",
             nearest_interp=False,
