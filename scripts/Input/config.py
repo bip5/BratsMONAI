@@ -59,7 +59,7 @@ training_samples=1000
 
 
 
-mode_index = 19
+mode_index = 20
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
