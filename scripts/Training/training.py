@@ -505,7 +505,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                
                 if epoch==best_metric_epoch:
                     if new_samples<230:                        
-                        new_samples = new_samples+10
+                        new_samples = new_samples+50
                         new_indices=indexes[:new_samples]
                         print(new_indices)
                         full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
@@ -536,7 +536,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             if training_mode=='atlas':
                 if epoch==best_metric_epoch:
                     if new_samples<600:                        
-                        new_samples = new_samples+10
+                        new_samples = new_samples+100
                         new_indices=indexes[:new_samples]
                         print(new_indices)
                         full_train=AtlasDataset(root_dir ,transform= train_transform_isles )
