@@ -181,7 +181,7 @@ elif mode_index==20:
     inf_overlap = 0.8   
     seed = 111
     incremental_transform = False
-    training_samples= 100 if incremental_transform else 60
+    training_samples= 100 if incremental_transform else 600
     # workers=1
 else: 
     raise Exception('Invalid mode index please choose an appropriate value')
