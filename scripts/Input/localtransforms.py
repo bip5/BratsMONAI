@@ -594,17 +594,17 @@ val_transform_isles = Compose(
     
 post_trans = Compose(
     [        
-        Invertd(
-            keys=["pred"],
-            transform=val_transform_isles,
-            orig_keys="image",
-            meta_keys=["pred_meta_dict"],
-            orig_meta_keys="image_meta_dict",
-            meta_key_postfix="meta_dict",
-            nearest_interp=False,
-            to_tensor=True,
-            device="cuda",
-        ), 
+        # Invertd(
+            # keys=["pred"],
+            # transform=val_transform_isles,
+            # orig_keys="image",
+            # meta_keys=["pred_meta_dict"],
+            # orig_meta_keys="image_meta_dict",
+            # meta_key_postfix="meta_dict",
+            # nearest_interp=False,
+            # to_tensor=True,
+            # device="cuda",
+        # ), 
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
         
