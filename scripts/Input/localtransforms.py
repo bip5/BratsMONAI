@@ -587,7 +587,7 @@ val_transform_isles = Compose(
         # RandSpatialCropd(
         # ["image"], roi_size=roi, random_size=False
         # ),
-        # CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
+        CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
         EnsureTyped(keys=["image", "mask"]),
     ]
 )
