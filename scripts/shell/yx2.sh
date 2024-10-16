@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=scw1895
-#SBATCH --partition=gpu
+#SBATCH --partition=accel_ai_dev
 
 #SBATCH --job-name=seg
 #SBATCH --output=/scratch/a.bip5/BraTS/training_logs/%x.%j
