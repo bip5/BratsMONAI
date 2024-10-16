@@ -603,7 +603,7 @@ post_trans = Compose(
             meta_key_postfix="meta_dict",
             nearest_interp=False,
             to_tensor=True,
-            device="gpu",
+            device="cuda",
         ), 
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
