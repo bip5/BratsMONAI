@@ -144,7 +144,7 @@ elif mode_index==18:
     model_name='PixelLayer'
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
-    load_save = 1
+    load_save = 0
     load_path = '/scratch/a.bip5/BraTS/weights/job_7952415/2024-10-15SegResNetDS_j7952415_ts0_LL'  
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
@@ -179,7 +179,7 @@ elif mode_index==20:
     in_channels = 1
     out_channels = 1
     inf_overlap = 0.8   
-    seed = 111
+    seed = 1
     incremental_transform = False
     training_samples= 100 if incremental_transform else 600
     # workers=1
