@@ -159,7 +159,7 @@ elif mode_index==19:
     inf_overlap = 0.7
     lr = 0.0002
     activation = 'RELU'
-    loss_type = 'DiceFocal'
+    loss_type = 'dice'#'DiceFocal'
     seed = 8
     incremental_transform = False
     training_samples= 30 if incremental_transform else 230 
@@ -172,7 +172,7 @@ elif mode_index==20:
     batch_size=4
     training_mode = 'atlas'
     max_samples = 655
-    loss_type = 'DiceFocal'#'dice'#
+    loss_type = 'dice'#'DiceFocal'#
     roi = (192,192,144)#(64,64,64)#(128,128,128)#
     total_epochs = 300
     init_filter_number= 32
