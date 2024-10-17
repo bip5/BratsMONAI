@@ -59,7 +59,7 @@ training_samples=1000
 
 
 
-mode_index = 19
+mode_index = 20
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
@@ -151,7 +151,7 @@ elif mode_index==19:
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 300
+    total_epochs = 100
     init_filter_number= 32
     batch_size=1
     in_channels = 2
@@ -159,7 +159,7 @@ elif mode_index==19:
     inf_overlap = 0.7
     lr = 0.0002
     activation = 'RELU'
-    loss_type = 'dice'#'DiceFocal'
+    loss_type = 'DiceFocal'#'dice'#
     seed = 8
     incremental_transform = False
     training_samples= 30 if incremental_transform else 230 
@@ -168,13 +168,13 @@ elif mode_index==20:
     load_save = 0
     load_path = '/scratch/a.bip5/BraTS/weights/job_7952414/2024-10-15SegResNetDS_j7952414_ts0'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
-    model_name = 'SegResNetDS'
+    model_name = 'SegResNet'
     batch_size=4
     training_mode = 'atlas'
     max_samples = 655
     loss_type = 'dice'#'DiceFocal'#
     roi = (192,192,144)#(64,64,64)#(128,128,128)#
-    total_epochs = 300
+    total_epochs = 100
     init_filter_number= 32
     in_channels = 1
     out_channels = 1

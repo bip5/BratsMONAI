@@ -268,7 +268,7 @@ train_transform_atlas = Compose(
         # load 4 Nifti images and stack them together
         LoadImaged(keys=["image","mask"],simple_keys=True),
         EnsureChannelFirstD(keys="image"),
-        EnsureTyped(keys=["image", "mask"]),
+       
         
         SpacingD(
             keys=["image", "mask"],
