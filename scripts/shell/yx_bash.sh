@@ -28,7 +28,14 @@ for arg in "$@"; do
 done
 
 # Submit the job and capture the Slurm job ID
-JOB_ID=$(sbatch --export=NOTE_FOR_WANDB="${NOTE_FOR_WANDB}" "$@" ${SLURM_SCRIPT} | awk '{print $4}')
+##JOB_ID=$(sbatch --export=NOTE_FOR_WANDB="${NOTE_FOR_WANDB}" "$@" ${SLURM_SCRIPT} | awk '{print $4}')
+# Submit the job and capture the Slurm job ID
+
+sbatch_output=$(sbatch --export=NOTE_FOR_WANDB="${NOTE_FOR_WANDB}" "${sbatch_args[@]}" ${SLURM_SCRIPT})
+echo "sbatch output:"
+echo "$sbatch_output"
+JOB_ID=$(echo "$sbatch_output" | awk '{print $4}')
+echo "Extracted JOB_ID: $JOB_ID"
 
 echo "Submitted job with ID: $JOB_ID"
 
