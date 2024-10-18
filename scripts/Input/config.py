@@ -160,7 +160,7 @@ elif mode_index==19:
     inf_overlap = 0.8
     lr = 0.0002
     activation = 'RELU'
-    loss_type ='DiceFocal' # 'dice'#
+    loss_type = 'dice'#'DiceFocal' #
     seed = 3
     dataset_seed = 8
     incremental_transform = False
