@@ -144,7 +144,7 @@ job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
 config_dict['job_id']=job_id
 wandb.init(
     # set the wandb project where this run will be logged
-    project="my-awesome-project",
+    project="segmentation",
 
     # track hyperparameters and run metadata
     config=config_dict

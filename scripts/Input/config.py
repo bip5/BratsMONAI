@@ -25,6 +25,7 @@ plots_dir='/scratch/a.bip5/BraTS/plots'
 PRUNE_PERCENTAGE= None # -0.05 #
 roi=[192,192,144]#[192,192,128]#[128,128,128]#
 seed = 0
+dataset_seed= 0
 total_epochs = 150
 T_max = total_epochs #how often to reset cycling
 unfreeze = 22  # only for freeze variants
@@ -59,7 +60,7 @@ training_samples=1000
 
 
 
-mode_index = 20
+mode_index =19
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
@@ -156,17 +157,18 @@ elif mode_index==19:
     batch_size=1
     in_channels = 2
     out_channels = 1    
-    inf_overlap = 0.7
+    inf_overlap = 0.8
     lr = 0.0002
     activation = 'RELU'
     loss_type = 'dice'#'DiceFocal'#'
-    seed = 8
+    seed = 3
+    dataset_seed = 8
     incremental_transform = False
     training_samples= 30 if incremental_transform else 230 
 elif mode_index==20:
     
-    load_save = 0
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7952414/2024-10-15SegResNetDS_j7952414_ts0'  
+    load_save = 1
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7953042/2024-10-18SegResNet_j7953042_ts0'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
     model_name = 'SegResNet'
     batch_size=4
@@ -180,6 +182,7 @@ elif mode_index==20:
     out_channels = 1
     inf_overlap = 0.8   
     seed = 1
+    dataset_seed = 1
     incremental_transform = False
     training_samples= 100 if incremental_transform else 600
     # workers=1

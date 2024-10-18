@@ -15,7 +15,8 @@ train_temporal,
 xval,
 no_val,
 training_mode,
-training_samples
+training_samples,
+dataset_seed
 )
 from Input.config import root_dir as root_dir_actual
 from Input.localtransforms import train_transform, val_transform
@@ -28,7 +29,7 @@ import torch
 import gzip
 from glob import glob
 
-np.random.seed(seed)
+np.random.seed(dataset_seed)
 
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
