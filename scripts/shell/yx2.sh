@@ -10,7 +10,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --export=ALL
 
-
+#__JOB_DIR__ is a placeholder which is replaced by the actual dir defined by the bash script
 cd __JOB_DIR__
 export PYTHONPATH=__JOB_DIR__:$PYTHONPATH
 
@@ -21,7 +21,7 @@ conda list >> __JOB_DIR__/result_$SLURM_JOB_ID.txt
 
 ##ln -s ${__JOB_DIR__} "/scratch/a.bip5/BraTS/jobs/${SLURM_JOB_ID}"
 
-wandb init --project segmentation --entity bip5 --id "%j" --name "%j" --notes "${NOTE_FOR_WANDB:-No notes provided}"
+wandb init --project segmentation --entity bip5 --id "$SLURM_JOB_ID" --name "$SLURM_JOB_ID" --notes "${NOTE_FOR_WANDB:-No notes provided}"
 
 echo __JOB_DIR__
 
