@@ -15,10 +15,15 @@ SLURM_SCRIPT="${JOB_DIR}/shell/yx2.sh"
 cp "/scratch/a.bip5/BraTS/scripts/shell/yx2.sh" ${SLURM_SCRIPT}
 sed -i "s|__JOB_DIR__|${JOB_DIR}|g" ${SLURM_SCRIPT}  # Replace placeholders with actual paths
 
-while getopts ":n:" opt; do
-  case $opt in
-    n) NOTE_FOR_WANDB="$OPTARG";;
-    \?) echo "Invalid option: -$OPTARG"; exit 1;;
+for arg in "$@"; do
+  case $arg in
+    --note=*)
+      NOTE_FOR_WANDB="${arg#*=}"
+      shift
+      ;;
+    *)
+      sbatch_args+=("$arg")
+      ;;
   esac
 done
 
