@@ -142,10 +142,16 @@ namespace = locals().copy()
 config_dict=dict()
 job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
 config_dict['job_id']=job_id
+for name, value in sorted(namespace.items()):
+    if not name.startswith("__"):
+        if type(value) in [str,int,float,bool]:
+            print(f"{name}: {value}")
+            config_dict[f"{name}"]=value
 wandb.init(
     # set the wandb project where this run will be logged
     project="segmentation",
-
+    name = job_id,
+    notes = os.environ.get('NOTE_FOR_WANDB', 'N/A'),
     # track hyperparameters and run metadata
     config=config_dict
 )

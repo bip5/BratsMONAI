@@ -578,11 +578,11 @@ val_transform_isles = Compose(
         EnsureChannelFirstD(keys=["image","mask"]),
         # AddChannelD(keys="mask"), 
         SpacingD(
-            keys=["image"],
+            keys=["image","mask"],
             pixdim=(1.0, 1.0, 1.0),
             mode="bilinear",
         ),
-        OrientationD(keys=["image"],axcodes="RAS"),
+        OrientationD(keys=["image","mask"],axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
         # RandSpatialCropd(
         # ["image"], roi_size=roi, random_size=False
@@ -594,17 +594,17 @@ val_transform_isles = Compose(
     
 post_trans = Compose(
     [        
-        Invertd(
-            keys=["pred"],
-            transform=val_transform_isles,
-            orig_keys="image",
-            meta_keys=["pred_meta_dict"],
-            orig_meta_keys="image_meta_dict",
-            meta_key_postfix="meta_dict",
-            nearest_interp=False,
-            to_tensor=True,
-            device="cuda",
-        ), 
+        # Invertd(
+            # keys=["pred"],
+            # transform=val_transform_isles,
+            # orig_keys="image",
+            # meta_keys=["pred_meta_dict"],
+            # orig_meta_keys="image_meta_dict",
+            # meta_key_postfix="meta_dict",
+            # nearest_interp=False,
+            # to_tensor=True,
+            # device="cuda",
+        # ), 
         Activationsd(keys="pred", sigmoid=True),
         AsDiscreted(keys="pred", threshold=0.5),
         
