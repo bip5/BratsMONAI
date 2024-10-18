@@ -23,7 +23,7 @@ while getopts ":n:" opt; do
 done
 
 # Submit the job and capture the Slurm job ID
-JOB_ID=$(sbatch -v NOTE_FOR_WANDB="${NOTE_FOR_WANDB}" "$@" ${SLURM_SCRIPT} | awk '{print $4}')
+JOB_ID=$(sbatch --export=NOTE_FOR_WANDB="${NOTE_FOR_WANDB}" "$@" ${SLURM_SCRIPT} | awk '{print $4}')
 
 echo "Submitted job with ID: $JOB_ID"
 
