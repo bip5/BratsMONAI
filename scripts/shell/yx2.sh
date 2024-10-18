@@ -21,6 +21,6 @@ echo __JOB_DIR__
 
 ##ln -s ${__JOB_DIR__} "/scratch/a.bip5/BraTS/jobs/${SLURM_JOB_ID}"
 
-wandb init --project segmentation --entity bip5 --tags slurm-job
+wandb init --project segmentation --entity bip5 
 
 python -u Training/training.py
