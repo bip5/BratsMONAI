@@ -60,7 +60,7 @@ training_samples=1000
 
 
 
-mode_index =19
+mode_index =
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
@@ -168,7 +168,7 @@ elif mode_index==19:
 elif mode_index==20:
     
     load_save = 1
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7953042/2024-10-18SegResNet_j7953042_ts0'  
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7953042/2024-10-18SegResNet_j7953042_ts0_LL'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
     model_name = 'SegResNet'
     batch_size=4
