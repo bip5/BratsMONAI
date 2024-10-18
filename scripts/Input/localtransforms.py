@@ -578,11 +578,11 @@ val_transform_isles = Compose(
         EnsureChannelFirstD(keys=["image","mask"]),
         # AddChannelD(keys="mask"), 
         SpacingD(
-            keys=["image", "mask"],
+            keys=["image"],
             pixdim=(1.0, 1.0, 1.0),
             mode="bilinear",
         ),
-        OrientationD(keys=["image", "mask"],axcodes="RAS"),
+        OrientationD(keys=["image"],axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
         # RandSpatialCropd(
         # ["image"], roi_size=roi, random_size=False
