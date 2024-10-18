@@ -874,7 +874,7 @@ if __name__=="__main__":
         val_dataset = Subset(full_dataset_val, val_indices)
         trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
     elif training_mode=='isles':  
-        full_train=IslesDataset(root_dir ,transform= train_transform_isles )
+        full_train=IslesDataset(root_dir ,transform= val_transform_isles )
         train_dataset = Subset(full_train, train_indices)        
         full_val = IslesDataset(root_dir ,transform=val_transform_isles )
         

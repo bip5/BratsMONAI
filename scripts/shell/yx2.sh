@@ -17,10 +17,12 @@ export PYTHONPATH=__JOB_DIR__:$PYTHONPATH
 module load anaconda
 source activate pix2pix
 conda list >> __JOB_DIR__/result_$SLURM_JOB_ID.txt
-echo __JOB_DIR__
+
 
 ##ln -s ${__JOB_DIR__} "/scratch/a.bip5/BraTS/jobs/${SLURM_JOB_ID}"
 
-wandb init --project segmentation --entity bip5 
+wandb init --project segmentation --entity bip5 --id "%j" --name "%j" --notes "${NOTE_FOR_WANDB:-No notes provided}"
+
+echo __JOB_DIR__
 
 python -u Training/training.py

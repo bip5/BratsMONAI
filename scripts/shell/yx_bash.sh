@@ -15,8 +15,15 @@ SLURM_SCRIPT="${JOB_DIR}/shell/yx2.sh"
 cp "/scratch/a.bip5/BraTS/scripts/shell/yx2.sh" ${SLURM_SCRIPT}
 sed -i "s|__JOB_DIR__|${JOB_DIR}|g" ${SLURM_SCRIPT}  # Replace placeholders with actual paths
 
+while getopts ":n:" opt; do
+  case $opt in
+    n) NOTE_FOR_WANDB="$OPTARG";;
+    \?) echo "Invalid option: -$OPTARG"; exit 1;;
+  esac
+done
+
 # Submit the job and capture the Slurm job ID
-JOB_ID=$(sbatch "$@" ${SLURM_SCRIPT} | awk '{print $4}')
+JOB_ID=$(sbatch -v NOTE_FOR_WANDB="${NOTE_FOR_WANDB}" "$@" ${SLURM_SCRIPT} | awk '{print $4}')
 
 echo "Submitted job with ID: $JOB_ID"
 

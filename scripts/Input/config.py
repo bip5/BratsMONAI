@@ -148,7 +148,7 @@ elif mode_index==19:
     load_save = 0
     load_path = '/scratch/a.bip5/BraTS/weights/job_7952415/2024-10-15SegResNetDS_j7952415_ts0_LL'  
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
-    model_name = 'SegResNetDS'
+    model_name = 'SegResNet'
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
