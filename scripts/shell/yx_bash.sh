@@ -5,10 +5,10 @@ BASE_DIR="/scratch/a.bip5/BraTS/scripts"
 
 # Generate a unique directory for this job
 JOB_DIR="/scratch/a.bip5/BraTS/jobs/$(date +%B-%d-%s)"
-mkdir -p ${JOB_DIR}
+mkdir -p ${JOB_DIR} || { echo "Failed to create job directory ${JOB_DIR}"; exit 1; }
 
 # Copy all scripts and config files to the job-specific directory
-cp -r ${BASE_DIR}/* ${JOB_DIR}/
+cp -r ${BASE_DIR}/* ${JOB_DIR}/ || { echo "Failed to copy files to ${JOB_DIR}"; exit 1; }
 
 # Prepare the Slurm script, replacing placeholders with actual paths
 SLURM_SCRIPT="${JOB_DIR}/shell/yx2.sh"
@@ -29,9 +29,9 @@ echo "Submitted job with ID: $JOB_ID"
 
 # Commit the current codebase to Git and tag with the job ID
 git add ${BASE_DIR}
-git commit -m "Code snapshot for job $JOB_ID"
+git commit -m "Code snapshot for job $JOB_ID" || echo "No changes to commit."
 git tag "$JOB_ID"
 
 # Push the commit and tag to GitHub
-git push origin main
-git push origin --tags
+git push origin main || { echo "Failed to push to GitHub"; exit 1; }
+git push origin --tags || { echo "Failed to push tags to GitHub"; exit 1; }
