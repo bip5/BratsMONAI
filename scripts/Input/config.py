@@ -157,7 +157,7 @@ elif mode_index==19:
     batch_size=1
     in_channels = 2
     out_channels = 1    
-    inf_overlap = 0.8
+    inf_overlap = 0.7
     lr = 0.0002
     activation = 'RELU'
     loss_type = 'dice'#'DiceFocal' #
