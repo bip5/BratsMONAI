@@ -148,7 +148,7 @@ elif mode_index==19:
     load_save = 0
     load_path = '/scratch/a.bip5/BraTS/weights/job_7952415/2024-10-15SegResNetDS_j7952415_ts0_LL'  
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
-    model_name = 'SegResNet'
+    model_name = 'SegResNetDS'
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
@@ -160,7 +160,7 @@ elif mode_index==19:
     inf_overlap = 0.8
     lr = 0.0002
     activation = 'RELU'
-    loss_type = 'dice'#'DiceFocal'#'
+    loss_type ='DiceFocal' # 'dice'#
     seed = 3
     dataset_seed = 8
     incremental_transform = False
