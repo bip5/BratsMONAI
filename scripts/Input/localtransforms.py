@@ -369,7 +369,7 @@ isles_list = [
         mode=("bilinear", "nearest"),
         padding_mode="border",
     ),
-    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=0.2),
+    # RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=0.2),
     # RandGaussianNoised(keys="image", prob=0.3, mean=0.0, std=0.1),
     # RandGaussianSmoothd(
         # keys="image",
