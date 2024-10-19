@@ -381,9 +381,9 @@ isles_list = [
     RandScaleIntensityd(keys="image", factors=0.3, prob=0.3),
     RandShiftIntensityd(keys="image", offsets=0.1, prob=0.3),
 ]
-train_transform_isles = Compose(
-    isles_list
-)
+# train_transform_isles = Compose(
+    # isles_list
+# )
 
 val_transform_atlas = Compose(
     [
@@ -571,8 +571,7 @@ val_transform = Compose(
 device=torch.device("cuda:0")
 ##invertd is only necessary if val_transform only works on image or when submitting to external dataset
 
-
-val_transform_isles = Compose(
+train_transform_isles = Compose(
     [
         LoadImaged(keys=["image", "mask"]),
         EnsureChannelFirstD(keys=["image","mask"]),
@@ -588,6 +587,25 @@ val_transform_isles = Compose(
         # ["image"], roi_size=roi, random_size=False
         # ),
         CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
+        EnsureTyped(keys=["image", "mask"]),
+    ]
+)
+val_transform_isles = Compose(
+    [
+        LoadImaged(keys=["image", "mask"]),
+        EnsureChannelFirstD(keys=["image","mask"]),
+        # AddChannelD(keys="mask"), 
+        SpacingD(
+            keys=["image","mask"],
+            pixdim=(1.0, 1.0, 1.0),
+            mode="bilinear",
+        ),
+        OrientationD(keys=["image","mask"],axcodes="RAS"),
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
+        # RandSpatialCropd(
+        # ["image"], roi_size=roi, random_size=False
+        # ),
+        # CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
         EnsureTyped(keys=["image", "mask"]),
     ]
 )
