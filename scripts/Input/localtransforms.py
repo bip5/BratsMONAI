@@ -337,7 +337,7 @@ train_transform_CA = Compose(
 isles_list = [
     LoadImaged(keys=["image", "mask"]),
     EnsureChannelFirstD(keys=["image", "mask"]),
-    CropForegroundd(keys=["image", "mask"], source_key="image"),
+    # CropForegroundd(keys=["image", "mask"], source_key="image"),
     SpacingD(
         keys=["image", "mask"],
         pixdim=(1.0, 1.0, 1.0),
@@ -345,42 +345,42 @@ isles_list = [
     ),
     OrientationD(keys=["image", "mask"], axcodes="RAS"),
     NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-    CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
-    # RandSpatialCropd(
-        # keys=["image", "mask"],
-        # roi_size=roi,
-        # random_size=False
-    # ),
-    # AsDiscreted(keys="mask", threshold=0.5),
+    # CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
+    RandSpatialCropd(
+        keys=["image", "mask"],
+        roi_size=roi,
+        random_size=False
+    ),
+    
     EnsureTyped(keys=["image", "mask"]),
-    # RandAffined(
-        # keys=["image", "mask"],
-        # prob=0.3,
-        # rotate_range=(np.pi/12, np.pi/12, np.pi/12),
-        # scale_range=(0.1, 0.1, 0.1),
-        # mode=("bilinear", "nearest"),
-        # padding_mode="border",
-    # ),
-    # RandRotateD(
-        # keys=["image", "mask"],
-        # range_x=np.pi/12,
-        # range_y=np.pi/12,
-        # range_z=np.pi/12,
-        # prob=0.3,
-        # mode=("bilinear", "nearest"),
-        # padding_mode="border",
-    # ),
-    # RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=0.2),
-    # RandGaussianNoised(keys="image", prob=0.3, mean=0.0, std=0.1),
-    # RandGaussianSmoothd(
-        # keys="image",
-        # prob=0.3,
-        # sigma_x=(0.5, 1.5),
-        # sigma_y=(0.5, 1.5),
-        # sigma_z=(0.5, 1.5),
-    # ),
-    # RandScaleIntensityd(keys="image", factors=0.3, prob=0.3),
-    # RandShiftIntensityd(keys="image", offsets=0.1, prob=0.3),
+    RandAffined(
+        keys=["image", "mask"],
+        prob=0.3,
+        rotate_range=(np.pi/12, np.pi/12, np.pi/12),
+        scale_range=(0.1, 0.1, 0.1),
+        mode=("bilinear", "nearest"),
+        padding_mode="border",
+    ),
+    RandRotateD(
+        keys=["image", "mask"],
+        range_x=np.pi/12,
+        range_y=np.pi/12,
+        range_z=np.pi/12,
+        prob=0.3,
+        mode=("bilinear", "nearest"),
+        padding_mode="border",
+    ),
+    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=0.2),
+    RandGaussianNoised(keys="image", prob=0.3, mean=0.0, std=0.1),
+    RandGaussianSmoothd(
+        keys="image",
+        prob=0.3,
+        sigma_x=(0.5, 1.5),
+        sigma_y=(0.5, 1.5),
+        sigma_z=(0.5, 1.5),
+    ),
+    RandScaleIntensityd(keys="image", factors=0.3, prob=0.3),
+    RandShiftIntensityd(keys="image", offsets=0.1, prob=0.3),
 ]
 train_transform_isles = Compose(
     isles_list
