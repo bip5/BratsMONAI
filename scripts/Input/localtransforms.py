@@ -352,14 +352,14 @@ isles_list = [
     ),
     AsDiscreted(keys="mask", threshold=0.5),
     EnsureTyped(keys=["image", "mask"]),
-    RandAffined(
-        keys=["image", "mask"],
-        prob=0.3,
-        rotate_range=(np.pi/12, np.pi/12, np.pi/12),
-        scale_range=(0.1, 0.1, 0.1),
-        mode=("bilinear", "nearest"),
-        padding_mode="border",
-    ),
+    # RandAffined(
+        # keys=["image", "mask"],
+        # prob=0.3,
+        # rotate_range=(np.pi/12, np.pi/12, np.pi/12),
+        # scale_range=(0.1, 0.1, 0.1),
+        # mode=("bilinear", "nearest"),
+        # padding_mode="border",
+    # ),
     # RandRotateD(
         # keys=["image", "mask"],
         # range_x=np.pi/12,
