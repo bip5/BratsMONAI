@@ -45,5 +45,5 @@ git commit -m "Code snapshot for job $JOB_ID" || echo "No changes to commit."
 git tag "$JOB_ID"
 
 # Push the commit and tag to GitHub
-git push origin main || { echo "Failed to push to GitHub"; exit 1; }
+git push origin master || { echo "Failed to push to GitHub"; exit 1; }
 git push origin --tags || { echo "Failed to push tags to GitHub"; exit 1; }
