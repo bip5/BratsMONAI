@@ -345,11 +345,12 @@ isles_list = [
     ),
     OrientationD(keys=["image", "mask"], axcodes="RAS"),
     NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-    RandSpatialCropd(
-        keys=["image", "mask"],
-        roi_size=roi,
-        random_size=False
-    ),
+    CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
+    # RandSpatialCropd(
+        # keys=["image", "mask"],
+        # roi_size=roi,
+        # random_size=False
+    # ),
     # AsDiscreted(keys="mask", threshold=0.5),
     EnsureTyped(keys=["image", "mask"]),
     # RandAffined(
