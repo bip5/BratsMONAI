@@ -350,7 +350,7 @@ isles_list = [
         roi_size=roi,
         random_size=False
     ),
-    AsDiscreted(keys="mask", threshold=0.5),
+    # AsDiscreted(keys="mask", threshold=0.5),
     EnsureTyped(keys=["image", "mask"]),
     # RandAffined(
         # keys=["image", "mask"],
