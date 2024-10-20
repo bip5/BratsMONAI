@@ -366,7 +366,7 @@ isles_list = [
         range_x=np.pi/12,
         range_y=np.pi/12,
         range_z=np.pi/12,
-        prob=0.2,
+        prob=0.4,
         mode=("bilinear", "nearest"),
         padding_mode="border",
     ),
