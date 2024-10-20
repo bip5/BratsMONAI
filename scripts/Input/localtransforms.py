@@ -380,7 +380,7 @@ isles_list = [
         sigma_z=(0.5, 1.5),
     ),
     RandScaleIntensityd(keys="image", factors=0.3, prob=0.3),
-    RandShiftIntensityd(keys="image", offsets=0.1, prob=0.1),
+    RandShiftIntensityd(keys="image", offsets=0.05, prob=0.3),
 ]
 train_transform_isles = Compose(
     isles_list
