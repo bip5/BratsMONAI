@@ -371,10 +371,10 @@ isles_list = [
         padding_mode="border",
     ),
     RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=0.2),
-    RandGaussianNoised(keys="image", prob=0.3, mean=0.0, std=0.05),
+    RandGaussianNoised(keys="image", prob=0.3, mean=0.0, std=0.1),
     RandGaussianSmoothd(
         keys="image",
-        prob=0.3,
+        prob=0.1,
         sigma_x=(0.5, 1.5),
         sigma_y=(0.5, 1.5),
         sigma_z=(0.5, 1.5),
