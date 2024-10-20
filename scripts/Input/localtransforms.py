@@ -366,11 +366,11 @@ isles_list = [
         range_x=np.pi/12,
         range_y=np.pi/12,
         range_z=np.pi/12,
-        prob=0.5,
+        prob=0.3,
         mode=("bilinear", "nearest"),
         padding_mode="border",
     ),
-    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=0.2),
+    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=0.3),
     RandGaussianNoised(keys="image", prob=0.3, mean=0.0, std=0.1),
     RandGaussianSmoothd(
         keys="image",
