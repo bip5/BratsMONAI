@@ -729,6 +729,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         masks_resized=[]
                         mask=[]
                         for bnum in range(output.shape[0]):
+                            print(masks.shape, ' masks shape')
                             mask = F.interpolate(masks[bnum,:,:,:,:].unsqueeze(0), size = output.shape[-3:], mode='nearest')
                             masks_resized.append(mask)
                         mask_resized = torch.cat(masks_resized,dim=0)
