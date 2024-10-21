@@ -74,12 +74,12 @@ def model_loader(modelweight_path,scaler,model_id=model_name,train=False,lr_sche
     # Create the model instance
     model = create_model(model_id)
     
+    
+    # Load the state dict from the file
+    checkpoint = torch.jit.load(modelweight_path)
     print('checkpoint type', type(checkpoint))
     
     sys.exit()
-    # Load the state dict from the file
-    checkpoint = torch.jit.load(modelweight_path)
-    
         
     def wrap_model(state_dict,model):
         # Check if the state dict contains keys prefixed with 'module.'
