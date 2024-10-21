@@ -145,7 +145,7 @@ elif mode_index==18:
     model_name='PixelLayer'
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
-    load_save = 1
+    load_save = 0
     load_path = '/scratch/a.bip5/BraTS/weights/NVAUTO_models/model14.ts'  
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
