@@ -91,43 +91,43 @@ def model_loader(modelweight_path,scaler,model_id=model_name,train=False,lr_sche
             model.load_state_dict(state_dict, strict=True)
         return model
         
-    try:
-        # Load the state dict from the file
-        model = torch.jit.load(modelweight_path)
-        print('loaded jit model')
-        return model
-    except:
-        checkpoint = torch.load(modelweight_path)  
     
-        if 'state_dict' in checkpoint:
+        # Load the state dict from the file
+    model = torch.jit.load(modelweight_path)
+    print('loaded jit model')
+    return model
+    # except:
+        # checkpoint = torch.load(modelweight_path)  
+    
+        # if 'state_dict' in checkpoint:
             
-            # Restore the model state_dict
-            state_dict = checkpoint['state_dict']
-            if train:
-                model = wrap_model(state_dict, model)
+            # # Restore the model state_dict
+            # state_dict = checkpoint['state_dict']
+            # if train:
+                # model = wrap_model(state_dict, model)
                 
-                optimiser=get_optimiser(model)
-                # Restore the optimizer state_dict
-                optimiser.load_state_dict(checkpoint['optimizer'])
+                # optimiser=get_optimiser(model)
+                # # Restore the optimizer state_dict
+                # optimiser.load_state_dict(checkpoint['optimizer'])
 
-                # Restore the scaler state_dict (if you are using automatic mixed precision)
-                scaler.load_state_dict(checkpoint['scaler'])
+                # # Restore the scaler state_dict (if you are using automatic mixed precision)
+                # scaler.load_state_dict(checkpoint['scaler'])
 
-                # Restore the learning rate scheduler state_dict
-                lr_scheduler.load_state_dict(checkpoint['scheduler'])
+                # # Restore the learning rate scheduler state_dict
+                # lr_scheduler.load_state_dict(checkpoint['scheduler'])
 
-                # Optionally, restore the epoch
-                start_epoch = checkpoint['epoch']
-                # loss = checkpoint['loss']
+                # # Optionally, restore the epoch
+                # start_epoch = checkpoint['epoch']
+                # # loss = checkpoint['loss']
 
-                print(f"Model, optimizer, scaler, and scheduler states have been restored from epoch {start_epoch}")              
+                # print(f"Model, optimizer, scaler, and scheduler states have been restored from epoch {start_epoch}")              
             
-            return model,optimiser,scaler,lr_scheduler,start_epoch
-        else:        
-            model = wrap_model(checkpoint,model)
+            # return model,optimiser,scaler,lr_scheduler,start_epoch
+        # else:        
+            # model = wrap_model(checkpoint,model)
    
 
-    return model
+    # return model
     
 def model_loader_ind(modelweight_path,model,train=False,optimiser=None,scaler=None,lr_scheduler=None,start_epoch=None):
 
