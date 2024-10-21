@@ -75,6 +75,8 @@ def model_loader(modelweight_path,scaler,model_id=model_name,train=False,lr_sche
     model = create_model(model_id)
     
     print('checkpoint type', type(checkpoint))
+    
+    sys.exit()
     # Load the state dict from the file
     checkpoint = torch.jit.load(modelweight_path)
     
