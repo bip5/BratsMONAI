@@ -95,6 +95,7 @@ def model_loader(modelweight_path,scaler,model_id=model_name,train=False,lr_sche
         # Load the state dict from the file
         model = torch.jit.load(modelweight_path)
         print('loaded jit model')
+        return model
     except:
         checkpoint = torch.load(modelweight_path)  
     
