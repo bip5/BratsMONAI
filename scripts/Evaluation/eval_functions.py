@@ -73,9 +73,9 @@ def model_loader(modelweight_path,scaler,model_id=model_name,train=False,lr_sche
     from Training.network import create_model #should hopefully solve the issue
     # Create the model instance
     model = create_model(model_id)
-    try:
-        # Load the state dict from the file
-        checkpoint = torch.jit.load(modelweight_path)
+   
+    # Load the state dict from the file
+    checkpoint = torch.jit.load(modelweight_path)
     
         
     def wrap_model(state_dict,model):
