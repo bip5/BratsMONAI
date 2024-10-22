@@ -151,18 +151,18 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
             test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
             test_outputs,test_labels = from_engine(["pred","mask"])(test_data) # returns two lists of tensors
             
-            if i==4:
+            # if i==4:
                 
                            
                                 
-                print(test_outputs[0].shape)
-                nii_img=nib.Nifti1Image(test_outputs[0][2].cpu().numpy(),np.eye(4))
-                ##Save the image to a .nii.gz file
-                nii_img.to_filename(f'./pred{sub_id}.nii.gz')
+                # print(test_outputs[0].shape)
+                # nii_img=nib.Nifti1Image(test_outputs[0][2].cpu().numpy(),np.eye(4))
+                # ##Save the image to a .nii.gz file
+                # nii_img.to_filename(f'./pred{sub_id}.nii.gz')
                 
-                nii_img=nib.Nifti1Image(test_labels[0][2].cpu().numpy(),np.eye(4))
-                ##Save the image to a .nii.gz file
-                nii_img.to_filename(f'./label{sub_id}.nii.gz')
+                # nii_img=nib.Nifti1Image(test_labels[0][2].cpu().numpy(),np.eye(4))
+                # ##Save the image to a .nii.gz file
+                # nii_img.to_filename(f'./label{sub_id}.nii.gz')
                         
             for idx, y in enumerate(test_labels):
                 test_labels[idx] = (y > 0.5).int()
@@ -174,15 +174,15 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
             sub_id=test_data[0]["id"][-9:]
             
                       
-            df= lesion_wise(test_outputs[0].cpu().numpy(),test_labels[0].cpu().numpy(),output='./lesion_wise.csv')
-            df_row = df.stack().to_frame().T
-            #columns are tuples after stacking, joining the row and col names with an underscore
-            df_row.columns=['_'.join(map(str,col)).strip() for col in df_row.columns.values]
+            # df= lesion_wise(test_outputs[0].cpu().numpy(),test_labels[0].cpu().numpy(),output='./lesion_wise.csv')
+            # df_row = df.stack().to_frame().T
+            # #columns are tuples after stacking, joining the row and col names with an underscore
+            # df_row.columns=['_'.join(map(str,col)).strip() for col in df_row.columns.values]
           
-            df_row['Subject_ID'] = sub_id
+            # df_row['Subject_ID'] = sub_id
             
-            new_order = ['Subject_ID'] + [col for col in df_row.columns if col!='Subject_ID']
-            df_row=df_row[new_order]
+            # new_order = ['Subject_ID'] + [col for col in df_row.columns if col!='Subject_ID']
+            # df_row=df_row[new_order]
             
             dice_metric_ind(y_pred=test_outputs, y=test_labels)
             dice_metric_ind_batch(y_pred=test_outputs, y=test_labels)
@@ -194,15 +194,15 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
             # Compute the Dice score for this test case
             # current_dice = dice_metric_ind.aggregate().item()
             current_dice = dice_metric_ind.aggregate(reduction=None).item()
-            batch_ind = dice_metric_ind_batch.aggregate()
-            tc,wt,et = batch_ind[0].item(),batch_ind[1].item(),batch_ind[2].item()
-            ind_scores[sub_id] = {'original index': test_indices[i], 'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
-            df_row['original index'] = test_indices[i]
-            df_row['Plain_dice_avg'] = round(current_dice,4)
-            df_row['pd_tc'] = round(tc,4)
-            df_row['pd_wt'] = round(wt,4)
-            df_row[ 'pd_et'] = round(et,4) 
-            result_rows.append(df_row)
+            # batch_ind = dice_metric_ind_batch.aggregate()
+            # tc,wt,et = batch_ind[0].item(),batch_ind[1].item(),batch_ind[2].item()
+            # ind_scores[sub_id] = {'original index': test_indices[i], 'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
+            # df_row['original index'] = test_indices[i]
+            # df_row['Plain_dice_avg'] = round(current_dice,4)
+            # df_row['pd_tc'] = round(tc,4)
+            # df_row['pd_wt'] = round(wt,4)
+            # df_row[ 'pd_et'] = round(et,4) 
+            # result_rows.append(df_row)
             
             dice_metric_ind.reset()
             dice_metric_ind_batch.reset()

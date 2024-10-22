@@ -699,7 +699,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             optimiser.zero_grad()
             
             if skip_AMP:
-                print('Full precision Training')
+               
                 # print(inputs.shape)
                 outputs = model(inputs)
                 losses = []

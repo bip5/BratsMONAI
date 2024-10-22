@@ -149,7 +149,7 @@ elif mode_index==18:
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
     load_save = 1
-    load_path = '/scratch/a.bip5/BraTS/weights/NVAUTO_models/model14.ts'  
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7954172/2024-10-22SegResNetDS_j7954172_ts0' #'/scratch/a.bip5/BraTS/weights/NVAUTO_models/model14.ts'  
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
     training_mode = 'isles'
@@ -224,7 +224,7 @@ plot_list = None #['00619-001','01479-000','00113-000','01498-000','01487-000','
 limit_samples = 10 #None # 10 #  only evaluate limited samples
 
 online_val_mode = 'ensemble' # 'single'#'cluster' # 
-slice_dice=True
+slice_dice=False
 plot_output= False #True # 
 plot_single_slice=False
 eval_from_folder=  True #False #
