@@ -68,7 +68,8 @@ load_base,
 base_path,
 in_channels,
 incremental_transform,
-training_samples
+training_samples,
+skip_AMP
 )
 
 from Training.loss_function import loss_function,edgy_dice_loss
@@ -697,63 +698,87 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             )
             optimiser.zero_grad()
             
-                
-            with torch.cuda.amp.autocast():
-                outputs = inference(inputs,model)#model(inputs)
-                
-                if loss_type == 'MaskedDiceLoss':
-                    height,width,depth = roi
-                    loss_mask = generate_random_patch_masks(1, 1, roi)
-                    loss_mask2 = torch.from_numpy(loss_mask).to(device)
-                    loss = loss_function(outputs, masks,loss_mask2) 
-                elif loss_type == 'lesion_wise':
-                    with torch.no_grad():
-                        thresholded_output = (torch.sigmoid(outputs) > 0.5).float()
-                        lesionwise_dice= 1 - LesionWiseDiceLoss(thresholded_output, masks)
-                        print('lesionwise_dice',lesionwise_dice)
-                        
-                        new_target = generate_pseudo_mask(thresholded_output,lesionwise_dice)
-                        new_target.to(device)
-                    loss = loss_function(outputs, new_target) 
-                elif model_name == 'SegResNetDS':
-                    # outputs = model(inputs)
-                    losses = []
-                    weights = torch.tensor([1.0, 0.5, 0.25,0.125], requires_grad=True).to(device)
-                    for i, output in enumerate(outputs):
-                        # torch.Size([4, 1, 192, 192, 128]) output.shape
-                        # torch.Size([4, 1, 96, 96, 64]) output.shape
-                        # torch.Size([4, 1, 48, 48, 32]) output.shape
-                        # torch.Size([4, 1, 24, 24, 16]) output.shape output shapes from DS
-                        #print(output.shape,'output.shape')# 4 resolutions for each batch
-                        #print(masks.shape)# masks.shape: ([4, 1, 192, 192, 128])
-                        masks_resized=[]
-                        mask=[]
-                        for bnum in range(output.shape[0]):
-                            # print(masks.shape, ' masks shape')
-                            # print(output.shape, 'output shape')
-                            mask = F.interpolate(masks[0,:,:,:,:].unsqueeze(0), size = output.shape[-3:], mode='nearest')
-                            masks_resized.append(mask)
-                        mask_resized = torch.cat(masks_resized,dim=1)
-                        loss = loss_function(output.unsqueeze(0), mask_resized)
-                        losses.append(loss * weights[i])
-                    loss = sum(losses)
-                                       
-                else:
-                    loss = loss_function(outputs, masks) 
-                    # print(type(outputs))
-                    # print(loss, 'original loss')
-                    edgy_loss_calc = edgy_dice_loss(outputs, masks)
-                    # print(edgy_loss_calc, 'calculated edgy dice loss')
-                          
-            scaler.scale(loss).backward()
-            try:
-                scaler.step(optimiser)
-            except AssertionError as e:
-                print(f"AssertionError caught: {e}")
-            try:
-                scaler.update()
-            except AssertionError as e:
-                print(f"AssertionError caught: {e}")
+            if skip_AMP:
+                outputs = model(inputs)
+                losses = []
+                weights = torch.tensor([1.0, 0.5, 0.25,0.125], requires_grad=True).to(device)
+                for i, output in enumerate(outputs):
+                    # torch.Size([4, 1, 192, 192, 128]) output.shape
+                    # torch.Size([4, 1, 96, 96, 64]) output.shape
+                    # torch.Size([4, 1, 48, 48, 32]) output.shape
+                    # torch.Size([4, 1, 24, 24, 16]) output.shape output shapes from DS
+                    #print(output.shape,'output.shape')# 4 resolutions for each batch
+                    #print(masks.shape)# masks.shape: ([4, 1, 192, 192, 128])
+                    masks_resized=[]
+                    mask=[]
+                    for bnum in range(output.shape[0]):
+                        # print(masks.shape, ' masks shape')
+                        # print(output.shape, 'output shape')
+                        mask = F.interpolate(masks[0,:,:,:,:].unsqueeze(0), size = output.shape[-3:], mode='nearest')
+                        masks_resized.append(mask)
+                    mask_resized = torch.cat(masks_resized,dim=1)
+                    loss = loss_function(output.unsqueeze(0), mask_resized)
+                    losses.append(loss * weights[i])
+                loss = sum(losses)
+                loss.backward()  # Backpropagate in full precision
+                optimiser.step()  # Optimizer step in full precision
+            else:
+                with torch.cuda.amp.autocast():
+                    outputs = inference(inputs,model)#model(inputs)
+                    
+                    if loss_type == 'MaskedDiceLoss':
+                        height,width,depth = roi
+                        loss_mask = generate_random_patch_masks(1, 1, roi)
+                        loss_mask2 = torch.from_numpy(loss_mask).to(device)
+                        loss = loss_function(outputs, masks,loss_mask2) 
+                    elif loss_type == 'lesion_wise':
+                        with torch.no_grad():
+                            thresholded_output = (torch.sigmoid(outputs) > 0.5).float()
+                            lesionwise_dice= 1 - LesionWiseDiceLoss(thresholded_output, masks)
+                            print('lesionwise_dice',lesionwise_dice)
+                            
+                            new_target = generate_pseudo_mask(thresholded_output,lesionwise_dice)
+                            new_target.to(device)
+                        loss = loss_function(outputs, new_target) 
+                    elif model_name == 'SegResNetDS':
+                        # outputs = model(inputs)
+                        losses = []
+                        weights = torch.tensor([1.0, 0.5, 0.25,0.125], requires_grad=True).to(device)
+                        for i, output in enumerate(outputs):
+                            # torch.Size([4, 1, 192, 192, 128]) output.shape
+                            # torch.Size([4, 1, 96, 96, 64]) output.shape
+                            # torch.Size([4, 1, 48, 48, 32]) output.shape
+                            # torch.Size([4, 1, 24, 24, 16]) output.shape output shapes from DS
+                            #print(output.shape,'output.shape')# 4 resolutions for each batch
+                            #print(masks.shape)# masks.shape: ([4, 1, 192, 192, 128])
+                            masks_resized=[]
+                            mask=[]
+                            for bnum in range(output.shape[0]):
+                                # print(masks.shape, ' masks shape')
+                                # print(output.shape, 'output shape')
+                                mask = F.interpolate(masks[0,:,:,:,:].unsqueeze(0), size = output.shape[-3:], mode='nearest')
+                                masks_resized.append(mask)
+                            mask_resized = torch.cat(masks_resized,dim=1)
+                            loss = loss_function(output.unsqueeze(0), mask_resized)
+                            losses.append(loss * weights[i])
+                        loss = sum(losses)
+                                           
+                    else:
+                        loss = loss_function(outputs, masks) 
+                        # print(type(outputs))
+                        # print(loss, 'original loss')
+                        edgy_loss_calc = edgy_dice_loss(outputs, masks)
+                        # print(edgy_loss_calc, 'calculated edgy dice loss')
+                              
+                scaler.scale(loss).backward()
+                try:
+                    scaler.step(optimiser)
+                except AssertionError as e:
+                    pass #print(f"AssertionError caught: {e}")
+                try:
+                    scaler.update()
+                except AssertionError as e:
+                    pass# print(f"AssertionError caught: {e}")
             epoch_loss += loss.item()
             if step%10==0:
                 print(
