@@ -1,7 +1,7 @@
 load_path ='/scratch/a.bip5/BraTS/weights/job_7808186/SegResNetCV1_j7808186ep90'
 encoder_path = load_path#'/scratch/a.bip5/BraTS/weights/job_7807898/SegResNetCV1_j7807898ep93' # repsplit#
 load_save = 1
-jit_model =True
+jit_model =False
 batch_size = 4
 cluster_files ='/scratch/a.bip5/BraTS/cluster_files/cl4_Tfmrft_04July_ts1.xlsx' #'/scratch/a.bip5/BraTS/cl4_tf_18thApril_repSplit.xlsx'#cl4_trainFeatures_5x_repSplit.xlsx'#cl4_ft_25April_ts0.xlsx'# cl4_train_2024-04-04_14-08-47.xlsx'# '/scratch/a.bip5/BraTS/cl4_train_2024-01-17_15-40-25.xlsx' #cl4_B23al_2023-11-21_16-20-10.xlsx'#cl4_merge_2023-12-18_14-41-48.xlsx'# 
 dropout=0
@@ -149,6 +149,7 @@ elif mode_index==18:
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
     load_save = 1
+    jit_model=False
     load_path = '/scratch/a.bip5/BraTS/weights/job_7954172/2024-10-22SegResNetDS_j7954172_ts0' #'/scratch/a.bip5/BraTS/weights/NVAUTO_models/model14.ts'  
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'

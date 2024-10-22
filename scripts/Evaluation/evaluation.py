@@ -290,7 +290,7 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
         metric_org = dice_metric.aggregate().item()
         
         metric_batch_org = dice_metric_batch.aggregate()
-        all_results = pd.concat(result_rows)
+        # all_results = pd.concat(result_rows)
         dice_metric.reset()
         dice_metric_batch.reset()
     
