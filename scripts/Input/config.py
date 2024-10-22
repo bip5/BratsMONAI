@@ -1,6 +1,7 @@
 load_path ='/scratch/a.bip5/BraTS/weights/job_7808186/SegResNetCV1_j7808186ep90'
 encoder_path = load_path#'/scratch/a.bip5/BraTS/weights/job_7807898/SegResNetCV1_j7807898ep93' # repsplit#
 load_save = 1
+jit_model =True
 batch_size = 4
 cluster_files ='/scratch/a.bip5/BraTS/cluster_files/cl4_Tfmrft_04July_ts1.xlsx' #'/scratch/a.bip5/BraTS/cl4_tf_18thApril_repSplit.xlsx'#cl4_trainFeatures_5x_repSplit.xlsx'#cl4_ft_25April_ts0.xlsx'# cl4_train_2024-04-04_14-08-47.xlsx'# '/scratch/a.bip5/BraTS/cl4_train_2024-01-17_15-40-25.xlsx' #cl4_B23al_2023-11-21_16-20-10.xlsx'#cl4_merge_2023-12-18_14-41-48.xlsx'# 
 dropout=0
@@ -42,6 +43,8 @@ checkpoint_snaps=False
 load_base = False # here to avoid import errors
 base_path = None # here to avoid import errors
 incremental_transform = True
+skip_AMP =True
+
 activation= 'RELU'# 'hardswish' #  # here to avoid import errors
 in_channels=4
 out_channels=3
@@ -210,7 +213,7 @@ TTA_ensemble=False
 
 
 ################EVAL SPECIFIC VARIABLES#################
-eval_mode ='distance_ensemble'#  'cluster_expert' #    'time' # 'online_val'#'simple'#      'cluster'  #  choose between simple, cluster, online_val. 
+eval_mode ='simple'#  'distance_ensemble'#  'cluster_expert' #    'time' # 'online_val'#    'cluster'  #  choose between simple, cluster, online_val. 
 eval_path = load_path #only used when evaluating a single model
 base_perf_path = '/scratch/a.bip5/BraTS/jobs_eval/May-29-1716998494/IndScoresjob_7878869_7885546.xlsx'#TransformerRepSplitBase#'/scratch/a.bip5/BraTS/jobs_eval/April-18-1713463104/IndScores_7809063.xlsx' #Repsplitbase perf#'/scratch/a.bip5/BraTS/jobs_eval/April-25-1714065419/IndScoresjob_7808186_7860766.xlsx'# 
 eval_folder = '/scratch/a.bip5/BraTS/weights/job_7915510'#'/scratch/a.bip5/BraTS/weights/job_7860711'#'/scratch/a.bip5/BraTS/weights/job_7809289' #'/scratch/a.bip5/BraTS/weights/m2024-01-22_19-23-02' #'/scratch/a.bip5/BraTS/weights/m2023-11-07_20-07-54'#'/scratch/a.bip5/BraTS/weights/m2023-11-22_18-52-42'# tfmr #'/scratch/a.bip5/BraTS/weights/m2023-11-22_00-04-01'#

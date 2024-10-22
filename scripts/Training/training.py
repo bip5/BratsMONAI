@@ -700,6 +700,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             
             if skip_AMP:
                 print('Full precision Training')
+                print(inputs.shape)
                 outputs = model(inputs)
                 losses = []
                 weights = torch.tensor([1.0, 0.5, 0.25,0.125], requires_grad=True).to(device)

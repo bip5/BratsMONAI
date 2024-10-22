@@ -34,9 +34,8 @@ inf_overlap
 )
 from Input.dataset import (
 BratsDataset,
-ExpDataset,ExpDatasetEval,
-test_indices,train_indices,
-val_indices,Brats23valDataset,BratsTimeDataset
+ExpDataset,ExpDatasetEval,val_indices,
+test_indices,train_indices,Brats23valDataset,BratsTimeDataset,IslesDataset, AtlasDataset
 )
 from Input.localtransforms import test_transforms1,post_trans,train_transform,val_transform,post_trans_test,val_transform_Flipper
 from Training.running_log import log_run_details
@@ -858,9 +857,10 @@ if __name__ =='__main__':
     elif eval_mode=='simple':
         
         modelname = load_path.split('/')[-1]
-        full_dataset = BratsDataset(root_dir,transform=val_transform)
+        full_dataset = IslesDataset(root_dir,transform=val_transform_isles)
         test_indices=test_indices.tolist()
-        test_dataset = Subset(full_dataset, test_indices[:limit_samples])
+        # test_dataset = Subset(full_dataset, test_indices[:limit_samples])
+        test_dataset = Subset(full_dataset, val_indices)
         test_loader=DataLoader(test_dataset,shuffle=False,batch_size=1,num_workers=4)
         
         # Convert it to a string in a specific format (e.g., YYYY-MM-DD_HH-MM-SS)
