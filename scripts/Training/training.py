@@ -750,7 +750,10 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 scaler.step(optimiser)
             except AssertionError as e:
                 print(f"AssertionError caught: {e}")
-            scaler.update()
+            try:
+                scaler.update()
+            except AssertionError as e:
+                print(f"AssertionError caught: {e}")
             epoch_loss += loss.item()
             if step%10==0:
                 print(
