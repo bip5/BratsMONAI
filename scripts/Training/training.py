@@ -700,7 +700,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             
             if skip_AMP:
                 print('Full precision Training')
-                print(inputs.shape)
+                # print(inputs.shape)
                 outputs = model(inputs)
                 losses = []
                 weights = torch.tensor([1.0, 0.5, 0.25,0.125], requires_grad=True).to(device)
@@ -714,8 +714,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     masks_resized=[]
                     mask=[]
                     for bnum in range(output.shape[0]):
-                        print(masks.shape, ' masks shape')
-                        print(output.shape, 'output shape')
+                        # print(masks.shape, ' masks shape')
+                        # print(output.shape, 'output shape')
                         mask = F.interpolate(masks[0,:,:,:,:].unsqueeze(0), size = output.shape[-3:], mode='nearest')
                         masks_resized.append(mask)
                     mask_resized = torch.cat(masks_resized,dim=1)

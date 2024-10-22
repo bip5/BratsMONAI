@@ -37,7 +37,7 @@ BratsDataset,
 ExpDataset,ExpDatasetEval,val_indices,
 test_indices,train_indices,Brats23valDataset,BratsTimeDataset,IslesDataset, AtlasDataset
 )
-from Input.localtransforms import test_transforms1,post_trans,train_transform,val_transform,post_trans_test,val_transform_Flipper
+from Input.localtransforms import test_transforms1,post_trans,train_transform,val_transform,post_trans_test,val_transform_Flipper, val_transform_isles
 from Training.running_log import log_run_details
 import pandas as pd
 from Training.network import model
