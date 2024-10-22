@@ -746,7 +746,10 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     # print(edgy_loss_calc, 'calculated edgy dice loss')
                           
             scaler.scale(loss).backward()
-            scaler.step(optimiser)
+            try:
+                scaler.step(optimiser)
+            except AssertionError as e:
+                print(f"AssertionError caught: {e}")
             scaler.update()
             epoch_loss += loss.item()
             if step%10==0:
