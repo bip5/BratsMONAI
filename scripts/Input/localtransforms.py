@@ -351,7 +351,9 @@ isles_list = [
         roi_size=roi,
         random_size=False
     ),
-    
+    # Padding to ensure image is at least the roi_size
+    SpatialPadd(keys=["image", "mask"], spatial_size=roi_size),
+
     EnsureTyped(keys=["image", "mask"]),
     RandAffined(
         keys=["image", "mask"],
