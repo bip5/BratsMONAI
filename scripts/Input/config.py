@@ -150,7 +150,7 @@ elif mode_index==18:
 elif mode_index==19:
     load_save = 1
     jit_model=False
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7954172/2024-10-22SegResNetDS_j7954172_ts0' #'/scratch/a.bip5/BraTS/weights/NVAUTO_models/model14.ts'  
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0'  #'/scratch/a.bip5/BraTS/weights/job_7954172/2024-10-22SegResNetDS_j7954172_ts0' #
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
     training_mode = 'isles'
@@ -167,12 +167,12 @@ elif mode_index==19:
     loss_type = 'DiceFocal' #'dice'#
     seed = 1111
     dataset_seed = 8
-    incremental_transform = False
+    incremental_transform = True
     training_samples= 30 if incremental_transform else 230 
     skip_AMP =True
 elif mode_index==20:
     
-    load_save = 1
+    load_save = 0
     load_path = '/scratch/a.bip5/BraTS/weights/job_7953042/2024-10-18SegResNet_j7953042_ts0_LL'  
     root_dir = '/scratch/a.bip5/ATLAS_2/Training/' 
     model_name = 'SegResNet'

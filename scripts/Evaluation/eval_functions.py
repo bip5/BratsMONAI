@@ -105,8 +105,9 @@ def model_loader(modelweight_path,model_id=model_name,train=False,lr_scheduler=N
             
             # Restore the model state_dict
             state_dict = checkpoint['state_dict']
+            model = wrap_model(state_dict, model)
             if train:
-                model = wrap_model(state_dict, model)
+
                 
                 optimiser=get_optimiser(model)
                 # Restore the optimizer state_dict
@@ -124,7 +125,9 @@ def model_loader(modelweight_path,model_id=model_name,train=False,lr_scheduler=N
 
                 print(f"Model, optimizer, scaler, and scheduler states have been restored from epoch {start_epoch}")              
             
-            return model,optimiser,scaler,lr_scheduler,start_epoch
+                return model,optimiser,scaler,lr_scheduler,start_epoch
+            else:
+               return model 
         else:        
             model = wrap_model(checkpoint,model)
    
