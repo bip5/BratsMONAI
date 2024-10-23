@@ -290,7 +290,7 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
         metric_org = dice_metric.aggregate().item()
         
         metric_batch_org = dice_metric_batch.aggregate()
-        # all_results = pd.concat(result_rows)
+        all_results =[]# pd.concat(result_rows)
         dice_metric.reset()
         dice_metric_batch.reset()
     
@@ -298,7 +298,7 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
     weights_after = model.state_dict()
     for name, param in weights_after.items():
         assert torch.equal(weights_before[name], param), f"Weights changed for layer: {name}"
-    metric_tc, metric_wt, metric_et = metric_batch_org[0].item(), metric_batch_org[1].item(), metric_batch_org[2].item()
+    metric_tc, metric_wt, metric_et = 0,0,0#metric_batch_org[0].item(), metric_batch_org[1].item(), metric_batch_org[2].item()
 
     print("Metric on original image spacing: ", metric_org)
     print(f"metric_tc: {metric_tc:.4f}", f"   metric_wt: {metric_wt:.4f}", f"   metric_et: {metric_et:.4f}")
@@ -860,7 +860,7 @@ if __name__ =='__main__':
         full_dataset = IslesDataset(root_dir,transform=val_transform_isles)
         test_indices=test_indices.tolist()
         # test_dataset = Subset(full_dataset, test_indices[:limit_samples])
-        test_dataset = Subset(full_dataset, val_indices)
+        test_dataset = Subset(full_dataset, test_indices)
         test_loader=DataLoader(test_dataset,shuffle=False,batch_size=1,num_workers=4)
         
         # Convert it to a string in a specific format (e.g., YYYY-MM-DD_HH-MM-SS)
