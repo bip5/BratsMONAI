@@ -377,9 +377,9 @@ isles_list = [
     RandGaussianSmoothd(
         keys="image",
         prob=0.3,
-        sigma_x=(0.5, 1.5),
-        sigma_y=(0.5, 1.5),
-        sigma_z=(0.5, 1.5),
+        sigma_x=(0.8, 1.2),
+        sigma_y=(0.8, 1.2),
+        sigma_z=(0.8, 1.2),
     ),
     RandScaleIntensityd(keys="image", factors=0.3, prob=0.3),
     RandShiftIntensityd(keys="image", offsets=0.1, prob=0.3),
