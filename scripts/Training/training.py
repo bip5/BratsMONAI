@@ -484,6 +484,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     
     best_metric = -1
     best_loss = 1
+    best_loss_epoch = -1
     best_metric_epoch = -1
     # best_metrics_epochs_and_time = [[], [], []]
     epoch_loss_values = []
@@ -517,7 +518,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         if incremental_transform:
             if training_mode=='isles':
                
-                if epoch==best_metric_epoch:
+                if epoch==best_loss_epoch:
                     if new_samples<230:                        
                         new_samples = new_samples+50
                         new_indices=indexes[:new_samples]
@@ -768,6 +769,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         
         if best_loss>epoch_loss:
             best_loss = epoch_loss
+            best_loss_epoch = epoch+1
             state = {
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),

@@ -860,7 +860,7 @@ if __name__ =='__main__':
         full_dataset = IslesDataset(root_dir,transform=val_transform_isles)
         test_indices=test_indices.tolist()
         # test_dataset = Subset(full_dataset, test_indices[:limit_samples])
-        test_dataset = Subset(full_dataset, val_indices)
+        test_dataset = Subset(full_dataset, test_indices)
         test_loader=DataLoader(test_dataset,shuffle=False,batch_size=1,num_workers=4)
         
         # Convert it to a string in a specific format (e.g., YYYY-MM-DD_HH-MM-SS)
