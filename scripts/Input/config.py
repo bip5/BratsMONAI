@@ -148,15 +148,15 @@ elif mode_index==18:
     model_name='PixelLayer'
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
-    load_save = 0
+    load_save = 1
     jit_model=False
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7954751/2024-10-23SegResNetDS_j7954751_ts0_LL'  #'/scratch/a.bip5/BraTS/weights/job_7954172/2024-10-22SegResNetDS_j7954172_ts0' #
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7954906/2024-10-24SegResNetDS_j7954906_ts0'  #'/scratch/a.bip5/BraTS/weights/job_7954172/2024-10-22SegResNetDS_j7954172_ts0' #
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 100
+    total_epochs = 200
     init_filter_number= 32
     batch_size=1
     in_channels = 2
