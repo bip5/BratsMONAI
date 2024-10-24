@@ -357,7 +357,7 @@ isles_list = [
     EnsureTyped(keys=["image", "mask"]),
     RandAffined(
         keys=["image", "mask"],
-        prob=0.3,
+        prob=1,
         rotate_range=(np.pi/12, np.pi/12, np.pi/12),
         scale_range=(0.1, 0.1, 0.1),
         mode=("bilinear", "nearest"),
@@ -368,21 +368,21 @@ isles_list = [
         range_x=np.pi/12,
         range_y=np.pi/12,
         range_z=np.pi/12,
-        prob=0.3,
+        prob=1,
         mode=("bilinear", "nearest"),
         padding_mode="border",
     ),
-    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=0.2),
-    RandGaussianNoised(keys="image", prob=0.3, mean=0.0, std=0.1),
+    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=1),
+    RandGaussianNoised(keys="image", prob=1, mean=0.0, std=0.1),
     RandGaussianSmoothd(
         keys="image",
-        prob=0.3,
+        prob=1,
         sigma_x=(0.8, 1.2),
         sigma_y=(0.8, 1.2),
         sigma_z=(0.8, 1.2),
     ),
-    RandScaleIntensityd(keys="image", factors=0.3, prob=0.3),
-    RandShiftIntensityd(keys="image", offsets=0.1, prob=0.3),
+    RandScaleIntensityd(keys="image", factors=0.3, prob=1),
+    RandShiftIntensityd(keys="image", offsets=0.1, prob=1),
 ]
 train_transform_isles = Compose(
     isles_list
