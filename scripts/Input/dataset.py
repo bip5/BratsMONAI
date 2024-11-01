@@ -259,7 +259,7 @@ def make_dataset_isles(data_dir):
             elif f.endswith('adc.nii.gz'):
                 im_temp.append(fpath) 
         if im_temp:
-            images.append(sorted(im_temp))                   
+            images.append(sorted(im_temp)) #sorting the inside                    
         im_temp = []
     masks= sorted(glob(f"{data_dir+'/derivatives'}/**/*.nii.gz",recursive=True))                        
     return sorted(images), masks

@@ -728,7 +728,7 @@ class DynamicProbabilityTransform:
         return x
 
 # Ad-hoc transform update in the training loop
-def update_transforms_for_epoch(x_transform, init_loss, best_loss):
+def update_transforms_for_epoch(x_transform, init_loss, best_loss,patience=2):
     transform_list = []
     
     for i, transform in enumerate(x_transform):
@@ -736,7 +736,7 @@ def update_transforms_for_epoch(x_transform, init_loss, best_loss):
              transform_list.append(transform)
         else:
             dynamic_transform = DynamicProbabilityTransform(transform, start_prob=0.0)
-            dynamic_transform.set_probability(init_loss, best_loss,patience=2)  # Adjust probability based on epoch
+            dynamic_transform.set_probability(init_loss, best_loss,patience)  # Adjust probability based on epoch
             transform_list.append(dynamic_transform)
     
     # Rebuild the compose transform pipeline with updated probabilities
