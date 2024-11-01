@@ -525,7 +525,14 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         print_ids=0
         if incremental_transform:
             if training_mode=='isles':
-               
+                if load_save==1:
+                    if epoch == start_epoch:
+                        print('AUGMENTATION UPDATE')
+                        updated_transform_isles = update_transforms_for_epoch(isles_list,init_loss,best_loss,patience=2)
+
+                        full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
+                        train_dataset = Subset(full_train, train_indices)   # okay since train indices=230 on load_save
+                        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
                 if epoch==best_loss_epoch:
                     if new_samples<230:                        
                         new_samples = new_samples+50
