@@ -490,7 +490,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
 
     
     best_metric = -1
-    best_loss = 1
+    best_loss = 10
     best_loss_epoch = -1
     best_metric_epoch = -1
     # best_metrics_epochs_and_time = [[], [], []]
@@ -775,6 +775,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         
         
         if best_loss>epoch_loss:
+            print('lowest loss so far')
             best_loss = epoch_loss
             best_loss_epoch = epoch+1
             state = {
