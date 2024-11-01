@@ -34,7 +34,7 @@ from monai.transforms import (EnsureChannelFirstD, ToMetaTensorD,\
     KeepLargestConnectedComponentd
 )
 import random
-from Input.config import roi
+from Input.config import roi, base_transform_probability
 import torch
 import numpy as np
 from monai.data import MetaTensor
@@ -334,7 +334,7 @@ train_transform_CA = Compose(
         
     ]
 )
-
+probability=base_transform_probability
 isles_list = [
     LoadImaged(keys=["image", "mask"]),
     EnsureChannelFirstD(keys=["image", "mask"]),
@@ -358,7 +358,7 @@ isles_list = [
     EnsureTyped(keys=["image", "mask"]),
     RandAffined(
         keys=["image", "mask"],
-        prob=1,
+        prob=probability,
         rotate_range=(np.pi/12, np.pi/12, np.pi/12),
         scale_range=(0.1, 0.1, 0.1),
         mode=("bilinear", "nearest"),
@@ -369,21 +369,21 @@ isles_list = [
         range_x=np.pi/12,
         range_y=np.pi/12,
         range_z=np.pi/12,
-        prob=1,
+        prob=probability,
         mode=("bilinear", "nearest"),
         padding_mode="border",
     ),
-    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=1),
-    RandGaussianNoised(keys="image", prob=1, mean=0.0, std=0.1),
+    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=probability),
+    RandGaussianNoised(keys="image", prob=probability, mean=0.0, std=0.1),
     RandGaussianSmoothd(
         keys="image",
-        prob=1,
+        prob=probability,
         sigma_x=(0.8, 1.2),
         sigma_y=(0.8, 1.2),
         sigma_z=(0.8, 1.2),
     ),
-    RandScaleIntensityd(keys="image", factors=0.3, prob=1),
-    RandShiftIntensityd(keys="image", offsets=0.1, prob=1),
+    RandScaleIntensityd(keys="image", factors=0.3, prob=probability),
+    RandShiftIntensityd(keys="image", offsets=0.1, prob=probability),
 ]
 train_transform_isles = Compose(
     isles_list

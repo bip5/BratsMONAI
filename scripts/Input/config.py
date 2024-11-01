@@ -34,6 +34,7 @@ upsample = 'DECONV' #'NONTRAINABLE'# upsample method in SegResNet
 val_interval = 1
 workers = 4
 inf_overlap=0.5
+base_transform_probability = 0.3
 dropout=None
 use_sampler =  False#
 minival=False#
@@ -167,8 +168,9 @@ elif mode_index==19:
     loss_type = 'DiceFocal' #'dice'#
     seed = 1111
     dataset_seed = 8
-    incremental_transform = True
+    incremental_transform = False
     training_samples= 30 if incremental_transform else 230 
+    base_transform_probability=1 if incremental_transform else 0.3
     skip_AMP =True
 elif mode_index==20:
     
