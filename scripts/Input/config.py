@@ -168,7 +168,7 @@ elif mode_index==19:
     loss_type = 'DiceFocal' #'dice'#
     seed = 1111
     dataset_seed = 8
-    incremental_transform = False
+    incremental_transform = True
     training_samples= 30 if incremental_transform else 230 
     base_transform_probability=1 if incremental_transform else 0.3
     skip_AMP =True
