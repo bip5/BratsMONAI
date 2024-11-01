@@ -548,7 +548,10 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         updated_transform_isles = update_transforms_for_epoch(isles_list,init_loss,best_loss,patience=2)
 
                         full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
-                        train_dataset = Subset(full_train, new_indices)   
+                        if load_save==1:
+                            train_dataset = Subset(full_train, train_indices)
+                        else:
+                            train_dataset = Subset(full_train, new_indices)   
                         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
                    
                 # elif (epoch-best_metric_epoch)%10==0:
