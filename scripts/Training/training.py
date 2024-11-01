@@ -527,7 +527,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             if training_mode=='isles':
                 if load_save==1:
                     if epoch == start_epoch:
-                        init_loss=1
+                        best_loss=1
                         print('AUGMENTATION UPDATE')
                         updated_transform_isles = update_transforms_for_epoch(isles_list,init_loss,best_loss,patience=2)
 
