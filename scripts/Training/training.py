@@ -435,6 +435,13 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
         
         saved_model = os.path.join(save_dir, save_name)
         torch.save(state, saved_model)
+        
+        save_name_sd=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)+ '_LL'
+        saved_model_sd=os.path.join(save_dir, save_name_sd)
+        torch.save(
+            model.state_dict(),
+            saved_model_sd,
+        )
         print(f"Saved new best metric model: {saved_model}")
     
     if training_mode in modes:
@@ -779,11 +786,20 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             }
             print(f'saving best loss model at epoch{epoch+1}')
             save_name=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)+ '_LL'
+            
+            
             saved_model=os.path.join(save_dir, save_name)
             torch.save(
                 state,
                 saved_model,
             )
+            save_name_sd=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)+ '_LL'
+            saved_model_sd=os.path.join(save_dir, save_name_sd)
+            torch.save(
+                model.state_dict(),
+                saved_model_sd,
+            )
+            
                 
             
         

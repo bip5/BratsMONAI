@@ -10,6 +10,7 @@ from monai.transforms import (EnsureChannelFirstD, ToMetaTensorD,\
     AsDiscrete,
     AsDiscreted,
     Compose,
+    CastToTyped,
     Invertd,
     RandAffined,
     LoadImaged,
@@ -596,20 +597,22 @@ device=torch.device("cuda:0")
 val_transform_isles = Compose(
     [
         LoadImaged(keys=["image", "mask"]),
+        CastToTyped(keys=['image'],dtype=np.float32),
         EnsureChannelFirstD(keys=["image","mask"]),
+        EnsureTyped(keys=["image", "mask"]),
         # AddChannelD(keys="mask"), 
         SpacingD(
             keys=["image"],
             pixdim=(1.0, 1.0, 1.0),
             mode="bilinear",
         ),
-        OrientationD(keys=["image"],axcodes="RAS"),
+        # OrientationD(keys=["image"],axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),  
         # RandSpatialCropd(
         # ["image"], roi_size=roi, random_size=False
         # ),
         # CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
-        EnsureTyped(keys=["image", "mask"]),
+        
     ]
 )
     

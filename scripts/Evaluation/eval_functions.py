@@ -13,9 +13,10 @@ from Analysis.encoded_features_x5 import single_encode_x5
 from scipy.spatial import distance
 import torch
 from Input.config import encoder_path,load_path,VAL_AMP,roi,DE_option,dropout, TTA_ensemble,cluster_files, raw_features_filename,inf_overlap,model_name,output_path,jit_model
-from monai.inferers import sliding_window_inference
+from monai.inferers import sliding_window_inference, SlidingWindowInferer
 from monai.handlers.utils import from_engine
 from monai.data import DataLoader,decollate_batch
+from monai import transforms
 import pandas as pd
 import copy
 from datetime import datetime
@@ -385,7 +386,64 @@ def eval_model_selector(modelweight_folder_path, loader):
     print("Metric on original image spacing: ", metric_org)
     print(f"metric_tc: {metric_tc:.4f}", f"   metric_wt: {metric_wt:.4f}", f"   metric_et: {metric_et:.4f}")
     return metric_org,metric_tc,metric_wt,metric_et,ind_scores,model_closest,dist_lists,slice_dice_scores,slice_gt_area,slice_pred_area,all_results
-    
+ 
+
+def jit_ensemble(eval_folder,val_transform_isles,batch_data):
+    model_inferer = SlidingWindowInferer(roi_size=[192, 192, 128], overlap=0.625, mode='gaussian', cache_roi_weight_map=True, sw_batch_size=1)
+
+    dirname= eval_folder
+
+    checkpoints = [ os.path.join(dirname, 'model0.ts'),
+                        # os.path.join(dirname, 'model1.ts'),
+                        # os.path.join(dirname, 'model2.ts'),
+
+                        # os.path.join(dirname, 'model3.ts'),
+                        # os.path.join(dirname, 'model4.ts'),
+                        # os.path.join(dirname, 'model5.ts'),
+
+                        # os.path.join(dirname, 'model6.ts'),
+                        # os.path.join(dirname, 'model7.ts'),
+                        # os.path.join(dirname, 'model8.ts'),
+
+                        # os.path.join(dirname, 'model9.ts'),
+                        # os.path.join(dirname, 'model10.ts'),
+                        # os.path.join(dirname, 'model11.ts'),
+
+                        # os.path.join(dirname, 'model12.ts'),
+                        # os.path.join(dirname, 'model13.ts'),
+                        # os.path.join(dirname, 'model14.ts'),
+
+                        ]
+    with torch.no_grad():          
+        all_probs=[]
+        for checkpoint in checkpoints:
+            # print('Inference with', checkpoint)
+      
+            model = torch.jit.load(checkpoint)
+            model.cuda(0)
+            model.eval()
+            image = batch_data['image'].cuda(0)
+
+            with torch.cuda.amp.autocast(enabled=True):
+                logits = model_inferer(inputs=image, network=model)  # another inferer (e.g. sliding window)
+
+            probs = torch.softmax(logits.float(), dim=1)
+
+            batch_data["pred"] = probs
+            inverter = transforms.Invertd(keys="pred", transform=val_transform_isles, orig_keys="image", meta_keys="pred_meta_dict", nearest_interp=False, to_tensor=True)
+            probs = [inverter(x)["pred"] for x in decollate_batch(batch_data)] #invert resampling if any
+            probs = torch.stack(probs, dim=0)
+            
+
+            all_probs.append(probs.cpu())
+
+        probs = sum(all_probs)/len(all_probs) #mean
+        labels = torch.argmax(probs, dim=1).unsqueeze(0)
+        # prediction = labels[0].copy()
+
+        # prediction = prediction.transpose((0, 1, 0))
+        return labels.astype(int)
+
 # New function to calculate weights from distances
 def calculate_weights(distances):
     inverted_distances = [1/d if d != 0 else 0 for d in distances]

@@ -3,7 +3,7 @@ sys.path.append('/scratch/a.bip5/BraTS/scripts/')
 import nibabel as nib
 
 
-from monai.inferers import sliding_window_inference
+from monai.inferers import sliding_window_inference, SlidingWindowInferer
 from monai.handlers.utils import from_engine
 import torch
 from Input.config import (
@@ -30,10 +30,12 @@ plot_list,
 plots_dir,
 limit_samples,
 base_perf_path,
-inf_overlap
+inf_overlap,
+jit_model
 )
+from torch.cuda.amp import autocast
 from Input.dataset import (
-BratsDataset,
+BratsDataset,indexes,
 ExpDataset,ExpDatasetEval,val_indices,
 test_indices,train_indices,Brats23valDataset,BratsTimeDataset,IslesDataset, AtlasDataset
 )
@@ -54,12 +56,13 @@ from sklearn.preprocessing import MinMaxScaler
 from monai.config import print_config
 from monai.metrics import DiceMetric
 from Evaluation.eval_functions import plot_scatter,plot_prediction,find_centroid,eval_model_selector,ensemble_inference
-from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch,plot_expert_performance,distance_ensembler,model_loader
+from Evaluation.eval_functions import inference,dice_metric_ind,dice_metric_ind_batch,dice_metric,dice_metric_batch,plot_expert_performance,distance_ensembler,model_loader,jit_ensemble
 from Evaluation.eval_functions2 import evaluate_time_samples
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 from BraTS2023Metrics.metrics import get_LesionWiseResults as lesion_wise
-
+from monai import transforms
+from Evaluation.visualisation_functions import plot_zero
 
 #trying to make the evaluation deterministic and independent to sample order
 torch.backends.cudnn.deterministic = True
@@ -95,6 +98,7 @@ print(
 device = torch.device("cuda:0")
 namespace = locals().copy()
 config_dict=dict()
+job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
 for name, value in namespace.items():
     if type(value) in [str,int,float,bool]:
       
@@ -107,9 +111,9 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(seed)
     
    
-        
+     
 
-def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
+def evaluate(eval_path,test_loader,output_path=output_path,model=model,**kwargs):
     print('function called')############################
     device = torch.device("cuda:0")
     
@@ -149,7 +153,28 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
                 print(sub_id, orig_i_list[i])
                 # image_names=test_data[0]["imagepaths"]
             test_data["pred"] = inference(test_inputs,model)
-            test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
+            
+            
+            if jit_model:
+                # test_data=[post_trans(ii) for ii in decollate_batch(test_data)]
+                
+                model_inferer = SlidingWindowInferer(roi_size=[192, 192, 128], overlap=0.625, mode='gaussian', cache_roi_weight_map=False, sw_batch_size=2)
+                with autocast(enabled=True):
+                    logits = model_inferer(inputs=test_inputs, network=model)
+                
+                probs = torch.softmax(logits.float(), dim=1)
+                
+                test_data["pred"] = probs
+                inverter = transforms.Invertd(keys="pred", transform=val_transform_isles, orig_keys="image", meta_keys="pred_meta_dict", nearest_interp=False, to_tensor=True)
+                probs = [inverter(x)["pred"] for x in decollate_batch(test_data)]
+                probs = torch.stack(probs, dim=0)
+                # print('after inversion',probs.shape)
+                test_data["pred"] = torch.argmax(probs, dim=1).unsqueeze(0).to(torch.int8)
+                sub_id=test_data["id"][0]
+            
+            else:
+                test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
+                sub_id=test_data[0]["id"]
             test_outputs,test_labels = from_engine(["pred","mask"])(test_data) # returns two lists of tensors
             
             # if i==4:
@@ -172,7 +197,9 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
             test_labels = [tensor.to(device) for tensor in test_labels]
 
             # test_labels=test_data["mask"].to(device)
-            sub_id=test_data[0]["id"][-9:]
+            # print(type(test_data))
+           
+            
             
                       
             # df= lesion_wise(test_outputs[0].cpu().numpy(),test_labels[0].cpu().numpy(),output='./lesion_wise.csv')
@@ -195,6 +222,15 @@ def evaluate(eval_path,test_loader,output_path=None,model=model,**kwargs):
             # Compute the Dice score for this test case
             # current_dice = dice_metric_ind.aggregate().item()
             current_dice = dice_metric_ind.aggregate(reduction=None).item()
+            print(current_dice)
+            
+            if current_dice<0.001:
+                #need to invert image as well for plotting purposes
+                inverter = transforms.Invertd(keys="image", transform=val_transform_isles, orig_keys="image", meta_keys="image_meta_dict", nearest_interp=False, to_tensor=True)
+                
+                test_inputs = [inverter(x)["image"] for x in decollate_batch(test_data)]
+                # signature  plot_zero(test_inputs,prediction, mask, output_path,job_id, sub_id):
+                plot_zero(test_inputs,test_outputs,test_labels,output_path,job_id,sub_id)
             # batch_ind = dice_metric_ind_batch.aggregate()
             # tc,wt,et = batch_ind[0].item(),batch_ind[1].item(),batch_ind[2].item()
             # ind_scores[sub_id] = {'original index': test_indices[i], 'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
@@ -852,14 +888,39 @@ if __name__ =='__main__':
         
         plt.close()
         
-
-                    
+    elif eval_mode == 'jit ens':
         
+        full_dataset = IslesDataset(root_dir,transform=val_transform_isles)
+        test_indices=test_indices.tolist()
+        # test_dataset = Subset(full_dataset, test_indices[:limit_samples])
+        test_dataset = Subset(full_dataset, test_indices)
+        test_loader=DataLoader(test_dataset,shuffle=False,batch_size=1,num_workers=4)
+                    
+        with torch.no_grad():
+            for idx, batch_data in enumerate(test_loader):
+                
+                test_outputs = jit_ensemble(eval_folder,val_transform_isles,batch_data)
+                test_labels = batch_data['mask'].cuda(0)
+                test_outputs = torch.tensor(test_outputs)
+                print(test_labels.shape, test_outputs.shape)
+                dice_metric(y_pred=test_outputs.cuda(0), y=test_labels)
+                dice_metric_ind(y_pred=test_outputs.cuda(0), y=test_labels)
+                current_dice = dice_metric_ind.aggregate(reduction=None).item()
+                print(current_dice)
+                dice_metric_ind.reset()
+            
+            average_perf = dice_metric.aggregate().item()
+            dice_metric.reset()
+            print(f'The average dice score is {average_perf:.4f}')
     elif eval_mode=='simple':
         
         modelname = load_path.split('/')[-1]
         full_dataset = IslesDataset(root_dir,transform=val_transform_isles)
         test_indices=test_indices.tolist()
+        # adc_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/rawdata/sub-strokecase0219/ses-0001/sub-strokecase0219_ses-0001_adc.nii.gz'
+        # dwi_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/rawdata/sub-strokecase0219/ses-0001/sub-strokecase0219_ses-0001_dwi.nii.gz'
+        # debug_mask_path='/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/derivatives/sub-strokecase0219/ses-0001/sub-strokecase0219_ses-0001_msk.nii.gz'
+        # debug_dataset= [{'image': [adc_path, dwi_path ] , 'mask':debug_mask_path}]
         # test_dataset = Subset(full_dataset, test_indices[:limit_samples])
         test_dataset = Subset(full_dataset, test_indices)
         test_loader=DataLoader(test_dataset,shuffle=False,batch_size=1,num_workers=4)

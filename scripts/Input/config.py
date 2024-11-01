@@ -150,13 +150,13 @@ elif mode_index==18:
 elif mode_index==19:
     load_save = 0
     jit_model=False
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7955063/2024-10-24SegResNetDS_j7955063_ts0'  #'/scratch/a.bip5/BraTS/weights/job_7954172/2024-10-22SegResNetDS_j7954172_ts0' #
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7954906/2024-10-24SegResNetDS_j7954906_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0_LL' #'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # 
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 200
+    total_epochs = 300
     init_filter_number= 32
     batch_size=1
     in_channels = 2
@@ -214,10 +214,10 @@ TTA_ensemble=False
 
 
 ################EVAL SPECIFIC VARIABLES#################
-eval_mode ='simple'#  'distance_ensemble'#  'cluster_expert' #    'time' # 'online_val'#    'cluster'  #  choose between simple, cluster, online_val. 
+eval_mode = 'simple'#  'jit ens'# 'distance_ensemble'#  'cluster_expert' #    'time' # 'online_val'#    'cluster'  #  choose between simple, cluster, online_val. 
 eval_path = load_path #only used when evaluating a single model
 base_perf_path = '/scratch/a.bip5/BraTS/jobs_eval/May-29-1716998494/IndScoresjob_7878869_7885546.xlsx'#TransformerRepSplitBase#'/scratch/a.bip5/BraTS/jobs_eval/April-18-1713463104/IndScores_7809063.xlsx' #Repsplitbase perf#'/scratch/a.bip5/BraTS/jobs_eval/April-25-1714065419/IndScoresjob_7808186_7860766.xlsx'# 
-eval_folder = '/scratch/a.bip5/BraTS/weights/job_7915510'#'/scratch/a.bip5/BraTS/weights/job_7860711'#'/scratch/a.bip5/BraTS/weights/job_7809289' #'/scratch/a.bip5/BraTS/weights/m2024-01-22_19-23-02' #'/scratch/a.bip5/BraTS/weights/m2023-11-07_20-07-54'#'/scratch/a.bip5/BraTS/weights/m2023-11-22_18-52-42'# tfmr #'/scratch/a.bip5/BraTS/weights/m2023-11-22_00-04-01'#
+eval_folder = '/scratch/a.bip5/BraTS/weights/0_NVAUTO_models'
 
 output_path = '/scratch/a.bip5/BraTS/saved_predictions'
 test_samples_from ='test'# 'trainval'## evalmode will test performance on training+val ###CHECK
