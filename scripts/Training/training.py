@@ -491,6 +491,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     
     best_metric = -1
     best_loss = 10
+    init_loss=10
     best_loss_epoch = -1
     best_metric_epoch = -1
     # best_metrics_epochs_and_time = [[], [], []]
@@ -537,7 +538,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         print_ids=1
                     else:
                         print('AUGMENTATION UPDATE')
-                        updated_transform_isles = update_transforms_for_epoch(isles_list,epoch,total_epochs)
+                        updated_transform_isles = update_transforms_for_epoch(isles_list,init_loss,best_loss,patience=2)
 
                         full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
                         train_dataset = Subset(full_train, new_indices)   
@@ -775,6 +776,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         
         
         if best_loss>epoch_loss:
+            if epoch==0:
+                init_loss = epoch_loss                
             print('lowest loss so far')
             best_loss = epoch_loss
             best_loss_epoch = epoch+1

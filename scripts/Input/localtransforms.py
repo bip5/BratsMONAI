@@ -712,15 +712,15 @@ post_trans_test = Compose(
 )
 
 class DynamicProbabilityTransform:
-    def __init__(self, transform, base_prob=0.0):
+    def __init__(self, transform, start_prob=0.0):
         self.transform = transform
-        self.base_prob = base_prob
-        self.current_prob = base_prob
+        self.start_prob = start_prob
+        self.current_prob = start_prob
 
-    def set_probability(self, epoch, max_epochs):
-        # Example linear scaling of probability
-        self.current_prob = self.base_prob + ((1.0 - self.base_prob) * (epoch / max_epochs))
-
+    def set_probability(self, init_loss, best_loss,patience=2):
+        # loss scaling of probability
+        self.current_prob = self.start_prob + (1-start_prob)*((init_loss - best_loss)/(patience*init_loss))
+        print('augmentation shared probability set to ', self.current_prob)
     def __call__(self, x):  
         rn= random.random()
         if rn < self.current_prob:
@@ -728,15 +728,15 @@ class DynamicProbabilityTransform:
         return x
 
 # Ad-hoc transform update in the training loop
-def update_transforms_for_epoch(x_transform, epoch, max_epochs):
+def update_transforms_for_epoch(x_transform, init_loss, best_loss):
     transform_list = []
     
     for i, transform in enumerate(x_transform):
         if i<9:
              transform_list.append(transform)
         else:
-            dynamic_transform = DynamicProbabilityTransform(transform, base_prob=0.0)
-            dynamic_transform.set_probability(epoch, max_epochs)  # Adjust probability based on epoch
+            dynamic_transform = DynamicProbabilityTransform(transform, start_prob=0.0)
+            dynamic_transform.set_probability(init_loss, best_loss,patience=2)  # Adjust probability based on epoch
             transform_list.append(dynamic_transform)
     
     # Rebuild the compose transform pipeline with updated probabilities
