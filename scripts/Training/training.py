@@ -529,7 +529,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     if epoch == start_epoch:
                         best_loss=1
                         print('AUGMENTATION UPDATE')
-                        updated_transform_isles = update_transforms_for_epoch(isles_list,init_loss,best_loss,patience=2)
+                        updated_transform_isles = update_transforms_for_epoch(isles_list,init_loss,best_loss,patience=1)
 
                         full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
                         train_dataset = Subset(full_train, train_indices)   # okay since train indices=230 on load_save
