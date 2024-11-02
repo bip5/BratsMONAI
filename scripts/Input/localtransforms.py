@@ -616,6 +616,30 @@ val_transform_isles = Compose(
     ]
 )
     
+# post_trans = Compose(
+    # [        
+        # Invertd(
+            # keys=["pred"],
+            # transform=val_transform_isles,
+            # orig_keys="image",
+            # meta_keys=["pred_meta_dict"],
+            # orig_meta_keys="image_meta_dict",
+            # meta_key_postfix="meta_dict",
+            # nearest_interp=False,
+            # to_tensor=True,
+            # device="cuda",
+        # ), 
+        # Activationsd(keys="pred", sigmoid=True),
+        # AsDiscreted(keys="pred", threshold=0.5),
+        
+        # # KeepLargestConnectedComponentd(keys="pred",applied_labels=[0,1,2],independent=True,connectivity=3,num_components=2),
+        # # RemoveSmallObjectsd(keys="pred",min_size=64, connectivity=1, independent_channels=True, by_measure=False, pixdim=None)
+        # # ConvertToSingleChannel(keys='pred'),
+        # # ConvertToMultiChannelBasedOnBratsClassesd_val(keys="pred"),
+    # ]
+# )
+
+
 post_trans = Compose(
     [        
         Invertd(
@@ -629,13 +653,12 @@ post_trans = Compose(
             to_tensor=True,
             device="cuda",
         ), 
-        Activationsd(keys="pred", sigmoid=True),
-        AsDiscreted(keys="pred", threshold=0.5),
-        
-        # KeepLargestConnectedComponentd(keys="pred",applied_labels=[0,1,2],independent=True,connectivity=3,num_components=2),
-        # RemoveSmallObjectsd(keys="pred",min_size=64, connectivity=1, independent_channels=True, by_measure=False, pixdim=None)
-        # ConvertToSingleChannel(keys='pred'),
-        # ConvertToMultiChannelBasedOnBratsClassesd_val(keys="pred"),
+        Activationsd(keys="pred", softmax=True, dim=1),  # Apply softmax along channel dimension
+        AsDiscreted(
+            keys="pred",
+            argmax=True,  # Use argmax to get the class with highest probability
+            dim=1
+        ),
     ]
 )
           
