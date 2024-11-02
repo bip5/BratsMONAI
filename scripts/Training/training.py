@@ -396,7 +396,7 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
             val_outputs = [tensor.to(device) for tensor in val_outputs]
             val_masks = [tensor.to(device) for tensor in val_masks]
             
-            # plot_zero(val_data["image"],val_outputs,val_masks,output_path,job_id,'001')
+            plot_zero(val_data["image"],val_outputs,val_masks,output_path,job_id,'001')
             
             dice_metric(y_pred=val_outputs, y=val_masks)
             dice_metric_batch(y_pred=val_outputs, y=val_masks)
