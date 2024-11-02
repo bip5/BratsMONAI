@@ -339,6 +339,7 @@ isles_list = [
     LoadImaged(keys=["image", "mask"]),
     EnsureChannelFirstD(keys=["image", "mask"]),
     # CropForegroundd(keys=["image", "mask"], source_key="image"),
+    CastToTyped(keys=['image'], dtype=np.float32),
     SpacingD(
         keys=["image", "mask"],
         pixdim=(1.0, 1.0, 1.0),
