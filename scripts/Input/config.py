@@ -175,7 +175,7 @@ elif mode_index==19:
         else:
             training_samples = 230
     else:
-        training_samples = 10
+        training_samples = 230
     base_transform_probability=1 if incremental_transform else 0.3
     skip_AMP =True
 elif mode_index==20:
