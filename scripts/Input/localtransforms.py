@@ -717,7 +717,7 @@ class DynamicProbabilityTransform:
         self.start_prob = start_prob
         self.current_prob = start_prob
 
-    def set_probability(self, init_loss, best_loss,patience=2):
+    def set_probability(self, init_loss, best_loss,patience):
         # loss scaling of probability
         self.current_prob = self.start_prob + (1-self.start_prob)*((init_loss - best_loss)/(patience*init_loss))
         print('augmentation shared probability set to ', self.current_prob)
