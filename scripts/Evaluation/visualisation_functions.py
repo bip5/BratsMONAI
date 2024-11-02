@@ -22,8 +22,7 @@ def plot_zero(input_image,prediction, mask, output_path,job_id, sub_id):
             mask = mask[0]
             input_image=input_image[0]
     
-    # Determine the number of channels and spatial dimensions
-    num_dims = len(prediction.shape)
+    
     num_channels = prediction.shape[0] if num_dims == 4 else 1  # Assume shape is (C, D, H, W) or (D, H, W)
     
     
@@ -41,7 +40,7 @@ def plot_zero(input_image,prediction, mask, output_path,job_id, sub_id):
         sample_pred = prediction[c] if num_channels > 1 else prediction
         sample = mask[c] if num_channels > 1 else mask
         sample_inp = input_image[c] if num_channels > 1 else input_image
-        
+        print(sample.shape,'sample.shape')
         # Loop over each of the 3 spatial dimensions: depth (axis=0), height (axis=1), width (axis=2)
         for axis, axis_name in enumerate(['sagittal', 'coronal', 'axial']):
             # Array to store counts of non-zero elements for each slice along the current axis

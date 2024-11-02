@@ -395,8 +395,14 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
             # Consistent dice calculation
             val_outputs = [tensor.to(device) for tensor in val_outputs]
             val_masks = [tensor.to(device) for tensor in val_masks]
+            #need to invert image as well for plotting purposes
+            inverter = transforms.Invertd(keys="image", transform=val_transform_isles, orig_keys="image", meta_keys="image_meta_dict", nearest_interp=False, to_tensor=True)
             
-            plot_zero(val_data["image"],val_outputs,val_masks,output_path,job_id,'001')
+            val_inputs = [inverter(x)["image"] for x in decollate_batch(val_data)]
+            
+            output_dir = os.path.join(output_path, job_id, sub_id)
+            os.makedirs(output_dir, exist_ok=True)
+            plot_zero(val_inputs,val_outputs,val_masks,output_dir,job_id,'001')
             
             dice_metric(y_pred=val_outputs, y=val_masks)
             dice_metric_batch(y_pred=val_outputs, y=val_masks)
