@@ -754,7 +754,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         mask_resized = torch.cat(masks_resized,dim=0)
                         output_softmax= torch.softmax(output.float(),dim=1)
                         output_bin = torch.argmax(output_softmax, dim=1)
-                        loss = loss_function(output_bin, mask_resized)
+                        loss = loss_function(output_bin.unsqueeze(0), mask_resized)
                         losses.append(loss * weights[i])
                     loss = sum(losses)
                                        
