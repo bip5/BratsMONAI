@@ -658,7 +658,7 @@ post_trans = Compose(
             keys="pred",
             argmax=True,  # Use argmax to get the class with highest probability
             dim=1,
-            to_onehot=None,
+            
         ),
     ]
 )
