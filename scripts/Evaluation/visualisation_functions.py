@@ -13,12 +13,14 @@ def plot_zero(input_image,prediction, mask, output_path,job_id, sub_id):
         mask = mask[0].cpu().numpy()
     # Ensure prediction and mask have the same shape and at least 3 dimensions (with optional batch and channel).
     assert prediction.shape == mask.shape, "Prediction and mask must have the same shape"
-    print(prediction.shape)
+    print('prediction.shape',prediction.shape)
     # Remove singleton batch dimension if present (shape[0] == 1)
     if prediction.shape[0] == 1:
-        prediction = prediction[0]
-        mask = mask[0]
-        input_image=input_image[0]
+        num_dims = len(prediction.shape)
+        if num_dims == 5: 
+            prediction = prediction[0]
+            mask = mask[0]
+            input_image=input_image[0]
     
     # Determine the number of channels and spatial dimensions
     num_dims = len(prediction.shape)
