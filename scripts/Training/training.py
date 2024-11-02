@@ -68,7 +68,8 @@ load_base,
 base_path,
 in_channels,
 incremental_transform,
-training_samples
+training_samples,
+output_path
 )
 
 from Training.loss_function import loss_function,edgy_dice_loss
@@ -118,6 +119,7 @@ from BraTS2023Metrics.metrics import LesionWiseDice
 import matplotlib.pyplot as plt
 from pathlib import Path
 import wandb
+from Evaluation.visualisation_functions import plot_zero
 # import psutil
 # import threading
 
@@ -393,6 +395,8 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
             # Consistent dice calculation
             val_outputs = [tensor.to(device) for tensor in val_outputs]
             val_masks = [tensor.to(device) for tensor in val_masks]
+            
+            plot_zero(val_inputs,val_outputs,val_masks,output_path,job_id,'001')
             
             dice_metric(y_pred=val_outputs, y=val_masks)
             dice_metric_batch(y_pred=val_outputs, y=val_masks)
