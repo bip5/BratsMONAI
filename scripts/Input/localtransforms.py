@@ -653,11 +653,11 @@ post_trans = Compose(
             to_tensor=True,
             device="cuda",
         ), 
-        Activationsd(keys="pred", softmax=True, dim=1),  # Apply softmax along channel dimension
+        Activationsd(keys="pred", softmax=True, dim=0),  # Apply softmax along channel dimension
         AsDiscreted(
             keys="pred",
             argmax=True,  # Use argmax to get the class with highest probability
-            dim=1,
+            dim=0,
             
         ),
     ]
