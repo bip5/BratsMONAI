@@ -120,6 +120,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import wandb
 from Evaluation.visualisation_functions import plot_zero
+from monai import transforms
 # import psutil
 # import threading
 
@@ -402,6 +403,7 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
             
             output_dir = os.path.join(output_path, job_id, sub_id)
             os.makedirs(output_dir, exist_ok=True)
+            
             plot_zero(val_inputs,val_outputs,val_masks,output_dir,job_id,'001')
             
             dice_metric(y_pred=val_outputs, y=val_masks)
