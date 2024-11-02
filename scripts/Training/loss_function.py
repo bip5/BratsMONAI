@@ -103,5 +103,5 @@ elif loss_type == 'InvDice':
 elif loss_type=='DiceFocal':
     loss_function = DiceFocalLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=False, to_onehot_y=False, sigmoid=True)
 else:
-    loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=False, to_onehot_y=False, sigmoid=True)
+    loss_function = DiceLoss(smooth_nr=0, smooth_dr=1e-5, squared_pred=False, to_onehot_y=True, sigmoid=False)
     
