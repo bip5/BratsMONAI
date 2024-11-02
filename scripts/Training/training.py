@@ -371,7 +371,7 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
         val_masks = val_data["mask"].to(device)
         
         val_data["pred"] = inference(val_inputs, model)
-        print(val_data['pred'][0].shape,'val_data['pred'][0].shape)')
+        print(val_data['pred'][0].shape,"val_data['pred'][0].shape)")
         val_data = [post_trans(i) for i in decollate_batch(val_data)]
         val_outputs, val_masks = from_engine(["pred", "mask"])(val_data)
 
