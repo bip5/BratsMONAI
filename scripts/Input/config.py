@@ -171,7 +171,7 @@ elif mode_index==19:
     incremental_transform = True
     if incremental_transform:
         if load_save==0:
-            training_samples = 30
+            training_samples = 10
         else:
             training_samples = 230
     else:
