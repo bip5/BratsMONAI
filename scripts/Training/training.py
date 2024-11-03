@@ -765,9 +765,9 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                             mask = F.interpolate(masks[bnum,:,:,:,:].unsqueeze(0), size = output.shape[-3:], mode='nearest')
                             masks_resized.append(mask)
                         mask_resized = torch.cat(masks_resized,dim=0)
-                        output_softmax= torch.softmax(output.float(),dim=1)
+                        # output_softmax= torch.softmax(output.float(),dim=1)
                         # print('mask_resized.shape, output_softmax.shape',mask_resized.shape, output_softmax.shape)
-                        loss = loss_function(output_softmax,mask_resized)
+                        loss = loss_function(output,mask_resized)
                         losses.append(loss * weights[i])
                     loss = sum(losses)
                                        
