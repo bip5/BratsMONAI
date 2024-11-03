@@ -401,7 +401,7 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
             
             val_inputs = [inverter(x)["image"] for x in decollate_batch(val_data)]
             
-            output_dir = os.path.join(output_path, job_id, sub_id)
+            output_dir = os.path.join(output_path, job_id)
             os.makedirs(output_dir, exist_ok=True)
             
             plot_zero(val_inputs,val_outputs,val_masks,output_dir,job_id,'001')
