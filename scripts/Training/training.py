@@ -548,6 +548,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         train_dataset = Subset(full_train, train_indices)   # okay since train indices=230 on load_save
                         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
                 if epoch==best_loss_epoch:
+                    updated_transform_isles = update_transforms_for_epoch(isles_list,init_loss,best_loss,patience=1.5)
                     if new_samples<230:                        
                         new_samples = new_samples+10
                         new_indices=indexes[:new_samples]
@@ -558,7 +559,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         print('INTRODUCED NEW SAMPLES')
                         print_ids=1
                         print('AUGMENTATION UPDATE')
-                        updated_transform_isles = update_transforms_for_epoch(isles_list,init_loss,best_loss,patience=1)
+                        
 
                         full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
                         if load_save==1:
@@ -568,8 +569,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
                     else:
                         print('AUGMENTATION UPDATE')
-                        updated_transform_isles = update_transforms_for_epoch(isles_list,init_loss,best_loss,patience=1)
-
+                        
                         full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
                         if load_save==1:
                             train_dataset = Subset(full_train, train_indices)
