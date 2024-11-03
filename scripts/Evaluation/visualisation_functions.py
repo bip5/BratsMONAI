@@ -37,9 +37,9 @@ def plot_zero(input_image,prediction, mask, output_path,job_id, sub_id):
      # Loop through each channel if there are multiple channels
     for c in range(num_channels):
         # Select the appropriate channel if multiple; otherwise, work directly with the single-channel data
-        sample_pred = prediction[c] if num_channels > 1 else prediction
-        sample = mask[c] if num_channels > 1 else mask
-        sample_inp = input_image[c] if num_channels > 1 else input_image
+        sample_pred = prediction[c] if num_channels > 1 else prediction[0]
+        sample = mask[c] if num_channels > 1 else mask[0]
+        sample_inp = input_image[c] if num_channels > 1 else input_image[0]
         print(sample.shape,'sample.shape')
         # Loop over each of the 3 spatial dimensions: depth (axis=0), height (axis=1), width (axis=2)
         for axis, axis_name in enumerate(['sagittal', 'coronal', 'axial']):
