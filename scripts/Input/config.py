@@ -168,10 +168,10 @@ elif mode_index==19:
     loss_type = 'DiceFocal' #'dice'#
     seed = 1111
     dataset_seed = 8
-    incremental_transform = True
+    incremental_transform = False
     if incremental_transform:
         if load_save==0:
-            training_samples = 10
+            training_samples = 30
         else:
             training_samples = 230
     else:
