@@ -374,7 +374,7 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
         val_masks = val_data["mask"].to(device)
         
         val_data["pred"] = inference(val_inputs, model)
-        print(val_data['pred'][0].shape,"val_data['pred'][0].shape)")
+        # print(val_data['pred'][0].shape,"val_data['pred'][0].shape)")
         val_data = [post_trans(i) for i in decollate_batch(val_data)]
         val_outputs, val_masks = from_engine(["pred", "mask"])(val_data)
 
@@ -404,7 +404,7 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
             output_dir = os.path.join(output_path, job_id)
             os.makedirs(output_dir, exist_ok=True)
             
-            plot_zero(val_inputs,val_outputs,val_masks,output_dir,job_id,'001')
+            # plot_zero(val_inputs,val_outputs,val_masks,output_dir,job_id,'001')
             
             dice_metric(y_pred=val_outputs, y=val_masks)
             dice_metric_batch(y_pred=val_outputs, y=val_masks)
