@@ -162,13 +162,13 @@ elif mode_index==19:
     batch_size=1
     in_channels = 2
     out_channels = 2    
-    inf_overlap = 0.625
+    inf_overlap = 0.7
     lr = 0.000025
     activation = 'RELU'
     loss_type = 'DiceFocal' #'dice'#
     seed = 1111
     dataset_seed = 8
-    incremental_transform = True
+    incremental_transform = False
     if incremental_transform:
         if load_save==0:
             training_samples = 230
