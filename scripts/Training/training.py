@@ -954,7 +954,7 @@ if __name__=="__main__":
         full_val = IslesDataset(root_dir ,transform=val_transform_isles )
         
         val_dataset = Subset(full_val, val_indices)
-        trainingfunc_simple(full_dataset, val_dataset,save_dir=save_dir)
+        trainingfunc_simple(full_train, val_dataset,save_dir=save_dir)
         
     elif training_mode=='ClusterBlend': 
        
