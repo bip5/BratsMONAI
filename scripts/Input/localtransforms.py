@@ -313,15 +313,15 @@ train_transform = Compose(
 )
 train_transform_BP = Compose(
     [
-        # load 4 Nifti images and stack them together
+        # load 2 Nifti images and stack them together
         LoadImaged(keys=["image","mask"]),
-        EnsureChannelFirstD(keys="image"),
+        EnsureChannelFirstD(keys=["image","mask"]),
         EnsureTyped(keys=["image", "mask"]),
-        # SpacingD(
-            # keys=["image", "mask"],
-            # pixdim=(1.0, 1.0, 1.0),
-            # mode=("bilinear", "nearest"),
-        # ),
+        SpacingD(
+            keys=["image", "mask"],
+            pixdim=(1.0, 1.0, 1.0),
+            mode=("bilinear", "nearest"),
+        ),
         AsDiscreted(keys="mask",threshold=0.5),
         
         OrientationD(keys=["image", "mask"], axcodes="RAS"),
