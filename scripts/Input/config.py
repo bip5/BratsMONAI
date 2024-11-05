@@ -149,9 +149,9 @@ elif mode_index==18:
     model_name='PixelLayer'
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
-    load_save = 0
+    load_save = 1
     
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7956992/2024-11-02SegResNetDS_j7956992_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0_LL' #
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7957665/2024-11-05SegResNetDS_j7957665_ts0_LL'#'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7956992/2024-11-02SegResNetDS_j7956992_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0_LL' #
     jit_model= False
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
@@ -160,7 +160,7 @@ elif mode_index==19:
     roi = (192,192,128)
     total_epochs = 500
     init_filter_number= 32
-    batch_size=8
+    batch_size=4
     in_channels = 2
     out_channels = 2    
     inf_overlap = 0.7
@@ -169,7 +169,7 @@ elif mode_index==19:
     loss_type = 'DiceFocal' #'dice'#
     seed = 44
     dataset_seed = 8
-    incremental_transform = False
+    incremental_transform = True
     if incremental_transform:
         if load_save==0:
             training_samples = 230

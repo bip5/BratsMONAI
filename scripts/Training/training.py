@@ -451,7 +451,7 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
         saved_model = os.path.join(save_dir, save_name)
         torch.save(state, saved_model)
         
-        save_name_sd=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)+ '_LL'
+        save_name_sd=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)+ '_sd'
         saved_model_sd=os.path.join(save_dir, save_name_sd)
         torch.save(
             model.state_dict(),
@@ -836,7 +836,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 state,
                 saved_model,
             )
-            save_name_sd=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)+ '_LL'
+            save_name_sd=date.today().isoformat()+model_name+'_j'+str(job_id)+'_ts'+str(temporal_split)+ '_LL_sd'
             saved_model_sd=os.path.join(save_dir, save_name_sd)
             torch.save(
                 model.state_dict(),
