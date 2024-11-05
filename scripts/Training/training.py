@@ -18,7 +18,8 @@ post_trans,
 train_transform_atlas,
 val_transform_atlas,
 update_transforms_for_epoch,
-isles_list
+isles_list,
+train_transform_BP
 )
 
 from Training.prun import prune_network
@@ -89,6 +90,7 @@ inference,
 
 from Input.dataset import (
 BratsDataset,
+BratsDatasetPretrain,
 IslesDataset,
 BratsInfusionDataset,
 EnsembleDataset,
@@ -945,6 +947,14 @@ if __name__=="__main__":
         
         val_dataset = Subset(full_val, val_indices)
         trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
+        
+    elif training_mode=='pretrain':  
+        full_train=BratsDatasetPretrain(root_dir ,transform= train_transform_BP )
+        train_dataset = Subset(full_train, train_indices)        
+        full_val = IslesDataset(root_dir ,transform=val_transform_isles )
+        
+        val_dataset = Subset(full_val, val_indices)
+        trainingfunc_simple(full_dataset, val_dataset,save_dir=save_dir)
         
     elif training_mode=='ClusterBlend': 
        

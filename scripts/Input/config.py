@@ -150,8 +150,9 @@ elif mode_index==18:
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
     load_save = 0
-    jit_model=False
-    load_path = '/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7956992/2024-11-02SegResNetDS_j7956992_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0_LL' #
+    
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7956992/2024-11-02SegResNetDS_j7956992_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0_LL' #
+    jit_model= False
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
     training_mode = 'isles'
@@ -159,14 +160,14 @@ elif mode_index==19:
     roi = (192,192,128)
     total_epochs = 125
     init_filter_number= 32
-    batch_size=1
+    batch_size=4
     in_channels = 2
     out_channels = 2    
     inf_overlap = 0.7
-    lr = 0.000025
+    lr = 0.0001
     activation = 'RELU'
     loss_type = 'DiceFocal' #'dice'#
-    seed = 1111
+    seed = 44
     dataset_seed = 8
     incremental_transform = True
     if incremental_transform:
@@ -191,8 +192,30 @@ elif mode_index==20:
     roi = (192,192,144)#(64,64,64)#(128,128,128)#
     total_epochs = 100
     init_filter_number= 32
+    lr = 0.000025
     in_channels = 1
     out_channels = 1
+    inf_overlap = 0.8   
+    seed = 11
+    dataset_seed = 1
+    incremental_transform = False
+    training_samples= 100 if incremental_transform else 600
+    # workers=1
+elif mode_index==21:
+    
+    load_save = 0
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7953042/2024-10-18SegResNet_j7953042_ts0_LL'  
+    root_dir = "/scratch/a.bip5/BraTS/BraTS_23_training/" 
+    model_name = 'SegResNetDS'
+    batch_size=4
+    training_mode = 'pretrain'
+    max_samples = 1250
+    loss_type = 'DiceFocal'#'dice'
+    roi = (192,192,144)#(64,64,64)#(128,128,128)#
+    total_epochs = 100
+    init_filter_number= 32
+    in_channels = 2
+    out_channels = 2
     inf_overlap = 0.8   
     seed = 11
     dataset_seed = 1

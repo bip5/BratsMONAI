@@ -155,26 +155,26 @@ def evaluate(eval_path,test_loader,output_path=output_path,model=model,**kwargs)
             test_data["pred"] = inference(test_inputs,model)
             
             
-            if jit_model:
-                # test_data=[post_trans(ii) for ii in decollate_batch(test_data)]
-                
-                model_inferer = SlidingWindowInferer(roi_size=[192, 192, 128], overlap=0.625, mode='gaussian', cache_roi_weight_map=False, sw_batch_size=2)
-                with autocast(enabled=True):
-                    logits = model_inferer(inputs=test_inputs, network=model)
-                
-                probs = torch.softmax(logits.float(), dim=1)
-                
-                test_data["pred"] = probs
-                inverter = transforms.Invertd(keys="pred", transform=val_transform_isles, orig_keys="image", meta_keys="pred_meta_dict", nearest_interp=False, to_tensor=True)
-                probs = [inverter(x)["pred"] for x in decollate_batch(test_data)]
-                probs = torch.stack(probs, dim=0)
-                # print('after inversion',probs.shape)
-                test_data["pred"] = torch.argmax(probs, dim=1).unsqueeze(0).to(torch.int8)
-                sub_id=test_data["id"][0]
+            # if jit_model:
+            # test_data=[post_trans(ii) for ii in decollate_batch(test_data)]
             
-            else:
-                test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
-                sub_id=test_data[0]["id"]
+            model_inferer = SlidingWindowInferer(roi_size=[192, 192, 128], overlap=0.625, mode='gaussian', cache_roi_weight_map=False, sw_batch_size=2)
+            with autocast(enabled=True):
+                logits = model_inferer(inputs=test_inputs, network=model)
+            
+            probs = torch.softmax(logits.float(), dim=1)
+            
+            test_data["pred"] = probs
+            inverter = transforms.Invertd(keys="pred", transform=val_transform_isles, orig_keys="image", meta_keys="pred_meta_dict", nearest_interp=False, to_tensor=True)
+            probs = [inverter(x)["pred"] for x in decollate_batch(test_data)]
+            probs = torch.stack(probs, dim=0)
+            # print('after inversion',probs.shape)
+            test_data["pred"] = torch.argmax(probs, dim=1).unsqueeze(0).to(torch.int8)
+            sub_id=test_data["id"][0]
+            
+            # else:
+                # test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
+                # sub_id=test_data[0]["id"]
             test_outputs,test_labels = from_engine(["pred","mask"])(test_data) # returns two lists of tensors
             
             # if i==4:
@@ -224,13 +224,13 @@ def evaluate(eval_path,test_loader,output_path=output_path,model=model,**kwargs)
             current_dice = dice_metric_ind.aggregate(reduction=None).item()
             print(current_dice)
             
-            if current_dice<0.001:
-                #need to invert image as well for plotting purposes
-                inverter = transforms.Invertd(keys="image", transform=val_transform_isles, orig_keys="image", meta_keys="image_meta_dict", nearest_interp=False, to_tensor=True)
+            # if current_dice<0.001:
+                # #need to invert image as well for plotting purposes
+                # inverter = transforms.Invertd(keys="image", transform=val_transform_isles, orig_keys="image", meta_keys="image_meta_dict", nearest_interp=False, to_tensor=True)
                 
-                test_inputs = [inverter(x)["image"] for x in decollate_batch(test_data)]
-                # signature  plot_zero(test_inputs,prediction, mask, output_path,job_id, sub_id):
-                plot_zero(test_inputs,test_outputs,test_labels,output_path,job_id,sub_id)
+                # test_inputs = [inverter(x)["image"] for x in decollate_batch(test_data)]
+                # # signature  plot_zero(test_inputs,prediction, mask, output_path,job_id, sub_id):
+                # plot_zero(test_inputs,test_outputs,test_labels,output_path,job_id,sub_id)
             # batch_ind = dice_metric_ind_batch.aggregate()
             # tc,wt,et = batch_ind[0].item(),batch_ind[1].item(),batch_ind[2].item()
             # ind_scores[sub_id] = {'original index': test_indices[i], 'average':round(current_dice,4), 'tc':round(tc,4),'wt':round(wt,4),'et':round(et,4)}
@@ -923,7 +923,7 @@ if __name__ =='__main__':
         # debug_dataset= [{'image': [adc_path, dwi_path ] , 'mask':debug_mask_path}]
         # test_dataset = Subset(full_dataset, test_indices[:limit_samples])
         test_dataset = Subset(full_dataset, test_indices)
-        test_loader=DataLoader(test_dataset,shuffle=False,batch_size=1,num_workers=4)
+        test_loader=DataLoader(full_dataset,shuffle=False,batch_size=1,num_workers=4)
         
         # Convert it to a string in a specific format (e.g., YYYY-MM-DD_HH-MM-SS)
         formatted_time = modelname + now.strftime('%Y-%m-%d_%H-%M-%S')    

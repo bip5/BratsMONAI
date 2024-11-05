@@ -239,7 +239,30 @@ def make_ens_dataset(path):
                     im_temp=[]
     return images, masks
 
+def make_dataset_BP(data_dir):
+    '''makes a list of all image paths inside BraTS 23 directory'''
+    images = []
+    masks = []
+    im_temp = []
 
+    assert os.path.isdir(data_dir), '%s is not a valid directory' % data_dir
+
+    for root, _, fnames in sorted(os.walk(data_dir)):
+        im_temp = []
+        for fname in sorted(fnames):
+            fpath = os.path.join(root, fname)
+            if is_image_file(fname):
+                if re.search("seg", fname):
+                    masks.append(fpath)
+                    # print(fpath)  # For debugging
+                elif fname.endswith('t2f.nii.gz'):
+                    im_temp.append(fpath) 
+                elif fname.endswith('t2w.nii.gz'):
+                    im_temp.append(fpath) 
+        if im_temp:
+            images.append((im_temp))
+
+    return images, masks
 
 def make_dataset_isles(data_dir):
     '''makes a list of all image paths inside isles directory'''
@@ -475,10 +498,11 @@ class BratsInfusionDataset(Dataset):
         
         return item_dict4    
            
-class BratsDataset(Dataset):
+
+class BratsDatasetPretrain(Dataset):
     def __init__(self,data_dir,transform=None):
         
-        data=make_dataset(data_dir)
+        data=make_dataset_BP(data_dir)
         
         self.image_list=data[0]
          
