@@ -846,45 +846,45 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 
             
         
-        # if (epoch + 1) % val_interval == 0:
-            # model.eval()
-            # with torch.no_grad():                
-                # if training_mode=='val_exp_ens':
+        if (epoch + 1) % val_interval == 0:
+            model.eval()
+            with torch.no_grad():                
+                if training_mode=='val_exp_ens':
                     
-                    # sheet_name='Cluster_0'
-                    # save_name,best_metric[0],best_metric_epoch[0],metric[0]=validate(val_loader0,epoch,best_metric[0],best_metric_epoch[0],sheet_name)
-                    # if save_name not in model_names:
-                        # model_names.add(save_name)
-                        # best_metrics.add(best_metric[0])
-                    # sheet_name='Cluster_1'
-                    # save_name,best_metric[1],best_metric_epoch[1],metric[1]=validate(val_loader1,epoch,best_metric[1],best_metric_epoch[1],sheet_name)
-                    # if save_name not in model_names:
-                        # model_names.add(save_name)
-                        # best_metrics.add(best_metric[1])
-                    # sheet_name='Cluster_2'
-                    # save_name,best_metric[2],best_metric_epoch[2],metric[2]=validate(val_loader2,epoch,best_metric[2],best_metric_epoch[2],sheet_name)
-                    # if save_name not in model_names:
-                        # model_names.add(save_name)
-                        # best_metrics.add(best_metric[2])
-                    # sheet_name='Cluster_3'
-                    # save_name,best_metric[3],best_metric_epoch[3],metric[3]=validate(val_loader3,epoch,best_metric[3],best_metric_epoch[3],sheet_name)
-                    # if save_name not in model_names:
-                        # model_names.add(save_name)
-                        # best_metrics.add(best_metric[3])
-                # else:
+                    sheet_name='Cluster_0'
+                    save_name,best_metric[0],best_metric_epoch[0],metric[0]=validate(val_loader0,epoch,best_metric[0],best_metric_epoch[0],sheet_name)
+                    if save_name not in model_names:
+                        model_names.add(save_name)
+                        best_metrics.add(best_metric[0])
+                    sheet_name='Cluster_1'
+                    save_name,best_metric[1],best_metric_epoch[1],metric[1]=validate(val_loader1,epoch,best_metric[1],best_metric_epoch[1],sheet_name)
+                    if save_name not in model_names:
+                        model_names.add(save_name)
+                        best_metrics.add(best_metric[1])
+                    sheet_name='Cluster_2'
+                    save_name,best_metric[2],best_metric_epoch[2],metric[2]=validate(val_loader2,epoch,best_metric[2],best_metric_epoch[2],sheet_name)
+                    if save_name not in model_names:
+                        model_names.add(save_name)
+                        best_metrics.add(best_metric[2])
+                    sheet_name='Cluster_3'
+                    save_name,best_metric[3],best_metric_epoch[3],metric[3]=validate(val_loader3,epoch,best_metric[3],best_metric_epoch[3],sheet_name)
+                    if save_name not in model_names:
+                        model_names.add(save_name)
+                        best_metrics.add(best_metric[3])
+                else:
                                       
-                    # save_name,best_metric,best_metric_epoch,metric=validate(val_loader,epoch,best_metric,best_metric_epoch,sheet_name)
-                    # val_scores.append(metric)
-                    # if best_met_old != best_metric:
-                        # best_met_old = best_metric
-                        # if training_mode == 'Infusion':
-                            # print('Added more noise to the mask')
-                            # train_loader.dataset.set_epoch(epoch) # directly setting the epoch in dataset class
+                    save_name,best_metric,best_metric_epoch,metric=validate(val_loader,epoch,best_metric,best_metric_epoch,sheet_name)
+                    val_scores.append(metric)
+                    if best_met_old != best_metric:
+                        best_met_old = best_metric
+                        if training_mode == 'Infusion':
+                            print('Added more noise to the mask')
+                            train_loader.dataset.set_epoch(epoch) # directly setting the epoch in dataset class
                             
                     
-                    # if save_name not in model_names:
-                        # model_names.add(save_name)
-                        # best_metrics.add(best_metric)
+                    if save_name not in model_names:
+                        model_names.add(save_name)
+                        best_metrics.add(best_metric)
                         
             
         wandb.log({'dice': metric, 'loss': epoch_loss})      
