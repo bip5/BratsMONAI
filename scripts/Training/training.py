@@ -347,9 +347,13 @@ if load_save==1:
             
             model,optimiser,scaler,lr_scheduler,start_epoch = model_loader(load_path,train=True,scaler=scaler,lr_scheduler=lr_scheduler)           
             print('LOADED STATE SUCCESSFULLY')
+            
         except:
             model = model_loader(load_path,train=True)
             print('LOADED STATE UNSUCCESSFULLY')
+            optimiser = get_optimiser(model)
+            scaler = torch.cuda.amp.GradScaler()
+            lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, T_0=T_max) 
         print("loaded saved model ", load_path)
         if PRUNE_PERCENTAGE is not None:
             model = prune_network(model)

@@ -160,11 +160,11 @@ elif mode_index==19:
     roi = (192,192,128)
     total_epochs = 500
     init_filter_number= 32
-    batch_size=4
+    batch_size=2
     in_channels = 2
     out_channels = 2    
     inf_overlap = 0.7
-    lr = 0.0001
+    lr = 0.00005
     activation = 'RELU'
     loss_type = 'DiceFocal' #'dice'#
     seed = 44
