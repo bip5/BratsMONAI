@@ -64,7 +64,7 @@ training_samples=1000
 
 
 
-mode_index =21
+mode_index =19
 print('MODE INDEX ',mode_index)
 
 if mode_index==0:
@@ -160,7 +160,7 @@ elif mode_index==19:
     roi = (192,192,128)
     total_epochs = 500
     init_filter_number= 32
-    batch_size=4
+    batch_size=8
     in_channels = 2
     out_channels = 2    
     inf_overlap = 0.7
