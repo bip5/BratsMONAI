@@ -317,11 +317,11 @@ train_transform_BP = Compose(
         LoadImaged(keys=["image","mask"]),
         EnsureChannelFirstD(keys="image"),
         EnsureTyped(keys=["image", "mask"]),
-        SpacingD(
-            keys=["image", "mask"],
-            pixdim=(1.0, 1.0, 1.0),
-            mode=("bilinear", "bilinear"),
-        ),
+        # SpacingD(
+            # keys=["image", "mask"],
+            # pixdim=(1.0, 1.0, 1.0),
+            # mode=("bilinear", "nearest"),
+        # ),
         AsDiscreted(keys="mask",threshold=0.5),
         
         OrientationD(keys=["image", "mask"], axcodes="RAS"),
