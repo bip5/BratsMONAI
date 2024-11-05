@@ -21,7 +21,7 @@ conda list >> __JOB_DIR__/result_$SLURM_JOB_ID.txt
 
 ##ln -s ${__JOB_DIR__} "/scratch/a.bip5/BraTS/jobs/${SLURM_JOB_ID}"
 
-wandb init --project segmentation --entity bip5 --name "$SLURM_JOB_ID" --notes "${NOTE_FOR_WANDB:-No notes provided}"
+wandb init --project segmentation --entity bip5 --notes "${NOTE_FOR_WANDB:-No notes provided}"
 
 echo "$SLURM_JOB_ID"
 echo __JOB_DIR__
