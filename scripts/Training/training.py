@@ -515,7 +515,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     metric_values_tc = []
     metric_values_wt = []
     metric_values_et = []
-
+    metric=-1
     if training_mode=='val_exp_ens':
         cluster_names=['Cluster_0','Cluster_1','Cluster_2','Cluster_3']
         best_metric=[-1]*len(cluster_names)
