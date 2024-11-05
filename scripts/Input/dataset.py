@@ -498,6 +498,46 @@ class BratsInfusionDataset(Dataset):
         
         return item_dict4    
            
+class BratsDataset(Dataset):
+    def __init__(self,data_dir,transform=None):
+        
+        data=make_dataset(data_dir)
+        
+        self.image_list=data[0]
+         
+        self.mask_list=data[1]
+        self.transform=transform
+        
+    def __len__(self):
+#         return len(os.listdir(self.mask_dir))
+        return min(max_samples,len(self.mask_list))#
+    
+    def __getitem__(self,idx):
+        # print(idx)
+       
+        image=self.image_list[idx]
+       
+    
+        mask=self.mask_list[idx] 
+        
+
+            
+        item_dict={"image":image,"mask":mask}
+        # print(item_dict)
+        
+        if self.transform:
+            item_dict={"image":image,"mask": mask}
+            
+            item_dict=self.transform(item_dict)
+            item_dict['id'] = mask[-30:-11]
+            
+            if not isinstance(item_dict['image'], monai.data.meta_tensor.MetaTensor):
+                raise TypeError("The transformed 'image' is not a MetaTensor. Please check your transforms.")
+
+            # if not isinstance(item_dict['mask'], monai.data.meta_tensor.MetaTensor):
+                # raise TypeError("The transformed 'mask' is not a MetaTensor. Please check your transforms.")
+        
+        return item_dict
 
 class BratsDatasetPretrain(Dataset):
     def __init__(self,data_dir,transform=None):
