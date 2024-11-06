@@ -571,6 +571,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                             transform_list= isles_list
                     
                         updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss,best_loss,patience=1)
+                        print('total transforms', len(transform_list))
                         new_indices=indexes[:new_samples]
                         if new_samples<230:                        
                             new_samples = new_samples+10
