@@ -359,61 +359,7 @@ train_transform_CA = Compose(
         
     ]
 )
-probability=base_transform_probability
-isles_list = [
-    LoadImaged(keys=["image", "mask"]),
-    EnsureChannelFirstD(keys=["image", "mask"]),
-    # CropForegroundd(keys=["image", "mask"], source_key="image"),
-    CastToTyped(keys=['image'], dtype=np.float32),
-    SpacingD(
-        keys=["image", "mask"],
-        pixdim=(1.0, 1.0, 1.0),
-        mode=("bilinear", "nearest"),
-    ),
-    OrientationD(keys=["image", "mask"], axcodes="RAS"),
-    NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-    # CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
-    RandSpatialCropd(
-        keys=["image", "mask"],
-        roi_size=roi,
-        random_size=False
-    ),
-    # Padding to ensure image is at least the roi_size
-    SpatialPadd(keys=["image", "mask"], spatial_size=roi),
 
-    EnsureTyped(keys=["image", "mask"]),
-    RandAffined(
-        keys=["image", "mask"],
-        prob=probability,
-        rotate_range=(np.pi/12, np.pi/12, np.pi/12),
-        scale_range=(0.1, 0.1, 0.1),
-        mode=("bilinear", "nearest"),
-        padding_mode="border",
-    ),
-    RandRotateD(
-        keys=["image", "mask"],
-        range_x=np.pi/12,
-        range_y=np.pi/12,
-        range_z=np.pi/12,
-        prob=probability,
-        mode=("bilinear", "nearest"),
-        padding_mode="border",
-    ),
-    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=probability),
-    RandGaussianNoised(keys="image", prob=probability, mean=0.0, std=0.1),
-    RandGaussianSmoothd(
-        keys="image",
-        prob=probability,
-        sigma_x=(0.8, 1.2),
-        sigma_y=(0.8, 1.2),
-        sigma_z=(0.8, 1.2),
-    ),
-    RandScaleIntensityd(keys="image", factors=0.3, prob=probability),
-    RandShiftIntensityd(keys="image", offsets=0.1, prob=probability),
-]
-train_transform_isles = Compose(
-    isles_list
-)
 
 val_transform_atlas = Compose(
     [
@@ -760,7 +706,65 @@ post_trans_test = Compose(
         
     ]
 )
+probability=base_transform_probability
+isles_list = [
+    LoadImaged(keys=["image", "mask"]),
+    EnsureChannelFirstD(keys=["image", "mask"]),
+    # CropForegroundd(keys=["image", "mask"], source_key="image"),
+    CastToTyped(keys=['image'], dtype=np.float32),
+    SpacingD(
+        keys=["image", "mask"],
+        pixdim=(1.0, 1.0, 1.0),
+        mode=("bilinear", "nearest"),
+    ),
+    OrientationD(keys=["image", "mask"], axcodes="RAS"),
+    NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+    # CenterSpatialCropd(keys=["image","mask"], roi_size=roi),
+    RandSpatialCropd(
+        keys=["image", "mask"],
+        roi_size=roi,
+        random_size=False
+    ),
+    # Padding to ensure image is at least the roi_size
+    SpatialPadd(keys=["image", "mask"], spatial_size=roi),
 
+    EnsureTyped(keys=["image", "mask"]),
+    
+    RandRotateD(
+        keys=["image", "mask"],
+        range_x=np.pi/12,
+        range_y=np.pi/12,
+        range_z=np.pi/12,
+        prob=probability,
+        mode=("bilinear", "nearest"),
+        padding_mode="border",
+    ),
+    RandAffined(
+        keys=["image", "mask"],
+        prob=probability,
+        rotate_range=(np.pi/12, np.pi/12, np.pi/12),
+        scale_range=(0.1, 0.1, 0.1),
+        mode=("bilinear", "nearest"),
+        padding_mode="border",
+    ),
+
+    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=probability),
+    
+    RandGaussianSmoothd(
+        keys="image",
+        prob=probability,
+        sigma_x=(0.8, 1.2),
+        sigma_y=(0.8, 1.2),
+        sigma_z=(0.8, 1.2),
+    ),
+    RandGaussianNoised(keys="image", prob=probability, mean=0.0, std=0.1),
+    RandScaleIntensityd(keys="image", factors=0.3, prob=probability),
+    RandShiftIntensityd(keys="image", offsets=0.1, prob=probability),
+]
+
+train_transform_isles = Compose(
+    isles_list
+)
 class DynamicProbabilityTransform:
     def __init__(self, transform, start_prob=0.0):
         self.transform = transform
@@ -782,7 +786,7 @@ def update_transforms_for_epoch(x_transform, init_loss, best_loss,patience=2):
     transform_list = []
     
     for i, transform in enumerate(x_transform):
-        if i<9:
+        if i<10:
              transform_list.append(transform)
         else:
             dynamic_transform = DynamicProbabilityTransform(transform, start_prob=0.0)
