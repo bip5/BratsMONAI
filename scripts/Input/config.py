@@ -167,7 +167,7 @@ elif mode_index==19:
     lr = 0.00005
     activation = 'RELU'
     loss_type = 'DiceFocal' #'dice'#
-    seed = 4
+    seed = 44
     dataset_seed = 8
     incremental_transform = True
     if incremental_transform:
