@@ -573,33 +573,15 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss,best_loss,patience=1)
                         print('total transforms', len(transform_list))
                         new_indices=indexes[:new_samples]
-                        if new_samples<230:                        
-                            new_samples = new_samples+10
-                            new_indices=indexes[:new_samples]
-                            print(new_indices)
-                            # full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
-                            # train_dataset = Subset(full_train, new_indices)   
-                            # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers ) 
-                            print('INTRODUCED NEW SAMPLES')
-                            print_ids=1
-                            print('AUGMENTATION UPDATE')
-                            
-
-                            full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
-                            if load_save==1:
-                                train_dataset = Subset(full_train, train_indices)
-                            else:
-                                train_dataset = Subset(full_train, new_indices)   
-                            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
+                        
+                        print('AUGMENTATION UPDATE')
+                        
+                        full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
+                        if load_save==1:
+                            train_dataset = Subset(full_train, train_indices)
                         else:
-                            print('AUGMENTATION UPDATE')
-                            
-                            full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
-                            if load_save==1:
-                                train_dataset = Subset(full_train, train_indices)
-                            else:
-                                train_dataset = Subset(full_train, new_indices)   
-                            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
+                            train_dataset = Subset(full_train, new_indices)   
+                        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
                     else:
                         exclusion_counter = exclusion_counter-1
                         aug_cycle=0

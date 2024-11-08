@@ -149,7 +149,7 @@ elif mode_index==18:
     model_name='PixelLayer'
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
-    load_save = 0
+    load_save = 1
     
     load_path = '/scratch/a.bip5/BraTS/weights/job_7957665/2024-11-05SegResNetDS_j7957665_ts0_LL'#'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7956992/2024-11-02SegResNetDS_j7956992_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0' #
     jit_model= False
