@@ -155,26 +155,26 @@ def evaluate(eval_path,test_loader,output_path=output_path,model=model,**kwargs)
             test_data["pred"] = inference(test_inputs,model)
             
             
-            if jit_model:
-                # test_data=[post_trans(ii) for ii in decollate_batch(test_data)]
-                
-                model_inferer = SlidingWindowInferer(roi_size=[192, 192, 128], overlap=0.625, mode='gaussian', cache_roi_weight_map=False, sw_batch_size=2)
-                with autocast(enabled=True):
-                    logits = model_inferer(inputs=test_inputs, network=model)
-                
-                probs = torch.softmax(logits.float(), dim=1)
-                
-                test_data["pred"] = probs
-                inverter = transforms.Invertd(keys="pred", transform=val_transform_isles, orig_keys="image", meta_keys="pred_meta_dict", nearest_interp=False, to_tensor=True)
-                probs = [inverter(x)["pred"] for x in decollate_batch(test_data)]
-                probs = torch.stack(probs, dim=0)
-                # print('after inversion',probs.shape)
-                test_data["pred"] = torch.argmax(probs, dim=1).unsqueeze(0).to(torch.int8)
-                sub_id=test_data["id"][0]
+            # if jit_model:
+            # test_data=[post_trans(ii) for ii in decollate_batch(test_data)]
             
-            else:
-                test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
-                sub_id=test_data[0]["id"]
+            model_inferer = SlidingWindowInferer(roi_size=[192, 192, 128], overlap=0.625, mode='gaussian', cache_roi_weight_map=False, sw_batch_size=2)
+            with autocast(enabled=True):
+                logits = model_inferer(inputs=test_inputs, network=model)
+            
+            probs = torch.softmax(logits.float(), dim=1)
+            
+            test_data["pred"] = probs
+            inverter = transforms.Invertd(keys="pred", transform=val_transform_isles, orig_keys="image", meta_keys="pred_meta_dict", nearest_interp=False, to_tensor=True)
+            probs = [inverter(x)["pred"] for x in decollate_batch(test_data)]
+            probs = torch.stack(probs, dim=0)
+            # print('after inversion',probs.shape)
+            test_data["pred"] = torch.argmax(probs, dim=1).unsqueeze(0).to(torch.int8)
+            sub_id=test_data["id"][0]
+            
+            # else:
+                # test_data=[post_trans(ii) for ii in decollate_batch(test_data)] #returns a list of n tensors where n=batch_size
+                # sub_id=test_data[0]["id"]
             test_outputs,test_labels = from_engine(["pred","mask"])(test_data) # returns two lists of tensors
             
             # if i==4:
@@ -894,7 +894,7 @@ if __name__ =='__main__':
         test_indices=test_indices.tolist()
         # test_dataset = Subset(full_dataset, test_indices[:limit_samples])
         test_dataset = Subset(full_dataset, test_indices)
-        test_loader=DataLoader(test_dataset,shuffle=False,batch_size=1,num_workers=4)
+        test_loader=DataLoader(full_dataset,shuffle=False,batch_size=1,num_workers=4)
                     
         with torch.no_grad():
             for idx, batch_data in enumerate(test_loader):
