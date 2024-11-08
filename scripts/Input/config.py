@@ -151,7 +151,7 @@ elif mode_index==18:
 elif mode_index==19:
     load_save = 1
     
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7957665/2024-11-05SegResNetDS_j7957665_ts0_LL'#'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7956992/2024-11-02SegResNetDS_j7956992_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0_LL' #
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7957665/2024-11-05SegResNetDS_j7957665_ts0_LL'#'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7956992/2024-11-02SegResNetDS_j7956992_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0' #
     jit_model= False
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
@@ -164,12 +164,12 @@ elif mode_index==19:
     in_channels = 2
     out_channels = 2    
     inf_overlap = 0.7
-    lr = 0.000025
+    lr = 0.00005
     activation = 'RELU'
     loss_type = 'DiceFocal' #'dice'#
-    seed = 44
+    seed = 1
     dataset_seed = 8
-    incremental_transform = True
+    incremental_transform = False
     if incremental_transform:
         if load_save==0:
             training_samples = 230
@@ -245,7 +245,7 @@ TTA_ensemble=False
 
 
 ################EVAL SPECIFIC VARIABLES#################
-eval_mode = 'simple'#  'jit ens'# 'distance_ensemble'#  'cluster_expert' #    'time' # 'online_val'#    'cluster'  #  choose between simple, cluster, online_val. 
+eval_mode =   'simple'# 'jit ens'#'distance_ensemble'#  'cluster_expert' #    'time' # 'online_val'#    'cluster'  #  choose between simple, cluster, online_val. 
 eval_path = load_path #only used when evaluating a single model
 base_perf_path = '/scratch/a.bip5/BraTS/jobs_eval/May-29-1716998494/IndScoresjob_7878869_7885546.xlsx'#TransformerRepSplitBase#'/scratch/a.bip5/BraTS/jobs_eval/April-18-1713463104/IndScores_7809063.xlsx' #Repsplitbase perf#'/scratch/a.bip5/BraTS/jobs_eval/April-25-1714065419/IndScoresjob_7808186_7860766.xlsx'# 
 eval_folder = '/scratch/a.bip5/BraTS/weights/0_NVAUTO_models'
