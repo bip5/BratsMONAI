@@ -539,15 +539,15 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     train_dice_scores = [] # 1- epoch loss
     val_scores = []
     new_samples= len(train_indices)
-    exclusion_counter=6
+    exclusion_counter=0
     aug_cycle=0
     for epoch in range(start_epoch,total_epochs):
         print_ids=0
         if incremental_transform:
             if training_mode=='isles':
                 if epoch==0:
-                    transform_list= isles_list[:-exclusion_counter]
-                    updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss=1,best_loss=1,patience=1)
+                    transform_list= isles_list#[:-exclusion_counter]
+                    # updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss=1,best_loss=1,patience=1)
                     full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
                     train_dataset = Subset(full_train, train_indices)   # okay since train indices=230 on load_save
                     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
