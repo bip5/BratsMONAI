@@ -160,16 +160,16 @@ elif mode_index==19:
     roi = (192,192,128)
     total_epochs = 250
     init_filter_number= 32
-    batch_size=1
+    batch_size=4
     in_channels = 2
     out_channels = 2    
     inf_overlap = 0.7
-    lr = 0.00005
+    lr = 0.0002
     activation = 'RELU'
     loss_type = 'DiceFocal' #'dice'#
     seed = 1
     dataset_seed = 8
-    incremental_transform = True
+    incremental_transform = False
     if incremental_transform:
         if load_save==0:
             training_samples = 230
