@@ -158,7 +158,7 @@ elif mode_index==19:
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 250
+    total_epochs = 1000
     init_filter_number= 32
     batch_size=4
     in_channels = 2
@@ -172,11 +172,11 @@ elif mode_index==19:
     incremental_transform = False
     if incremental_transform:
         if load_save==0:
-            training_samples = 230
+            training_samples = 200
         else:
-            training_samples = 230
+            training_samples = 200
     else:
-        training_samples = 230
+        training_samples = 200
     base_transform_probability=1 if incremental_transform else 0.3
     skip_AMP =True
 elif mode_index==20:

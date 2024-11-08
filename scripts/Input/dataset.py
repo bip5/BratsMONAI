@@ -92,7 +92,7 @@ def time_list(root_dir):
 indexes=np.random.choice(np.arange(max_samples),max_samples,replace=False)
 if training_mode=='isles':
     train_indices = indexes[:training_samples]
-    val_start= max_samples- 20
+    val_start= max_samples- 50
     test_start= max_samples- 10
     
     val_indices=indexes[val_start:test_start]
