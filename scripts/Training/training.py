@@ -540,7 +540,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     train_dice_scores = [] # 1- epoch loss
     val_scores = []
     new_samples= len(train_indices)
-    exclusion_counter=6
+    exclusion_counter=0
     aug_cycle=0
     for epoch in range(start_epoch,total_epochs):
         print_ids=0
