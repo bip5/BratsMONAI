@@ -852,4 +852,4 @@ def factor_increment(init_loss,best_loss,base_probability=0.3):
         RandShiftIntensityd(keys="image", offsets=0.1 * factor, prob=base_probability),
     ]
 
-    return Compose(isles_list)
+    return isles_list
