@@ -797,3 +797,59 @@ def update_transforms_for_epoch(x_transform, init_loss, best_loss,patience=2):
     x_transform = Compose(transform_list)
 
     return x_transform
+    
+
+# List modification function
+def factor_increment(init_loss,best_loss,base_probability=0.3):
+    factor=2*(init_loss-best_loss)/init_loss
+    isles_list = [
+        LoadImaged(keys=["image", "mask"]),
+        EnsureChannelFirstD(keys=["image", "mask"]),
+        CastToTyped(keys=['image'], dtype=np.float32),
+        SpacingD(
+            keys=["image", "mask"],
+            pixdim=(1.0, 1.0, 1.0),
+            mode=("bilinear", "nearest"),
+        ),
+        OrientationD(keys=["image", "mask"], axcodes="RAS"),
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        RandSpatialCropd(
+            keys=["image", "mask"],
+            roi_size=roi,
+            random_size=False
+        ),
+        SpatialPadd(keys=["image", "mask"], spatial_size=roi),
+        EnsureTyped(keys=["image", "mask"]),
+
+        # Augmentations with modified factors
+        RandRotateD(
+            keys=["image", "mask"],
+            range_x=np.pi / 12 * factor,
+            range_y=np.pi / 12 * factor,
+            range_z=np.pi / 12 * factor,
+            prob=base_probability,
+            mode=("bilinear", "nearest"),
+            padding_mode="border",
+        ),
+        RandAffined(
+            keys=["image", "mask"],
+            prob=base_probability,
+            rotate_range=(np.pi / 12 * factor, np.pi / 12 * factor, np.pi / 12 * factor),
+            scale_range=(0.1 * factor, 0.1 * factor, 0.1 * factor),
+            mode=("bilinear", "nearest"),
+            padding_mode="border",
+        ),
+        RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=base_probability),
+        RandGaussianSmoothd(
+            keys="image",
+            prob=base_probability,
+            sigma_x=(0.8 * factor, 1.2 * factor),
+            sigma_y=(0.8 * factor, 1.2 * factor),
+            sigma_z=(0.8 * factor, 1.2 * factor),
+        ),
+        RandGaussianNoised(keys="image", prob=base_probability, mean=0.0, std=0.1 * factor),
+        RandScaleIntensityd(keys="image", factors=0.3 * factor, prob=base_probability),
+        RandShiftIntensityd(keys="image", offsets=0.1 * factor, prob=base_probability),
+    ]
+
+    return Compose(isles_list)
