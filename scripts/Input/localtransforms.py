@@ -801,7 +801,7 @@ def update_transforms_for_epoch(x_transform, init_loss, best_loss,patience=2):
 
 # List modification function
 def factor_increment(init_loss,best_loss,base_probability=0.3):
-    factor=2*(init_loss-best_loss)/init_loss
+    factor=1.5*(init_loss-best_loss)/init_loss
     isles_list = [
         LoadImaged(keys=["image", "mask"]),
         EnsureChannelFirstD(keys=["image", "mask"]),
