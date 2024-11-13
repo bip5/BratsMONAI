@@ -158,13 +158,13 @@ elif mode_index==19:
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 1000
+    total_epochs = 150
     init_filter_number= 32
-    batch_size=4
+    batch_size=1
     in_channels = 2
     out_channels = 2    
     inf_overlap = 0.7
-    lr = 0.0002
+    lr = 0.000025
     activation = 'RELU'
     loss_type = 'DiceFocal' #'dice'#
     seed = 1
