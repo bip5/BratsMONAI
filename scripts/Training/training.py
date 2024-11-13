@@ -557,7 +557,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     if epoch == start_epoch:
                         best_loss=1
                         print('AUGMENTATION UPDATE')
-                        factor_list= factor_increment(init_loss,best_loss)
+                        factor_list= factor_increment(init_loss,best_loss,1)
                         updated_transform_isles = update_transforms_for_epoch(factor_list,init_loss,best_loss,patience=1)
 
                         full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
@@ -572,7 +572,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         else:
                             transform_list= isles_list
                     
-                        factor_list= factor_increment(init_loss,best_loss)
+                        factor_list= factor_increment(init_loss,best_loss,1)
                         updated_transform_isles = update_transforms_for_epoch(factor_list,init_loss,best_loss,patience=1)
                         print('total transforms', len(transform_list))
                         new_indices=indexes[:new_samples]
