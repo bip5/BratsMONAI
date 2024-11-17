@@ -45,7 +45,7 @@ load_base = False # here to avoid import errors
 base_path = None # here to avoid import errors
 incremental_transform = True
 skip_AMP =True
-
+blocks_down = [2, 4, 4, 4, 4]
 activation= 'RELU'# 'hardswish' #  # here to avoid import errors
 in_channels=4
 out_channels=3
@@ -151,7 +151,7 @@ elif mode_index==18:
 elif mode_index==19:
     load_save = 1    
     
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7957665/2024-11-05SegResNetDS_j7957665_ts0_LL'#'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7956992/2024-11-02SegResNetDS_j7956992_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0' #
+    load_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/outputs/segresnet_0/model/model_final.pt'#'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7956992/2024-11-02SegResNetDS_j7956992_ts0' #'/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0' #
     jit_model= False
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
@@ -160,16 +160,16 @@ elif mode_index==19:
     roi = (192,192,128)
     total_epochs = 150
     init_filter_number= 32
-    batch_size=1
+    batch_size=2
     in_channels = 2
     out_channels = 2    
     inf_overlap = 0.7
-    lr = 0.000025
+    lr = 0.00005
     activation = 'RELU'
     loss_type = 'DiceFocal' #'dice'#
     seed = 1
     dataset_seed = 8
-    incremental_transform = True
+    incremental_transform = False
     if incremental_transform:
         if load_save==0:
             training_samples = 200
@@ -177,8 +177,9 @@ elif mode_index==19:
             training_samples = 200
     else:
         training_samples = 200
-    base_transform_probability=1 if incremental_transform else 0.3
+    base_transform_probability=1 if incremental_transform else 0.2
     skip_AMP =True
+    blocks_down = [2, 4, 4, 4, 4]
 elif mode_index==20:
     
     load_save = 0

@@ -730,36 +730,37 @@ isles_list = [
 
     EnsureTyped(keys=["image", "mask"]),
     
-    RandRotateD(
-        keys=["image", "mask"],
-        range_x=np.pi/12,
-        range_y=np.pi/12,
-        range_z=np.pi/12,
-        prob=probability,
-        mode=("bilinear", "nearest"),
-        padding_mode="border",
-    ),
+    # RandRotateD(
+        # keys=["image", "mask"],
+        # range_x=np.pi/12,
+        # range_y=np.pi/12,
+        # range_z=np.pi/12,
+        # prob=probability,
+        # mode=("bilinear", "nearest"),
+        # padding_mode="border",
+    # ),
     RandAffined(
         keys=["image", "mask"],
         prob=probability,
         rotate_range=(np.pi/12, np.pi/12, np.pi/12),
-        scale_range=(0.1, 0.1, 0.1),
+        scale_range=(0.2, 0.2, 0.2),
+        spatial_size=roi,
         mode=("bilinear", "nearest"),
         padding_mode="border",
     ),
 
-    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=probability),
+    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=min(probability+0.3,1)),
     
     RandGaussianSmoothd(
         keys="image",
         prob=probability,
-        sigma_x=(0.8, 1.2),
-        sigma_y=(0.8, 1.2),
-        sigma_z=(0.8, 1.2),
+        sigma_x=(0.5, 1),
+        sigma_y=(0.5, 1),
+        sigma_z=(0.5, 1),
     ),
     RandGaussianNoised(keys="image", prob=probability, mean=0.0, std=0.1),
-    RandScaleIntensityd(keys="image", factors=0.3, prob=probability),
-    RandShiftIntensityd(keys="image", offsets=0.1, prob=probability),
+    RandScaleIntensityd(keys="image", factors=0.3, prob=min(probability+0.3,1)),
+    RandShiftIntensityd(keys="image", offsets=0.1, prob=min(probability+0.3,1)),
 ]
 
 train_transform_isles = Compose(

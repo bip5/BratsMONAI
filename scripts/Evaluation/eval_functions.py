@@ -106,6 +106,7 @@ def model_loader(modelweight_path,model_id=model_name,train=False,lr_scheduler=N
             
             # Restore the model state_dict
             state_dict = checkpoint['state_dict']
+            print(state_dict.keys())
             model = wrap_model(state_dict, model)
             if train:
 

@@ -121,7 +121,7 @@ def evaluate(eval_path,test_loader,output_path=output_path,model=model,**kwargs)
     plot_list=kwargs.get('plot_list',None)
     modelweights_folder_path=kwargs.get('modelweights_folder_path', None)
     
-
+    
     model = model_loader(eval_path) # load either state dict or model itself
     model.to(device)          
 

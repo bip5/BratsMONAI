@@ -42,7 +42,8 @@ num_filters,
 roi,
 activation,
 in_channels,
-out_channels
+out_channels,
+blocks_down
 )
 from Training.CustomActivation import LinSig,AllActivation
 import torch
@@ -250,7 +251,7 @@ def create_model(model_name=model_name):
             ).to(device)
     elif model_name=='SegResNetDS':
         model = SegResNetDS(
-            blocks_down=[2, 4, 4, 4,4],
+            blocks_down=blocks_down,
             blocks_up=[1, 1, 1,1],
             init_filters = init_filter_number,
             norm="instance",
