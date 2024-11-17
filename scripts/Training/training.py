@@ -543,14 +543,14 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     train_dice_scores = [] # 1- epoch loss
     val_scores = []
     new_samples= len(train_indices)
-    exclusion_counter=0
-    aug_cycle=0
+   
     for epoch in range(start_epoch,total_epochs):
         print_ids=0
         if incremental_transform:
             if training_mode=='isles':
+                transform_list= isles_list
                 if epoch==0:
-                    transform_list= isles_list[:-exclusion_counter]
+                    
                     # updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss=1,best_loss=1,patience=1)
                     full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
                     train_dataset = Subset(full_train, train_indices)   # okay since train indices=230 on load_save
@@ -560,37 +560,27 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                     if epoch == start_epoch:
                         best_loss=1
                         print('AUGMENTATION UPDATE')
-                        factor_list= factor_increment(init_loss,best_loss,1)
-                        updated_transform_isles = update_transforms_for_epoch(factor_list,init_loss,best_loss,patience=1)
+                        
+                        updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss,best_loss,patience=1)
 
                         full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
                         train_dataset = Subset(full_train, train_indices)   # okay since train indices=230 on load_save
                         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
-                if epoch==best_loss_epoch:
+                if epoch==best_loss_epoch:                   
                     
-                    aug_cycle = aug_cycle+1
-                    if aug_cycle<3:   
-                        if exclusion_counter>0:                            
-                            transform_list= isles_list[:-exclusion_counter]
-                        else:
-                            transform_list= isles_list
+                    updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss,best_loss,patience=1)
+                   
+                    new_indices=indexes[:new_samples]
                     
-                        factor_list= factor_increment(init_loss,best_loss,1)
-                        updated_transform_isles = update_transforms_for_epoch(factor_list,init_loss,best_loss,patience=1)
-                        print('total transforms', len(transform_list))
-                        new_indices=indexes[:new_samples]
-                        
-                        print('AUGMENTATION UPDATE')
-                        
-                        full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
-                        if load_save==1:
-                            train_dataset = Subset(full_train, train_indices)
-                        else:
-                            train_dataset = Subset(full_train, new_indices)   
-                        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
+                    print('AUGMENTATION UPDATE')
+                    
+                    full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
+                    if load_save==1:
+                        train_dataset = Subset(full_train, train_indices)
                     else:
-                        exclusion_counter = exclusion_counter-1
-                        aug_cycle=0
+                        train_dataset = Subset(full_train, new_indices)   
+                    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
+                    
                        
                 # elif (epoch-best_metric_epoch)%10==0:
                     # if new_samples<230:
