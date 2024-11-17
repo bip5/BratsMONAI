@@ -710,8 +710,8 @@ probability=base_transform_probability
 isles_list = [
     LoadImaged(keys=["image", "mask"]),
     EnsureChannelFirstD(keys=["image", "mask"]),
-    # CropForegroundd(keys=["image", "mask"], source_key="image"),
-    CastToTyped(keys=['image'], dtype=np.float32),
+    CropForegroundd(keys=["image", "mask"], source_key="image"),
+    # CastToTyped(keys=['image'], dtype=np.float32),
     SpacingD(
         keys=["image", "mask"],
         pixdim=(1.0, 1.0, 1.0),
@@ -745,11 +745,12 @@ isles_list = [
         rotate_range=(np.pi/12, np.pi/12, np.pi/12),
         scale_range=(0.2, 0.2, 0.2),
         spatial_size=roi,
+        cache_grid=True,
         mode=("bilinear", "nearest"),
         padding_mode="border",
     ),
 
-    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=min(probability+0.3,1)),
+    
     
     RandGaussianSmoothd(
         keys="image",
@@ -758,9 +759,11 @@ isles_list = [
         sigma_y=(0.5, 1),
         sigma_z=(0.5, 1),
     ),
-    RandGaussianNoised(keys="image", prob=probability, mean=0.0, std=0.1),
+    
     RandScaleIntensityd(keys="image", factors=0.3, prob=min(probability+0.3,1)),
     RandShiftIntensityd(keys="image", offsets=0.1, prob=min(probability+0.3,1)),
+    RandGaussianNoised(keys="image", prob=probability, mean=0.0, std=0.1),
+    RandFlipd(keys=["image", "mask"], spatial_axis=[0, 1, 2], prob=min(probability+0.3,1)),
 ]
 
 train_transform_isles = Compose(

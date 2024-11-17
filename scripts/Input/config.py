@@ -158,18 +158,18 @@ elif mode_index==19:
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 250
+    total_epochs = 400
     init_filter_number= 32
     batch_size=1
     in_channels = 2
     out_channels = 2    
-    inf_overlap = 0.7
-    lr = 0.00005
+    inf_overlap = 0.625
+    lr = 0.0002
     activation = 'RELU'
     loss_type = 'DiceFocal' #'dice'#
     seed = 1
     dataset_seed = 8
-    incremental_transform = True
+    incremental_transform = False
     if incremental_transform:
         if load_save==0:
             training_samples = 200
@@ -193,7 +193,7 @@ elif mode_index==20:
     roi = (192,192,144)#(64,64,64)#(128,128,128)#
     total_epochs = 100
     init_filter_number= 32
-    lr = 0.000025
+    lr = 0.0002
     in_channels = 1
     out_channels = 1
     inf_overlap = 0.8   

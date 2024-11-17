@@ -123,6 +123,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import wandb
 from Evaluation.visualisation_functions import plot_zero
+from monai.optimizers.lr_scheduler import WarmupCosineSchedule
 from monai import transforms
 # import psutil
 # import threading
@@ -306,7 +307,9 @@ torch.backends.cudnn.benchmark = True
 
 
 
-lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, T_0=T_max) #torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, mode='min', factor=0.5, patience=2, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=False)#torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, T_0=T_max) 
+lr_scheduler =WarmupCosineSchedule(
+                optimizer=optimiser, warmup_steps=3, warmup_multiplier=0.1, t_total=total_epochs
+            ) #torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, T_0=T_max) #torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, mode='min', factor=0.5, patience=2, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=False)#torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, T_0=T_max) 
 start_epoch=0
 if load_save==1:
     model.train()
