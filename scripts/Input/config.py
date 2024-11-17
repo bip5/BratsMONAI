@@ -158,7 +158,7 @@ elif mode_index==19:
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 150
+    total_epochs = 250
     init_filter_number= 32
     batch_size=2
     in_channels = 2
@@ -169,7 +169,7 @@ elif mode_index==19:
     loss_type = 'DiceFocal' #'dice'#
     seed = 1
     dataset_seed = 8
-    incremental_transform = True
+    incremental_transform = False
     if incremental_transform:
         if load_save==0:
             training_samples = 200
