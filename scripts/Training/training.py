@@ -551,8 +551,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 transform_list= isles_list
                 if epoch==0:
                     
-                    # updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss=1,best_loss=1,patience=1)
-                    full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= train_transform_isles )
+                    updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss=2,best_loss=2,patience=1)
+                    full_train=IslesDataset("/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version"  ,transform= updated_transform_isles )
                     train_dataset = Subset(full_train, train_indices)   # okay since train indices=230 on load_save
                     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
                     

@@ -790,7 +790,7 @@ def update_transforms_for_epoch(x_transform, init_loss, best_loss,patience=2):
     transform_list = []
     
     for i, transform in enumerate(x_transform):
-        if i<10:
+        if i<(len(isles_list)-5):
              transform_list.append(transform)
         else:
             dynamic_transform = DynamicProbabilityTransform(transform, start_prob=0.0)
