@@ -817,7 +817,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         
         if best_loss>epoch_loss:
             if epoch==0:
-                init_loss = epoch_loss                
+                if load_save==0:
+                    init_loss = epoch_loss                
             print('lowest loss so far')
             best_loss = epoch_loss
             best_loss_epoch = epoch+1
