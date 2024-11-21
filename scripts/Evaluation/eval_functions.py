@@ -108,26 +108,27 @@ def model_loader(modelweight_path,model_id=model_name,train=False,lr_scheduler=N
             state_dict = checkpoint['state_dict']
             print(state_dict.keys())
             model = wrap_model(state_dict, model)
-            if train:
+            if 'optimizer' in checkpoint.keys():
+                if train:
 
+                    
+                    optimiser=get_optimiser(model)
+                    # Restore the optimizer state_dict
+                    optimiser.load_state_dict(checkpoint['optimizer'])
+
+                    # Restore the scaler state_dict (if you are using automatic mixed precision)
+                    scaler.load_state_dict(checkpoint['scaler'])
+
+                    # Restore the learning rate scheduler state_dict
+                    lr_scheduler.load_state_dict(checkpoint['scheduler'])
+
+                    # Optionally, restore the epoch
+                    start_epoch = checkpoint['epoch']
+                    # loss = checkpoint['loss']
+
+                    print(f"Model, optimizer, scaler, and scheduler states have been restored from epoch {start_epoch}")              
                 
-                optimiser=get_optimiser(model)
-                # Restore the optimizer state_dict
-                optimiser.load_state_dict(checkpoint['optimizer'])
-
-                # Restore the scaler state_dict (if you are using automatic mixed precision)
-                scaler.load_state_dict(checkpoint['scaler'])
-
-                # Restore the learning rate scheduler state_dict
-                lr_scheduler.load_state_dict(checkpoint['scheduler'])
-
-                # Optionally, restore the epoch
-                start_epoch = checkpoint['epoch']
-                # loss = checkpoint['loss']
-
-                print(f"Model, optimizer, scaler, and scheduler states have been restored from epoch {start_epoch}")              
-            
-                return model,optimiser,scaler,lr_scheduler,start_epoch
+                    return model,optimiser,scaler,lr_scheduler,start_epoch
             else:
                return model 
         else:        
