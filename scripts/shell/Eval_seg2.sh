@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --account=scw1895
-#SBATCH --partition=gpu
+#SBATCH --partition=accel_ai
 #SBATCH --job-name=Eval
 #SBATCH --output=/scratch/a.bip5/BraTS/eval_logs/Eval.%j
 #SBATCH --error=/scratch/a.bip5/BraTS/eval_logs/Eval.err.%j
