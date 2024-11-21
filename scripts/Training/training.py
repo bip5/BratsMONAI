@@ -567,7 +567,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         train_dataset = Subset(full_train, train_indices)   # okay since train indices=230 on load_save
                         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers ) 
                 if epoch==best_loss_epoch:                   
-                    
+                    print('init_losss, best_loss', init_loss, best_loss)
                     updated_transform_isles = update_transforms_for_epoch(transform_list,init_loss,best_loss,patience=1)
                    
                     new_indices=indexes[:new_samples]
