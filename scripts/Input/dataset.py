@@ -95,7 +95,7 @@ if training_mode=='isles':
     val_start= max_samples- 50
     test_start= max_samples- 10
     
-    val_indices=indexes[val_start:test_start]
+    val_indices=indexes[val_start:]
     test_indices=indexes[test_start:max_samples]
 elif training_mode=='atlas':
     train_indices = indexes[:training_samples]
