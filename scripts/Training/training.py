@@ -22,7 +22,7 @@ isles_list,
 train_transform_BP,
 factor_increment
 )
-
+import torch.distributed as dist
 from Training.prun import prune_network
 from monai.handlers.utils import from_engine
 import torch.nn.functional as F
@@ -125,6 +125,7 @@ import wandb
 from Evaluation.visualisation_functions import plot_zero
 from monai.optimizers.lr_scheduler import WarmupCosineSchedule
 from monai import transforms
+import multiprocessing as mp
 # import psutil
 # import threading
 
@@ -142,6 +143,7 @@ from monai import transforms
 ##Call this once before starting your training
 # schedule_prints()
 
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:2048"
 # Get a dictionary of the current global namespace
 namespace = locals().copy()
 # print('train_indices,val_indices,test_indices',train_indices,val_indices,test_indices)
@@ -626,16 +628,22 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         # print_ids=1
                     
                 
-        indices = list(range(1000))
+        indices = list(train_indices)#range(len(train_dataset))
         np.random.shuffle(indices)
+        val_indices = indexes[len(train_indices):]
+        np.random.shuffle(val_indices)
         if use_sampler:
             # Define the size of the subset you want to use each epoch
-            subset_size = 50  # Adjust this to whatever size you want
-
+            subset_size = 100  # Adjust this to whatever size you want
+            subset_size_val = 25  # Adjust this to whatever size you want
             # Create the sampler
             sampler = SubsetRandomSampler(indices[:subset_size])
            
             train_loader=DataLoader(train_dataset, batch_size=batch_size, shuffle=False,num_workers=workers, sampler=sampler)
+            
+            sampler_val = SubsetRandomSampler(val_indices[:subset_size_val]
+            
+            val_loader=DataLoader(val_dataset, batch_size=batch_size, shuffle=False,num_workers=workers, sampler=sampler_val)
                 
             # train_sampler.set_epoch(epoch)
         epoch_start = time.time()
