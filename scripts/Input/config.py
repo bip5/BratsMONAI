@@ -149,9 +149,9 @@ elif mode_index==18:
     model_name='PixelLayer'
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
-    load_save = 1    
+    load_save = 0    
     
-    load_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/full_set_of_files/segresnet_0/model/model_final.pt'#'/scratch/a.bip5/BraTS/weights/job_7960413/2024-11-21SegResNetDS_j7960413_ts0' #'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0' #
+    load_path = '/scratch/a.bip5/BraTS/weights/job_7960600/2024-11-22SegResNetDS_j7960600_ts0' #'/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/full_set_of_files/segresnet_0/model/model_final.pt'#'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0' #
     jit_model= False
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
