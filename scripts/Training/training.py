@@ -641,7 +641,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
            
             train_loader=DataLoader(train_dataset, batch_size=batch_size, shuffle=False,num_workers=workers, sampler=sampler)
             
-            sampler_val = SubsetRandomSampler(val_indices[:subset_size_val]
+            sampler_val = SubsetRandomSampler(val_indices[:subset_size_val])
             
             val_loader=DataLoader(val_dataset, batch_size=batch_size, shuffle=False,num_workers=workers, sampler=sampler_val)
                 
