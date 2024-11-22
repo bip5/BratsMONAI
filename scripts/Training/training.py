@@ -628,9 +628,9 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                         # print_ids=1
                     
                 
-        indices = list(train_indices)#range(len(train_dataset))
+        indices = list(range(len(train_indices)))#range(len(train_dataset))
         np.random.shuffle(indices)
-        val_indices = indexes[len(train_indices):]
+        val_indices = list(range(50)#indexes[len(train_indices):]
         np.random.shuffle(val_indices)
         if use_sampler:
             # Define the size of the subset you want to use each epoch
