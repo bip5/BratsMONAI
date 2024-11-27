@@ -505,6 +505,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 return min(max_samples,len(self.data_list))#        
             def __getitem__(self,idx):              
                 item_dict=self.data_list[idx] 
+                item_dict['mask']=item_dict.pop('label')
                 if self.transform:                    
                     item_dict['id'] = item_dict['label'].split('/')[-1]
                     item_dict=self.transform(item_dict) 
