@@ -71,7 +71,8 @@ base_path,
 in_channels,
 incremental_transform,
 training_samples,
-output_path
+output_path,
+data_list_file_path,
 )
 
 from Training.loss_function import loss_function,edgy_dice_loss
@@ -88,7 +89,7 @@ dice_metric,
 dice_metric_batch,
 inference,
 )
-
+from monai.data import Dataset
 from Input.dataset import (
 BratsDataset,
 BratsDatasetPretrain,
@@ -126,6 +127,8 @@ from Evaluation.visualisation_functions import plot_zero
 from monai.optimizers.lr_scheduler import WarmupCosineSchedule
 from monai import transforms
 import multiprocessing as mp
+from monai.auto3dseg.utils import datafold_read
+
 # import psutil
 # import threading
 
@@ -487,6 +490,31 @@ def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None,
 
     
 def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model,sheet_name=None,once=once,**kwargs):
+    
+    ####Datalist OVERRIDE
+    if data_list_file_path: 
+        data_file_base_dir= '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts'
+        training_files, validation_files= datafold_read(
+                datalist=data_list_file_path, basedir=data_file_base_dir, fold=0
+                )
+        class ListDataset(Dataset):
+            def __init__(self,data_list,transform=None):            
+                self.data_list=data_list 
+                self.transform=transform  
+            def __len__(self):
+                return min(max_samples,len(self.mask_list))#        
+            def __getitem__(self,idx):              
+                item_dict=self.data_list[idx] 
+                if self.transform:                    
+                    item_dict['id'] = item_dict['label'].split('/')[-1]
+                    item_dict=self.transform(item_dict) 
+            return item_dict    
+            
+        train_dataset= ListDataset(training_files ,transform= train_transform_isles )
+        val_dataset = ListDataset(validation_files ,transform=val_transform_isles )
+ 
+    
+    
     last_model=None
     print("number of files processed: ", train_dataset.__len__()) #this is not
     

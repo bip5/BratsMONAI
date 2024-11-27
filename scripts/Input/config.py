@@ -60,6 +60,7 @@ else:
 raw_features_filename= 'ft_25April_ts0'# 'TfmrBotN_ft_13July'#'Tfmrft_04July'# 'tf_18thApril_repSplit' # 'trainFeatures_5x_repSplit'# #Ensure correct file for evaluation.
 
 training_samples=1000
+datalist_file_path= None
 
 
 
@@ -150,15 +151,15 @@ elif mode_index==18:
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
     load_save = 0    
-    
-    load_path = '/scratch/a.bip5/BraTS/weights/job_7960600/2024-11-22SegResNetDS_j7960600_ts0' #'/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/full_set_of_files/segresnet_0/model/model_final.pt'#'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0' #
+    data_list_file_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/one_gpu/datalist.json'
+    load_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/full_set_of_files/segresnet_0/model/model_final.pt'#'/scratch/a.bip5/BraTS/weights/job_7960599/2024-11-22SegResNetDS_j7960599_ts0' #'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0' #
     jit_model= False
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
     model_name = 'SegResNetDS'
     training_mode = 'isles'
     max_samples = 250
     roi = (192,192,128)
-    total_epochs = 100
+    total_epochs = 320
     init_filter_number= 32
     batch_size=1
     in_channels = 2
@@ -169,8 +170,8 @@ elif mode_index==19:
     loss_type = 'DiceFocal' #'dice'#
     seed = 1
     dataset_seed = 8
-    incremental_transform = True
-    use_sampler = True
+    incremental_transform = False
+    use_sampler = False
     if incremental_transform:
         if load_save==0:
             training_samples = 200

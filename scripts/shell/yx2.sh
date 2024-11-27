@@ -5,7 +5,7 @@
 #SBATCH --job-name=seg
 #SBATCH --output=/scratch/a.bip5/BraTS/training_logs/%x.%j
 #SBATCH --error=/scratch/a.bip5/BraTS/training_logs/%x.err.%j
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --export=ALL
