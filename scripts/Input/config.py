@@ -151,7 +151,7 @@ elif mode_index==18:
     activation= 'hardswish' #'RELU'# 
 elif mode_index==19:
     load_save = 0    
-    data_list_file_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/one_gpu/datalist.json'
+    data_list_file_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/full_run_2/datalist.json'
     load_path = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/full_set_of_files/segresnet_0/model/model_final.pt'#'/scratch/a.bip5/BraTS/weights/job_7960599/2024-11-22SegResNetDS_j7960599_ts0' #'/scratch/a.bip5/BraTS/weights/job_7957288/2024-11-04SegResNetDS_j7957288_ts0'#'/scratch/a.bip5/BraTS/weights/0_NVAUTO_models/model14.ts'  # '/scratch/a.bip5/BraTS/weights/job_7953765/2024-10-20SegResNetDS_j7953765_ts0' #
     jit_model= False
     root_dir = '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version' 
