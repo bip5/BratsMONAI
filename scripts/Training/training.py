@@ -508,7 +508,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 if self.transform:                    
                     item_dict['id'] = item_dict['label'].split('/')[-1]
                     item_dict=self.transform(item_dict) 
-            return item_dict    
+                return item_dict    
             
         train_dataset= ListDataset(training_files ,transform= train_transform_isles )
         val_dataset = ListDataset(validation_files ,transform=val_transform_isles )
