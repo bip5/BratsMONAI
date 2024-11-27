@@ -502,7 +502,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
                 self.data_list=data_list 
                 self.transform=transform  
             def __len__(self):
-                return min(max_samples,len(self.mask_list))#        
+                return min(max_samples,len(self.data_list))#        
             def __getitem__(self,idx):              
                 item_dict=self.data_list[idx] 
                 if self.transform:                    
