@@ -493,7 +493,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     
     ####Datalist OVERRIDE
     if data_list_file_path: 
-        data_file_base_dir= '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts'
+        data_file_base_dir= '/scratch/a.bip5/BraTS/dataset-ISLES22^public^unzipped^version/auto3d_scripts/data'
         training_files, validation_files= datafold_read(
                 datalist=data_list_file_path, basedir=data_file_base_dir, fold=0
                 )
