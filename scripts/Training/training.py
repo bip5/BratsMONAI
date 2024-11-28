@@ -663,8 +663,8 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         np.random.shuffle(val_indices)
         if use_sampler:
             # Define the size of the subset you want to use each epoch
-            subset_size = 100  # Adjust this to whatever size you want
-            subset_size_val = 25  # Adjust this to whatever size you want
+            subset_size = 200  # Adjust this to whatever size you want
+            subset_size_val = 50  # Adjust this to whatever size you want
             # Create the sampler
             sampler = SubsetRandomSampler(indices[:subset_size])
            

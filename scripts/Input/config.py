@@ -171,7 +171,7 @@ elif mode_index==19:
     seed = 0
     dataset_seed = 8
     incremental_transform = False
-    use_sampler = False
+    use_sampler = True
     if incremental_transform:
         if load_save==0:
             training_samples = 200
