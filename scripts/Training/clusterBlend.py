@@ -15,6 +15,11 @@ class ClusterBlend(SegResNet):
         
     def forward(self,x):
         x = x.float()
+    '''
+    Extract a cluster map and combine it with original.     
+    `x[:, :4, :, :, :]` extracts the first 4 channels from the tensor.
+    `x[:, 4:, :, :, :]` extracts the remaining channels from the tensor. 
+    '''
         x1, x2 = x[:, :4, :, :, :], x[:, 4:, :, :, :]
         
         

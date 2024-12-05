@@ -128,30 +128,18 @@ from monai.optimizers.lr_scheduler import WarmupCosineSchedule
 from monai import transforms
 import multiprocessing as mp
 from monai.auto3dseg.utils import datafold_read
+import logging
 
-# import psutil
-# import threading
-
-
-# def print_memory():
-    # print(f'Allocated: {torch.cuda.memory_allocated() / 1024 ** 2:.2f} MB')
-    # print(f'Reserved:    {torch.cuda.memory_reserved() / 1024 ** 2:.2f} MB')
-    # process = psutil.Process(os.getpid())
-    # print(f'CPU memory : {process.memory_info().rss / 1024 ** 2:.2f} MB')
-
-# def schedule_prints(interval=10):  # 10 seconds by default
-    # threading.Timer(interval, schedule_prints, [interval]).start()
-    # print_memory()
-
-##Call this once before starting your training
-# schedule_prints()
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:2048"
 # Get a dictionary of the current global namespace
-namespace = locals().copy()
-# print('train_indices,val_indices,test_indices',train_indices,val_indices,test_indices)
-# sys.exit()
-config_dict=dict()
+config_path = current_file.parents[1] / 'Input' / 'config.py'
+with open(config_path, 'r') as config_file:
+        script_content = config_file.read()
+namespace = {}
+exec(script_content, {}, namespace)
+
+config_dict = dict()
 job_id = os.environ.get('SLURM_JOB_ID', 'N/A')
 config_dict['job_id']=job_id
 for name, value in sorted(namespace.items()):
@@ -159,25 +147,15 @@ for name, value in sorted(namespace.items()):
         if type(value) in [str,int,float,bool]:
             print(f"{name}: {value}")
             config_dict[f"{name}"]=value
-wandb.init(
-    # set the wandb project where this run will be logged
-    project="segmentation",
+wandb.init(   
+    project="segmentation",  # set the wandb project where this run will be logged
     name = job_id,
-    notes = os.environ.get('NOTE_FOR_WANDB', 'N/A'),
-    # track hyperparameters and run metadata
-    config=config_dict
+    notes = os.environ.get('NOTE_FOR_WANDB', 'N/A'),    
+    config=config_dict # track hyperparameters and run metadata
 )
 
 current_file = Path(__file__).resolve() # This gets the root path two directories up
 
-# Join with new path
-config_path = current_file.parents[1] / 'Input' / 'config.py'
-
-with open(config_path, 'r') as config_file:
-    script_content = config_file.read()
-print("\n\n------ Config Content ------\n")
-print(script_content)
-print("\n---------------------------\n")
 
 os.environ['PYTHONHASHSEED']=str(seed)
 torch.backends.cudnn.deterministic = True
@@ -186,92 +164,14 @@ np.random.seed(seed)
 torch.cuda.manual_seed(seed)
 set_determinism(seed=seed)
 device = torch.device(f"cuda:0")
-training_layers=["module.convInit.conv.weight", "module.down_layers.0.1.conv1.conv.weight", "module.down_layers.0.1.conv2.conv.weight", "module.down_layers.1.0.conv.weight", "module.down_layers.1.1.conv1.conv.weight", "module.down_layers.1.1.conv2.conv.weight", "module.down_layers.1.2.conv1.conv.weight", "module.down_layers.1.2.conv2.conv.weight", "module.down_layers.2.0.conv.weight", "module.down_layers.2.1.conv1.conv.weight", "module.down_layers.2.1.conv2.conv.weight", "module.down_layers.2.2.conv1.conv.weight", "module.down_layers.2.2.conv2.conv.weight", "module.down_layers.3.0.conv.weight", "module.down_layers.3.1.conv1.conv.weight", "module.down_layers.3.1.conv2.conv.weight", "module.down_layers.3.2.conv1.conv.weight", "module.down_layers.3.2.conv2.conv.weight", "module.down_layers.3.3.conv1.conv.weight", "module.down_layers.3.3.conv2.conv.weight", "module.down_layers.3.4.conv1.conv.weight", "module.down_layers.3.4.conv2.conv.weight", "module.up_layers.0.0.conv1.conv.weight", "module.up_layers.0.0.conv2.conv.weight", "module.up_layers.1.0.conv1.conv.weight", "module.up_layers.1.0.conv2.conv.weight", "module.up_layers.2.0.conv1.conv.weight", "module.up_layers.2.0.conv2.conv.weight", "module.up_samples.0.0.conv.weight", "module.up_samples.0.1.deconv.weight", "module.up_samples.0.1.deconv.bias", "module.up_samples.1.0.conv.weight", "module.up_samples.1.1.deconv.weight", "module.up_samples.1.1.deconv.bias", "module.up_samples.2.0.conv.weight", "module.up_samples.2.1.deconv.weight", "module.up_samples.2.1.deconv.bias", "module.conv_final.2.conv.weight", "module.conv_final.2.conv.bias"]
+
 
 unfreeze_layers=training_layers[unfreeze:]
 model_names=set() #to store unique model_names saved by the script
 best_metrics=set()
 once=0
 
-def generate_pseudo_mask(predictions, target_dice):
-    # Step 1: Create a binary mask  
-    
-    binary_mask = (predictions > 0.5 ).float()
 
-    # Step 2: Calculate necessary reduction in positive pixels
-    current_positive = binary_mask.sum()
-    target_positive = target_dice * current_positive
-
-    # Step 3: Remove the least certain pixels first
-    # Calculate how far each pixel is from the threshold
-    certainty = torch.abs(predictions - 0.5)
-
-    # Sort by certainty and remove the least certain pixels
-    _, indices = torch.sort(certainty.flatten())
-    flat_binary_mask = binary_mask.flatten()
-    flat_binary_mask[indices[:int(current_positive - target_positive)]] = 0
-
-    # Reshape back to original shape
-    sparse_mask = flat_binary_mask.reshape(binary_mask.shape)
-
-    return sparse_mask
-
-def generate_random_patch_masks(batch_size, num_output_channels, roi,patch_size=0.5, density=1.0):
-    """
-    Generate a random patch mask for each sample in a batch.
-
-    Parameters:
-    - batch_size (int): The number of samples per batch.
-    - num_output_channels (int): The number of output channels.
-    - height (int): The height of the output image.
-    - width (int): The width of the output image.
-    - patch_size (tuple of int): A tuple (patch_height, patch_width) defining the size of the patch.
-    - density (float): The density of 1's in the patch (default 1.0, fully filled).
-
-    Returns:
-    - numpy.ndarray: A batch of random patch masks of shape (batch_size, num_output_channels, height, width).
-    """
-    height, width,depth = roi
-    masks = np.zeros((batch_size, num_output_channels, height, width,depth), dtype=np.uint8)
-    patch_height, patch_width, patch_depth  = [int(patch_size* float(x)) for x in roi]
-
-    for i in range(batch_size):
-        for j in range(num_output_channels):
-            # Ensure the patch fits within the image dimensions
-            start_x = np.random.randint(0, height - patch_height + 1)
-            start_y = np.random.randint(0, width - patch_width + 1)
-            start_z = np.random.randint(0, depth - patch_depth + 1)
-            # Fill the patch area with 1's based on the specified density
-            if density == 1.0:
-                masks[i, j, start_x:start_x + patch_height, start_y:start_y + patch_width, start_z:start_z + patch_depth] = 1
-            else:
-                masks[i, j, start_x:start_x + patch_height, start_y:start_y + patch_width] = np.random.choice(
-                    [0, 1], size=(patch_height, patch_width), p=[1-density, density])
-
-    return masks
-    
-def generate_random_masks(batch_size, num_output_channels, height, width, depth,density=0.5):
-    """
-    Generate a random binary mask for each sample in a batch.
-
-    Parameters:
-    - batch_size (int): The number of samples per batch.
-    - num_output_channels (int): The number of output channels (depth of mask).
-    - height (int): The height of the output image.
-    - width (int): The width of the output image.
-    - density (float): The probability of a mask element being 1 (default 0.5).
-
-    Returns:
-    - numpy.ndarray: A batch of random binary masks of shape (batch_size, num_output_channels, height, width).
-    """
-    return np.random.choice([0, 1], size=(batch_size, num_output_channels, height, width,depth), p=[1-density, density])
-
-def check_gainless_epochs(epoch, best_metric_epoch):
-    gainless_epochs = epoch  - best_metric_epoch
-    if gainless_epochs >= freeze_patience:
-        return True
-    else:
-        return False
 
 now = datetime.now()
 formatted_time =now.strftime('%Y-%m-%d_%H-%M-%S')
@@ -335,22 +235,7 @@ if load_save==1:
                 # param.requires_grad = False  # Freeze all other parameters
                 
     
-    elif training_mode=='ClusterBlend':
-        if load_base:
-            base_model = model_loader(base_path)
-            model=ClusterBlend(base_model).to(device)
-        else:
-            model = ClusterBlend(model).to(device)
-            model = model_loader_ind(model)
-            
-    elif training_mode=='PixelLayer':
-        if load_base:
-            base_model = model_loader(base_path)
-            model=PixelLayer(base_model).to(device)
-        else:
-            model = PixelLayer(model).to(device)
-            model = model_loader_ind(model)
-    
+   
     else: 
         try:
             
@@ -368,19 +253,190 @@ if load_save==1:
             model = prune_network(model)
             print('PRUNED MODEL!?!')
         if train_partial==True:
-            # Step 2: Freeze all layers
-            for param in model.parameters():
-                param.requires_grad = False
-            
-            for name, param in model.named_parameters():
-                if name in unfreeze_layers:
-                    param.requires_grad = True
-            print(f'only training {unfreeze_layers}')
+            model = partial_training(unfreeze_layers,model)
 else:
     if training_mode=='ClusterBlend':
         model = ClusterBlend(model).to(device)
     elif training_mode=='PixelLayer':
         model = PixelLayer(model).to(device)
+        
+mp.set_start_method("fork", force=True)  # lambda functions fail to pickle without it
+distributed = dist.is_initialized()
+
+if torch.cuda.is_available():
+    device = torch.device(rank)
+    if distributed and dist.get_backend() == dist.Backend.NCCL:
+        torch.cuda.set_device(rank)
+else:
+    device = torch.device("cpu")
+
+def get_shared_memory_list(length=0):
+    ## from auto3dseg generated codebase
+    mp.current_process().authkey = np.arange(32, dtype=np.uint8).tobytes()
+    shl0 = mp.Manager().list([None] * length)
+
+    if distributed:
+        # to support multi-node training, we need check for a local process group
+        is_multinode = False
+
+        if dist_launched():
+            local_world_size = int(os.getenv("LOCAL_WORLD_SIZE"))
+            world_size = int(os.getenv("WORLD_SIZE"))
+            group_rank = int(os.getenv("GROUP_RANK"))
+            if world_size > local_world_size:
+                is_multinode = True
+                # we're in multi-node, get local world sizes
+                lw = torch.tensor(local_world_size, dtype=torch.int, device=device)
+                lw_sizes = [torch.zeros_like(lw) for _ in range(world_size)]
+                dist.all_gather(tensor_list=lw_sizes, tensor=lw)
+
+                src = g_rank = 0
+                while src < world_size:
+                    # create sub-groups local to a node, to share memory only within a node
+                    # and broadcast shared list within a node
+                    group = dist.new_group(ranks=list(range(src, src + local_world_size)))
+                    if group_rank == g_rank:
+                        shl_list = [shl0]
+                        dist.broadcast_object_list(shl_list, src=src, group=group, device=device)
+                        shl = shl_list[0]
+                    dist.destroy_process_group(group)
+                    src = src + lw_sizes[src].item()  # rank of first process in the next node
+                    g_rank += 1
+
+        if not is_multinode:
+            shl_list = [shl0]
+            dist.broadcast_object_list(shl_list, src=0, device= device)
+            shl = shl_list[0]
+
+    else:
+        shl = shl0
+
+    return shl
+    
+def checkpoint_save(ckpt, model, **kwargs):
+    save_time = time.time()
+    if isinstance(model, torch.nn.parallel.DistributedDataParallel):
+        state_dict = model.module.state_dict()
+    else:
+        state_dict = model.state_dict()
+
+    config = config_with_relpath()
+
+    torch.save({"state_dict": state_dict, "config": config, **kwargs}, ckpt)
+
+    save_time = time.time() - save_time
+    print(f"Saving checkpoint process: {ckpt}, {kwargs}, save_time {save_time:.2f}s")
+
+    return save_time
+    
+def checkpoint_load(ckpt, model, **kwargs):
+    if not os.path.isfile(ckpt):
+        if self.global_rank == 0:
+            warnings.warn("Invalid checkpoint file: " + str(ckpt))
+    else:
+        checkpoint = torch.load(ckpt, map_location="cpu")
+        model.load_state_dict(checkpoint["state_dict"], strict=True)
+        epoch = checkpoint.get("epoch", 0)
+        best_metric = checkpoint.get("best_metric", 0)
+
+       
+ 
+        print(
+            f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric}) setting start_epoch {epoch]}"
+        )
+      
+
+def get_train_loader( data, cache_rate=0, persistent_workers=False):
+    
+    num_workers = num_workers
+    batch_size = batch_size
+
+    train_transform = train_transform_isles
+
+    if cache_rate > 0:
+        runtime_cache = get_shared_memory_list(length=len(data))
+        train_ds = CacheDataset(
+            data=data,
+            transform=train_transform,
+            copy_cache=False,
+            cache_rate=cache_rate,
+            runtime_cache=runtime_cache,
+        )
+    else:
+        train_ds = Dataset(data=data, transform=train_transform)
+
+    train_sampler = DistributedSampler(train_ds, shuffle=True) if distributed else None
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=batch_size,
+        shuffle=(train_sampler is None),
+        num_workers=num_workers,
+        sampler=train_sampler,
+        persistent_workers=persistent_workers and num_workers > 0,
+        pin_memory=True,
+    )
+
+    return train_loader
+
+def get_val_loader( data, cache_rate=0, resample_label=False, persistent_workers=False):
+    distributed = dist.is_initialized()
+    num_workers = workers
+    
+    val_transform = val_transform_isles
+
+    if cache_rate > 0:
+        runtime_cache = get_shared_memory_list(length=len(data))
+        val_ds = CacheDataset(
+            data=data, transform=val_transform, copy_cache=False, cache_rate=cache_rate, runtime_cache=runtime_cache
+        )
+    else:
+        val_ds = Dataset(data=data, transform=val_transform)
+
+    val_sampler = DistributedSampler(val_ds, shuffle=False) if distributed else None
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=1,
+        shuffle=False,
+        num_workers=num_workers,
+        sampler=val_sampler,
+        persistent_workers=persistent_workers and num_workers > 0,
+        pin_memory=True,
+    )
+
+    return val_loader
+    
+def run_segmenter_worker(rank=0):
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+    dist_available = dist.is_available()
+    global_rank = rank
+
+    if dist_available:
+        mgpu = override.get("mgpu", None)
+        if mgpu is not None:
+            logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
+            dist.init_process_group(backend="nccl", rank=rank, timeout=timedelta(seconds=5400), **mgpu)
+            mgpu.update({"rank": rank, "global_rank": rank})
+            if rank == 0:
+                print(f"Distributed: initializing multi-gpu tcp:// process group {mgpu}")
+
+        elif dist_launched() and torch.cuda.device_count() > 1:
+            rank = int(os.getenv("LOCAL_RANK"))
+            global_rank = int(os.getenv("RANK"))
+            world_size = int(os.getenv("LOCAL_WORLD_SIZE"))
+            logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
+            dist.init_process_group(backend="nccl", init_method="env://")  # torchrun spawned it
+            override["mgpu"] = {"world_size": world_size, "rank": rank, "global_rank": global_rank}
+
+            print(f"Distributed launched: initializing multi-gpu env:// process group {override['mgpu']}")
+
+    segmenter = Segmenter(config_file=config_file, config_dict=override, rank=rank, global_rank=global_rank)
+    best_metric = segmenter.run()
+    segmenter = None
+
+    if dist_available and dist.is_initialized():
+        dist.destroy_process_group()
+
+    return best_metric
     
 def validate(val_loader, epoch, best_metric, best_metric_epoch, sheet_name=None, save_name=None, custom_inference=None):
     def default_inference(val_data):
@@ -783,7 +839,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
             
                 
             with torch.cuda.amp.autocast():
-                outputs = model(inputs) #inference(inputs,model)#
+                outputs = inference(inputs,model)#model(inputs)
                 
                 if loss_type == 'MaskedDiceLoss':
                     height,width,depth = roi
@@ -994,15 +1050,7 @@ if __name__=="__main__":
         
         val_dataset = Subset(full_val, val_indices)
         trainingfunc_simple(full_train, val_dataset,save_dir=save_dir)
-        
-    elif training_mode=='ClusterBlend': 
-       
-        full_dataset_train = ClusterAugment(root_dir, transform=train_transform_CA)
-        full_dataset_val = ClusterAugment(root_dir, transform=val_transform)
-        # print(" cross val data set, CV_flag=1") # this is printed   
-        train_dataset =Subset(full_dataset_train, train_indices)
-        val_dataset = Subset(full_dataset_val, val_indices)
-        trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
+
         
     elif training_mode=='Infusion':     
         class CustomSubset(Subset):
@@ -1112,16 +1160,7 @@ if __name__=="__main__":
             print('train_sheet i',len(train_sheet_i))
             trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,sheet_name=sheet,map_dict=map_dict)
             gc.collect()
-            
-    elif training_mode=='PixelLayer':     
-        
-        full_dataset_train = BratsDataset(root_dir, transform=train_transform)
-        full_dataset_val = BratsDataset(root_dir, transform=val_transform)
-        # print(" cross val data set, CV_flag=1") # this is printed   
-        train_dataset =Subset(full_dataset_train, train_indices)
-        val_dataset = Subset(full_dataset_val, val_indices)
-        trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir)
-        
+
     elif training_mode=='val_exp_ens':
         full_dataset_train = BratsDataset(root_dir, transform=train_transform)
         train_dataset =Subset(full_dataset_train, train_indices)

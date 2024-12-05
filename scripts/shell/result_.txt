@@ -1,0 +1,369 @@
+# packages in environment at /home/a.bip5/.conda/envs/pix2pix:
+#
+# Name                    Version                   Build  Channel
+_libgcc_mutex             0.1                 conda_forge    conda-forge
+_openmp_mutex             4.5                       1_gnu    conda-forge
+_pytorch_select           0.2                       gpu_0  
+absl-py                   1.0.0                     <pip>
+addict                    2.4.0                     <pip>
+aiohttp                   3.8.5                     <pip>
+aiohttp-socks             0.8.4                     <pip>
+aioimaplib                1.0.1                     <pip>
+aiosignal                 1.3.1                     <pip>
+aiosmtplib                2.0.2                     <pip>
+alembic                   1.7.6                     <pip>
+antlr4-python3-runtime    4.9.3                     <pip>
+appdirs                   1.4.4                     <pip>
+argparse                  1.4.0                     <pip>
+arrow                     1.3.0                     <pip>
+async-timeout             4.0.3                     <pip>
+attrs                     23.1.0                    <pip>
+av                        9.0.1                     <pip>
+axial-positional-embedding 0.2.1                     <pip>
+base58                    2.1.1                     <pip>
+batchgenerators           0.24                      <pip>
+beautifulsoup4            4.12.2                    <pip>
+bech32                    1.2.0                     <pip>
+binaryornot               0.4.4                     <pip>
+blas                      1.0                         mkl  
+bottleneck                1.3.5            py39h7deecbd_0  
+brotli                    1.0.9                he6710b0_2  
+brotlipy                  0.7.0           py39h27cfd23_1003  
+build                     1.2.1                     <pip>
+bzip2                     1.0.8                h7b6447c_0  
+ca-certificates           2023.08.22           h06a4308_0  
+cachetools                5.0.0                     <pip>
+cattrs                    23.1.2                    <pip>
+cbor2                     5.4.6                     <pip>
+certifi                   2023.7.22        py39h06a4308_0  
+cffi                      1.15.0           py39hd667e15_1  
+chardet                   4.0.0           py39h06a4308_1003  
+charset-normalizer        2.0.0              pyhd8ed1ab_0    conda-forge
+click                     8.0.4                     <pip>
+cloudpickle               2.0.0                     <pip>
+cmake                     3.26.3                    <pip>
+colorama                  0.4.6                     <pip>
+connected-components-3d   3.14.1                    <pip>
+contourpy                 1.2.0                     <pip>
+cookiecutter              2.6.0                     <pip>
+cpe                       1.2.1                     <pip>
+cryptography              40.0.2                    <pip>
+cryptography              36.0.0           py39h9ce1e76_0  
+cucim                     22.2.0                    <pip>
+cuda-cudart               11.7.99                       0    nvidia
+cuda-cupti                11.7.101                      0    nvidia
+cuda-libraries            11.7.1                        0    nvidia
+cuda-nvrtc                11.7.99                       0    nvidia
+cuda-nvtx                 11.7.91                       0    nvidia
+cuda-runtime              11.7.1                        0    nvidia
+cudatoolkit               10.2.89              hfd86e86_1  
+cycler                    0.11.0             pyhd3eb1b0_0  
+databricks-cli            0.16.4                    <pip>
+dataclasses               0.8                pyh6d0b6a4_7  
+dbus                      1.13.18              hb2f20db_0  
+Deprecated                1.2.14                    <pip>
+dicom2nifti               2.4.2                     <pip>
+docker                    5.0.3                     <pip>
+docker-pycreds            0.4.0                     <pip>
+docopt                    0.6.2                     <pip>
+dominate                  2.6.0              pyhd8ed1ab_0    conda-forge
+einops                    0.6.0                     <pip>
+entrypoints               0.4                       <pip>
+et_xmlfile                1.1.0            py39h06a4308_0  
+evalutils                 0.4.2                     <pip>
+exceptiongroup            1.1.3                     <pip>
+expat                     2.4.1                h2531618_2  
+factorizer                0.0.2                     <pip>
+fastjsonschema            2.17.1                    <pip>
+fastrlock                 0.8.2                     <pip>
+ffmpeg                    4.3                  hf484d3e_0    pytorch
+filelock                  3.6.0                     <pip>
+fire                      0.5.0                     <pip>
+Flask                     2.0.3                     <pip>
+fontconfig                2.13.1               h6c09931_0  
+fonttools                 4.25.0             pyhd3eb1b0_0  
+fqdn                      1.5.1                     <pip>
+freetype                  2.11.0               h70c0345_0  
+frozenlist                1.4.0                     <pip>
+future                    0.18.2                    <pip>
+fvcore                    0.1.5.post20220305           <pip>
+gdown                     4.3.1                     <pip>
+giflib                    5.2.1                h7b6447c_0  
+gitdb                     4.0.9                     <pip>
+GitPython                 3.1.27                    <pip>
+glib                      2.69.0               h5202010_0  
+gmp                       6.2.1                h2531618_2  
+gnutls                    3.6.15               he1e5248_0  
+google-auth               2.6.0                     <pip>
+google-auth-oauthlib      0.4.6                     <pip>
+greenlet                  1.1.2                     <pip>
+grpcio                    1.44.0                    <pip>
+gst-plugins-base          1.14.0               h8213a91_2  
+gstreamer                 1.14.0               h28cd5cc_2  
+gunicorn                  20.1.0                    <pip>
+html5lib                  1.1                       <pip>
+huggingface-hub           0.4.0                     <pip>
+icu                       58.2                 he6710b0_3  
+idna                      3.4                       <pip>
+idna                      3.1                pyhd3deb0d_0    conda-forge
+imagecodecs               2022.2.22                 <pip>
+imageio                   2.34.2                    <pip>
+importlib-metadata        4.11.1                    <pip>
+importlib-resources       6.1.1                     <pip>
+iniconfig                 2.0.0                     <pip>
+intel-openmp              2021.4.0          h06a4308_3561  
+iopath                    0.1.9                     <pip>
+isoduration               20.11.0                   <pip>
+itk                       5.2.1.post1               <pip>
+itk-core                  5.2.1.post1               <pip>
+itk-filtering             5.2.1.post1               <pip>
+itk-io                    5.2.1.post1               <pip>
+itk-numerics              5.2.1.post1               <pip>
+itk-registration          5.2.1.post1               <pip>
+itk-segmentation          5.2.1.post1               <pip>
+itsdangerous              2.1.0                     <pip>
+jeepney                   0.8.0                     <pip>
+Jinja2                    3.0.3                     <pip>
+joblib                    1.3.2                     <pip>
+joblib                    1.1.0              pyhd3eb1b0_0  
+jpeg                      9b                   h024ee3a_2  
+jsonpointer               2.4                       <pip>
+jsonschema                4.17.3                    <pip>
+keyring                   23.4.1                    <pip>
+keyrings.alt              3.1                       <pip>
+kiwisolver                1.3.2            py39h295c915_0  
+lame                      3.100                h7b6447c_0  
+lark                      1.1.5                     <pip>
+lcms2                     2.12                 h3be6417_0  
+ld_impl_linux-64          2.35.1               h7274673_9  
+libcublas                 11.10.3.66                    0    nvidia
+libcufft                  10.7.2.124           h4fbf590_0    nvidia
+libcufile                 1.7.2.10                      0    nvidia
+libcurand                 10.3.3.141                    0    nvidia
+libcusolver               11.4.0.1                      0    nvidia
+libcusparse               11.7.4.91                     0    nvidia
+libffi                    3.3                  he6710b0_2  
+libgcc-ng                 12.2.0              h65d4601_19    conda-forge
+libgfortran-ng            7.3.0                hdf63c60_0  
+libgomp                   12.2.0              h65d4601_19    conda-forge
+libiconv                  1.15                 h63c8f33_5  
+libidn2                   2.3.1                h27cfd23_0  
+libnpp                    11.7.4.75                     0    nvidia
+libnvjpeg                 11.8.0.2                      0    nvidia
+libpng                    1.6.37               h21135ba_2    conda-forge
+libsodium                 1.0.18               h36c2ea0_1    conda-forge
+libstdcxx-ng              12.2.0              h46fd767_19    conda-forge
+libtasn1                  4.16.0               h27cfd23_0  
+libtiff                   4.2.0                h85742a9_0  
+libunistring              0.9.10               h27cfd23_0  
+libuuid                   1.0.3                h1bed415_2  
+libuv                     1.40.0               h7b6447c_0  
+libwebp                   1.2.0                h89dd481_0  
+libwebp-base              1.2.0                h7f98852_2    conda-forge
+libxcb                    1.14                 h7b6447c_0  
+libxml2                   2.9.12               h03d6c58_0  
+linecache2                1.0.0                     <pip>
+lit                       16.0.3                    <pip>
+lmdb                      1.3.0                     <pip>
+local-attention           1.8.4                     <pip>
+lz4-c                     1.9.2                he1b5a44_3    conda-forge
+Mako                      1.1.6                     <pip>
+Markdown                  3.3.6                     <pip>
+markdown-it-py            3.0.0                     <pip>
+MarkupSafe                2.1.0                     <pip>
+matplotlib                3.8.1                     <pip>
+mdurl                     0.1.2                     <pip>
+MedPy                     0.4.0                     <pip>
+mkl                       2021.4.0           h06a4308_640  
+mkl-service               2.4.0            py39h7f8727e_0  
+mkl_fft                   1.3.1            py39hd3c417c_0  
+mkl_random                1.2.2            py39h51133e4_0  
+mlflow                    1.23.1                    <pip>
+mmcv-full                 1.4.6                     <pip>
+monai                     1.4.0                     <pip>
+more-itertools            10.1.0                    <pip>
+mpmath                    1.3.0                     <pip>
+msgpack                   1.0.7                     <pip>
+multidict                 6.0.4                     <pip>
+munkres                   1.1.4                      py_0  
+ncurses                   6.3                  h7f8727e_2  
+nettle                    3.7.3                hbbd107a_1  
+networkx                  2.6.3                     <pip>
+nibabel                   5.1.0                     <pip>
+ninja                     1.10.2               hff7bd54_1  
+nnunet                    1.7.0                     <pip>
+numexpr                   2.8.4            py39he184ba9_0  
+numpy                     1.21.2           py39h20f2e39_0  
+numpy                     1.26.1                    <pip>
+numpy-base                1.21.2           py39h79a1101_0  
+nvidia-cublas-cu11        11.10.3.66                <pip>
+nvidia-cuda-cupti-cu11    11.7.101                  <pip>
+nvidia-cuda-nvrtc-cu11    11.7.99                   <pip>
+nvidia-cuda-runtime-cu11  11.7.99                   <pip>
+nvidia-cudnn-cu11         8.5.0.96                  <pip>
+nvidia-cufft-cu11         10.9.0.58                 <pip>
+nvidia-curand-cu11        10.2.10.91                <pip>
+nvidia-cusolver-cu11      11.4.0.1                  <pip>
+nvidia-cusparse-cu11      11.7.4.91                 <pip>
+nvidia-nccl-cu11          2.14.3                    <pip>
+nvidia-nvtx-cu11          11.7.91                   <pip>
+oauthlib                  3.2.2                     <pip>
+olefile                   0.46               pyh9f0ad1d_1    conda-forge
+opencv-python             4.5.5.62                  <pip>
+openh264                  2.1.0                hd408876_0  
+openpyxl                  3.0.9              pyhd3eb1b0_0  
+openslide-python          1.1.2                     <pip>
+openssl                   1.1.1w               h7f8727e_0  
+opt-einsum                3.3.0                     <pip>
+packaging                 21.3               pyhd3eb1b0_0  
+packaging                 23.2                      <pip>
+pandas                    1.5.3            py39h417a72b_0  
+pandas-flavor             0.6.0                     <pip>
+parameterized             0.8.1                     <pip>
+pathtools                 0.1.2                     <pip>
+patsy                     0.5.6                     <pip>
+pcre                      8.45                 h295c915_0  
+performer-pytorch         1.1.4                     <pip>
+pillow                    8.4.0            py39h5aabda8_0  
+pingouin                  0.5.4                     <pip>
+pip                       24.2                      <pip>
+pip                       21.2.4           py39h06a4308_0  
+pip-tools                 7.4.1                     <pip>
+platformdirs              3.11.0                    <pip>
+plotly                    5.13.1                    <pip>
+pluggy                    1.5.0                     <pip>
+portalocker               2.4.0                     <pip>
+prometheus-client         0.13.1                    <pip>
+prometheus-flask-exporter 0.18.7                    <pip>
+promise                   2.3                       <pip>
+prompt-toolkit            3.0.39                    <pip>
+protobuf                  3.19.4                    <pip>
+psutil                    5.9.0                     <pip>
+pyasn1                    0.4.8                     <pip>
+pyasn1-modules            0.2.8                     <pip>
+pycparser                 2.20               pyh9f0ad1d_2    conda-forge
+pycryptodome              3.18.0                    <pip>
+pyDeprecate               0.3.2                     <pip>
+pydicom                   2.3.0                     <pip>
+Pygments                  2.15.1                    <pip>
+pykwalify                 1.8.0                     <pip>
+pyopenssl                 20.0.1             pyhd8ed1ab_0    conda-forge
+pyOpenSSL                 23.2.0                    <pip>
+pyparsing                 2.4.7              pyhd3eb1b0_0  
+pyproject_hooks           1.1.0                     <pip>
+pyqt                      5.9.2            py39h2531618_6  
+pyradiomics               3.0.1                     <pip>
+pyrsistent                0.19.3                    <pip>
+pysocks                   1.7.1            py39h06a4308_0  
+pytest                    8.1.1                     <pip>
+python                    3.9.7                h12debd9_1  
+python-bitcoinlib         0.12.2                    <pip>
+python-dateutil           2.8.2              pyhd3eb1b0_0  
+python-gdcm               3.0.14                    <pip>
+python-slugify            8.0.4                     <pip>
+python-socks              2.4.3                     <pip>
+pytorch                   1.13.1          py3.9_cuda11.7_cudnn8.5.0_0    pytorch
+pytorch-cuda              11.7                 h778d358_5    pytorch
+pytorch-ignite            0.4.12                    <pip>
+pytorch-mutex             1.0                        cuda    pytorch
+pytorchvideo              0.1.5                     <pip>
+pytz                      2021.3             pyhd3eb1b0_0  
+pytz                      2023.3.post1              <pip>
+PyWavelets                1.2.0                     <pip>
+PyYAML                    6.0                       <pip>
+pyzmq                     22.3.0           py39h295c915_2  
+qt                        5.9.7                h5867ecd_1  
+querystring-parser        1.2.4                     <pip>
+readline                  8.1                  h27cfd23_0  
+regex                     2023.10.3                 <pip>
+requests                  2.26.0             pyhd8ed1ab_0    conda-forge
+requests-cache            1.1.0                     <pip>
+requests-oauthlib         1.3.1                     <pip>
+rfc3339-validator         0.1.4                     <pip>
+rfc3986-validator         0.1.1                     <pip>
+rich                      13.7.1                    <pip>
+rsa                       4.8                       <pip>
+ruamel.yaml               0.18.5                    <pip>
+ruamel.yaml.clib          0.2.8                     <pip>
+sacremoses                0.0.47                    <pip>
+scalecodec                1.2.7                     <pip>
+scikit-image              0.19.2                    <pip>
+scikit-learn              1.3.2                     <pip>
+scipy                     1.11.3                    <pip>
+seaborn                   0.13.0                    <pip>
+SecretStorage             3.3.3                     <pip>
+sentry-sdk                1.5.6                     <pip>
+setproctitle              1.2.2                     <pip>
+setuptools                58.0.4           py39h06a4308_0  
+shortuuid                 1.0.8                     <pip>
+SimpleITK                 2.1.1.2                   <pip>
+simplejson                3.19.1                    <pip>
+sip                       4.19.13          py39h295c915_0  
+six                       1.16.0             pyhd3eb1b0_0  
+sklearn                   0.0                       <pip>
+smmap                     5.0.0                     <pip>
+soupsieve                 2.3.1                     <pip>
+SQLAlchemy                1.4.31                    <pip>
+sqlite                    3.36.0               hc218d9a_0  
+sqlparse                  0.4.2                     <pip>
+statsmodels               0.14.1                    <pip>
+stix2-patterns            2.0.0                     <pip>
+stix2-validator           3.1.4                     <pip>
+sympy                     1.11.1                    <pip>
+synapse                   2.139.0                   <pip>
+synapseclient             3.0.0                     <pip>
+tabulate                  0.8.9                     <pip>
+tenacity                  8.2.2                     <pip>
+tensorboard               2.8.0                     <pip>
+tensorboard-data-server   0.6.1                     <pip>
+tensorboard-plugin-wit    1.8.1                     <pip>
+tensorboardX              2.5                       <pip>
+termcolor                 1.1.0                     <pip>
+text-unidecode            1.3                       <pip>
+threadpoolctl             3.2.0                     <pip>
+threadpoolctl             2.2.0              pyh0d69192_0  
+tifffile                  2022.2.9                  <pip>
+timm                      0.5.4                     <pip>
+tk                        8.6.11               h1ccaba5_0  
+tokenizers                0.11.5                    <pip>
+tomli                     2.0.1                     <pip>
+torchaudio                0.12.0                    <pip>
+torchmetrics              0.8.2                     <pip>
+torchsummary              1.5.1                     <pip>
+torchvision               0.15.2                    <pip>
+tornado                   6.3.3                     <pip>
+tornado                   6.1              py39h27cfd23_0  
+tqdm                      4.62.3                    <pip>
+traceback2                1.4.0                     <pip>
+transformers              4.16.2                    <pip>
+triton                    2.0.0                     <pip>
+types-python-dateutil     2.8.19.14                 <pip>
+typing_extensions         3.10.0.0           pyh06a4308_0  
+typing_extensions         4.8.0                     <pip>
+tzdata                    2023c                h04d1e81_0  
+unittest2                 1.1.0                     <pip>
+uri-template              1.3.0                     <pip>
+url-normalize             1.4.3                     <pip>
+urllib3                   1.26.6             pyhd8ed1ab_0    conda-forge
+vcrpy                     4.3.1                     <pip>
+wandb                     0.12.11                   <pip>
+wcwidth                   0.2.8                     <pip>
+webcolors                 1.13                      <pip>
+webencodings              0.5.1                     <pip>
+websocket-client          0.58.0           py39h06a4308_4  
+Werkzeug                  2.0.3                     <pip>
+wheel                     0.36.2             pyhd3eb1b0_0  
+wrapt                     1.15.0                    <pip>
+xarray                    2024.2.0                  <pip>
+xlrd                      2.0.1              pyhd3eb1b0_0  
+XlsxWriter                3.1.2                     <pip>
+xxhash                    3.2.0                     <pip>
+xz                        5.2.5                h7b6447c_0  
+yacs                      0.1.8                     <pip>
+yapf                      0.32.0                    <pip>
+yarl                      1.9.2                     <pip>
+yaspin                    2.1.0                     <pip>
+zeromq                    4.3.4                h2531618_0  
+zipp                      3.7.0                     <pip>
+zlib                      1.2.11               h7b6447c_3  
+zstd                      1.4.5                h6597ccf_2    conda-forge
