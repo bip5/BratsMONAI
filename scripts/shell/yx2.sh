@@ -26,4 +26,4 @@ wandb init --project segmentation --entity bip5 --notes "${NOTE_FOR_WANDB:-No no
 echo "$SLURM_JOB_ID"
 echo __JOB_DIR__
 
-python -u Training/training.py
+python -u Training/training_refactor.py

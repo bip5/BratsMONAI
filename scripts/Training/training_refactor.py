@@ -331,7 +331,7 @@ def checkpoint_save(ckpt, model, **kwargs):
     
 def checkpoint_load(ckpt, model, **kwargs):
     if not os.path.isfile(ckpt):
-        if self.global_rank == 0:
+        if global_rank == 0:
             warnings.warn("Invalid checkpoint file: " + str(ckpt))
     else:
         checkpoint = torch.load(ckpt, map_location="cpu")
@@ -344,7 +344,18 @@ def checkpoint_load(ckpt, model, **kwargs):
         print(
             f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric}) setting start_epoch {epoch]}"
         )
-      
+
+def get_avail_cpu_memory():
+    avail_memory = psutil.virtual_memory().available
+
+    # check if in docker
+    memory_limit_filename = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+    if os.path.exists(memory_limit_filename):
+        with open(memory_limit_filename, "r") as f:
+            docker_limit = int(f.read())
+            avail_memory = min(docker_limit, avail_memory)  # could be lower limit in docker
+
+    return avail_memory  
 
 def get_train_loader( data, cache_rate=0, persistent_workers=False):
     
@@ -577,7 +588,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
     
   
    
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=workers )
+    train_loader = get_train_loader(train_dataset, cache_rate= 1, persistant_workers=True )
     print('loading val data')
     if training_mode=='val_exp_ens':
         val_loader0=DataLoader(val_dataset[0], batch_size=batch_size, shuffle=False,num_workers=workers)
@@ -585,7 +596,7 @@ def trainingfunc_simple(train_dataset, val_dataset,save_dir=save_dir,model=model
         val_loader2=DataLoader(val_dataset[2], batch_size=batch_size, shuffle=False,num_workers=workers)
         val_loader3=DataLoader(val_dataset[3], batch_size=batch_size, shuffle=False,num_workers=workers)
     else:
-        val_loader=DataLoader(val_dataset, batch_size=1, shuffle=False,num_workers=workers)
+        val_loader = get_val_loader(val_dataset, cache_rate=1,resample_label=True, persistent_workers=True)
     print("All Datasets assigned")                                             
 
     
